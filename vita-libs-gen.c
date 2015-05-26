@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
 		goto exit_failure;
 	}
 
-	vita_imports_t *imports = vita_imports_load(argv[1]);
+	vita_imports_t *imports = vita_imports_load(argv[1], 1);
 
 	if (imports == NULL) {
 		goto exit_failure;

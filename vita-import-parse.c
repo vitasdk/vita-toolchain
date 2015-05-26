@@ -3,7 +3,7 @@
 #include <jansson.h>
 #include "vita-import.h"
 
-vita_imports_t *vita_imports_load(const char *filename)
+vita_imports_t *vita_imports_load(const char *filename, int verbose)
 {
 	FILE *fp = fopen(filename, "r");
 	if (fp == NULL) {
@@ -19,13 +19,13 @@ vita_imports_t *vita_imports_load(const char *filename)
 	fread(text, 1, size, fp);
 	fclose(fp);
 
-	vita_imports_t *imports = vita_imports_loads(text);
+	vita_imports_t *imports = vita_imports_loads(text, verbose);
 
 	free(text);
 	return imports;
 }
 
-vita_imports_t *vita_imports_loads(const char *text)
+vita_imports_t *vita_imports_loads(const char *text, int verbose)
 {
 	json_t *libs;
 	json_error_t error;
@@ -82,7 +82,8 @@ vita_imports_t *vita_imports_loads(const char *text)
 			json_integer_value(nid),
 			json_array_size(modules));
 
-		printf("Lib: %s\n", json_string_value(name));
+                if (verbose)
+			printf("Lib: %s\n", json_string_value(name));
 
 		for (j = 0; j < json_array_size(modules); j++) {
 			json_t *data, *name, *nid, *kernel, *functions, *variables;
@@ -130,7 +131,8 @@ vita_imports_t *vita_imports_loads(const char *text)
 				return NULL;
 			}
 
-			printf("\tModule: %s\n", json_string_value(name));
+			if (verbose)
+				printf("\tModule: %s\n", json_string_value(name));
 
 			imports->libs[i]->modules[j] = vita_imports_module_new(
 				json_string_value(name),
@@ -163,7 +165,8 @@ vita_imports_t *vita_imports_loads(const char *text)
 					return NULL;
 				}
 
-				printf("\t\tFunction: %s\n", json_string_value(name));
+				if (verbose)
+					printf("\t\tFunction: %s\n", json_string_value(name));
 
 				imports->libs[i]->modules[j]->functions[k] = vita_imports_stub_new(
 					json_string_value(name),
@@ -196,7 +199,8 @@ vita_imports_t *vita_imports_loads(const char *text)
 					return NULL;
 				}
 
-				printf("\t\tVariable: %s\n", json_string_value(name));
+				if (verbose)
+					printf("\t\tVariable: %s\n", json_string_value(name));
 
 				imports->libs[i]->modules[j]->variables[k] = vita_imports_stub_new(
 					json_string_value(name),
