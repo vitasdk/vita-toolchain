@@ -30,6 +30,9 @@ typedef struct {
 } vita_imports_t;
 
 
+vita_imports_t *vita_imports_load(const char *filename);
+vita_imports_t *vita_imports_loads(const char *text);
+
 vita_imports_t *vita_imports_new(int n_libs);
 void vita_imports_free(vita_imports_t *imp);
 
