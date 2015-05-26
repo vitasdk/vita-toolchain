@@ -100,6 +100,7 @@ vita_imports_stub_t *vita_imports_stub_new(const char *name, uint32_t NID)
 
 	stub->name = strdup(name);
 	stub->NID = NID;
+
 	return stub;
 }
 
