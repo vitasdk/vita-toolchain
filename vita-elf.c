@@ -15,6 +15,7 @@
 #include <endian.h>
 
 #include "vita-elf.h"
+#include "vita-import.h"
 
 #define FAIL_EX(label, function, fmt...) do { \
 	function(fmt); \
@@ -217,4 +218,56 @@ void vita_elf_free(vita_elf_t *ve)
 	if (ve->fd >= 0)
 		close(ve->fd);
 	free(ve);
+}
+
+typedef vita_imports_stub_t *(*find_stub_func_ptr)(vita_imports_module_t *, uint32_t);
+static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, vita_imports_t *imports, find_stub_func_ptr find_stub, const char *stub_type_name)
+{
+	int found_all = 1;
+	int i;
+	vita_elf_stub_t *stub;
+
+	for (i = 0; i < num_stubs; i++) {
+		stub = &(stubs[i]);
+
+		stub->library = vita_imports_find_lib(imports, stub->library_nid);
+		if (stub->library == NULL) {
+			warnx("Unable to find library with NID %u for %s symbol %s",
+					stub->library_nid, stub_type_name,
+					stub->sym_name ? stub->sym_name : "(unreferenced stub)");
+			found_all = 0;
+			continue;
+		}
+
+		stub->module = vita_imports_find_module(stub->library, stub->module_nid);
+		if (stub->module == NULL) {
+			warnx("Unable to find module with NID %u for %s symbol %s",
+					stub->module_nid, stub_type_name,
+					stub->sym_name ? stub->sym_name : "(unreferenced stub)");
+			found_all = 0;
+			continue;
+		}
+
+		stub->target = find_stub(stub->module, stub->target_nid);
+		if (stub->target == NULL) {
+			warnx("Unable to find %s with NID %u for symbol %s",
+					stub_type_name, stub->module_nid,
+					stub->sym_name ? stub->sym_name : "(unreferenced stub)");
+			found_all = 0;
+		}
+	}
+
+	return found_all;
+}
+
+int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t *imports)
+{
+	int found_all = 1;
+
+	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, imports, &vita_imports_find_function, "function"))
+		found_all = 0;
+	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, imports, &vita_imports_find_variable, "variable"))
+		found_all = 0;
+
+	return found_all;
 }

@@ -10,8 +10,7 @@ vita_imports_t *vita_imports_new(int n_libs)
 
 	imp->n_libs = n_libs;
 
-	imp->libs = malloc(n_libs * sizeof(*imp->libs));
-	memset(imp->libs, 0, n_libs * sizeof(*imp->libs));
+	imp->libs = calloc(n_libs, sizeof(*imp->libs));
 
 	return imp;
 }
@@ -37,8 +36,7 @@ vita_imports_lib_t *vita_imports_lib_new(const char *name, uint32_t NID, int n_m
 	lib->NID = NID;
 	lib->n_modules = n_modules;
 
-	lib->modules = malloc(n_modules * sizeof(*lib->modules));
-	memset(lib->modules, 0, n_modules * sizeof(*lib->modules));
+	lib->modules = calloc(n_modules, sizeof(*lib->modules));
 
 	return lib;
 }
@@ -55,11 +53,9 @@ vita_imports_module_t *vita_imports_module_new(const char *name, uint32_t NID, i
 	mod->n_functions = n_functions;
 	mod->n_variables = n_variables;
 
-	mod->functions = malloc(n_functions * sizeof(*mod->functions));
-	memset(mod->functions, 0, n_functions * sizeof(*mod->functions));
+	mod->functions = calloc(n_functions, sizeof(*mod->functions));
 
-	mod->variables = malloc(n_variables * sizeof(*mod->variables));
-	memset(mod->variables, 0, n_variables * sizeof(*mod->variables));
+	mod->variables = calloc(n_variables, sizeof(*mod->variables));
 
 	return mod;
 }
@@ -110,4 +106,35 @@ void vita_imports_stub_free(vita_imports_stub_t *stub)
 		free(stub->name);
 		free(stub);
 	}
+}
+
+/* For now these functions are just dumb full-table searches.  We can implement qsort/bsearch/whatever later if necessary. */
+
+static vita_imports_common_fields *generic_find(vita_imports_common_fields **entries, int n_entries, uint32_t NID) {
+	int i;
+	vita_imports_common_fields *entry;
+
+	for (i = 0; i < n_entries; i++) {
+		entry = entries[i];
+		if (entry == NULL)
+			continue;
+
+		if (entry->NID == NID)
+			return entry;
+	}
+
+	return NULL;
+}
+
+vita_imports_lib_t *vita_imports_find_lib(vita_imports_t *imp, uint32_t NID) {
+	return (vita_imports_lib_t *)generic_find((vita_imports_common_fields **)imp->libs, imp->n_libs, NID);
+}
+vita_imports_module_t *vita_imports_find_module(vita_imports_lib_t *lib, uint32_t NID) {
+	return (vita_imports_module_t *)generic_find((vita_imports_common_fields **)lib->modules, lib->n_modules, NID);
+}
+vita_imports_stub_t *vita_imports_find_function(vita_imports_module_t *mod, uint32_t NID) {
+	return (vita_imports_stub_t *)generic_find((vita_imports_common_fields **)mod->functions, mod->n_functions, NID);
+}
+vita_imports_stub_t *vita_imports_find_variable(vita_imports_module_t *mod, uint32_t NID) {
+	return (vita_imports_stub_t *)generic_find((vita_imports_common_fields **)mod->variables, mod->n_variables, NID);
 }

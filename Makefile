@@ -1,11 +1,11 @@
 TARGETS = vita-libs-gen vita-elf-create
 libsgen_OBJS = vita-libs-gen.o vita-import.o vita-import-parse.o
-elfcreate_OBJS = vita-elf-create.o vita-elf.o
+elfcreate_OBJS = vita-elf-create.o vita-elf.o vita-import.o vita-import-parse.o
 ALL_OBJS = $(libsgen_OBJS) $(elfcreate_OBJS)
 
 CFLAGS = -Wall -O2
 libsgen_LIBS = -ljansson
-elfcreate_LIBS = -lelf
+elfcreate_LIBS = -lelf -ljansson
 
 all: $(TARGETS)
 
