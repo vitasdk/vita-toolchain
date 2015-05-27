@@ -7,6 +7,8 @@
 #include <libelf.h>
 #include <gelf.h>
 
+#include <endian.h>
+
 #include "vita-elf.h"
 
 #define FAIL_EX(label, function, fmt...) do { \
@@ -28,6 +30,7 @@ vita_elf_t *vita_elf_load(const char *filename)
 	GElf_Shdr shdr;
 	size_t shstrndx;
 	char *name;
+	int ndx;
 
 	if (elf_version(EV_CURRENT) == EV_NONE)
 		FAILX("ELF library initialization failed: %s", elf_errmsg(-1));
@@ -66,17 +69,20 @@ vita_elf_t *vita_elf_load(const char *filename)
 		if ((name = elf_strptr(ve->elf, shstrndx, shdr.sh_name)) == NULL)
 			FAILE("elf_strptr() failed");
 
-		if (strcmp(name, ".vitalink.fstubs") == 0) {
+		if (shdr.sh_type == SHT_PROGBITS && strcmp(name, ".vitalink.fstubs") == 0) {
 			if (ve->fstubs_ndx != 0)
 				FAILX("Multiple .vitalink.fstubs sections in binary");
 			ve->fstubs_ndx = elf_ndxscn(scn);
-		}
-
-		if (strcmp(name, ".vitalink.vstubs") == 0) {
+		} else if (shdr.sh_type == SHT_PROGBITS && strcmp(name, ".vitalink.vstubs") == 0) {
 			if (ve->vstubs_ndx != 0)
 				FAILX("Multiple .vitalink.vstubs sections in binary");
 			ve->vstubs_ndx = elf_ndxscn(scn);
 		}
+
+		if (shdr.sh_type == SHT_SYMTAB)
+			ve->symtab_ndx = elf_ndxscn(scn);
+		else if (shdr.sh_type == SHT_DYNSYM)
+			ve->dynsym_ndx = elf_ndxscn(scn);
 	}
 
 	if (ve->fstubs_ndx == 0 && ve->vstubs_ndx == 0)

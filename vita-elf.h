@@ -10,6 +10,8 @@ typedef struct vita_elf {
 
 	int fstubs_ndx;
 	int vstubs_ndx;
+	int symtab_ndx;
+	int dynsym_ndx;
 } vita_elf_t;
 
 vita_elf_t *vita_elf_load(const char *filename);
