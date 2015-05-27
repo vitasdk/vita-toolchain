@@ -6,6 +6,11 @@
 
 #include <libelf.h>
 #include <gelf.h>
+/* Note:
+ * Even though we know the Vita is a 32-bit platform and we specifically check
+ * that we're operating on a 32-bit ELF only, we still use the GElf family of
+ * functions.  This is because they have extra sanity checking baked in.
+ */
 
 #include <endian.h>
 
@@ -22,6 +27,100 @@
 	if (!(condition)) FAILX("Assertion failed: (" #condition ")"); \
 } while (0)
 
+static int load_stubs(vita_elf_t *ve, int stubs_ndx, int *num_stubs, vita_elf_stub_t **stubs)
+{
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	Elf_Data *data;
+	uint32_t *stub_data;
+	int chunk_offset, total_bytes;
+	vita_elf_stub_t *curstub;
+
+	scn = elf_getscn(ve->elf, stubs_ndx);
+	gelf_getshdr(scn, &shdr);
+
+	*num_stubs = shdr.sh_size / 16;
+	*stubs = calloc(*num_stubs, sizeof(vita_elf_stub_t));
+
+	curstub = *stubs;
+	data = NULL; total_bytes = 0;
+	while (total_bytes < shdr.sh_size &&
+			(data = elf_getdata(scn, data)) != NULL) {
+
+		for (stub_data = (uint32_t *)data->d_buf, chunk_offset = 0;
+				chunk_offset < data->d_size;
+				stub_data += 4, chunk_offset += 16) {
+			curstub->addr = shdr.sh_addr + data->d_off + chunk_offset;
+			curstub->library_nid = le32toh(stub_data[0]);
+			curstub->module_nid = le32toh(stub_data[1]);
+			curstub->target_nid = le32toh(stub_data[2]);
+			curstub++;
+		}
+
+		total_bytes += data->d_size;
+	}
+
+	return 1;
+}
+
+static int lookup_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *stubs, int symtab_ndx, int stubs_ndx, int sym_type)
+{
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	Elf_Data *data;
+	GElf_Sym sym;
+	int total_bytes;
+	int data_beginsym, symndx;
+	const char *sym_name;
+	int stub;
+
+	scn = elf_getscn(ve->elf, symtab_ndx);
+	gelf_getshdr(scn, &shdr);
+
+	data = NULL; total_bytes = 0;
+	while (total_bytes < shdr.sh_size &&
+			(data = elf_getdata(scn, data)) != NULL) {
+
+		data_beginsym = data->d_off / shdr.sh_entsize;
+		for (symndx = shdr.sh_info > data_beginsym ? shdr.sh_info - data_beginsym : 0;
+				symndx < data->d_size / shdr.sh_entsize;
+				symndx++) {
+			if (gelf_getsym(data, symndx, &sym) != &sym)
+				FAILE("gelf_getsym() failed");
+
+			if (GELF_ST_BIND(sym.st_info) != STB_GLOBAL)
+				continue;
+			if (GELF_ST_TYPE(sym.st_info) != STT_FUNC && GELF_ST_TYPE(sym.st_info) != STT_OBJECT)
+				continue;
+			if (sym.st_shndx != stubs_ndx)
+				continue;
+
+			sym_name = elf_strptr(ve->elf, shdr.sh_link, sym.st_name);
+			if (GELF_ST_TYPE(sym.st_info) != sym_type)
+				FAILX("Global symbol %s in section %d expected to have type %d; instead has type %d",
+						sym_name, sym.st_shndx, sym_type, GELF_ST_TYPE(sym.st_info));
+
+			for (stub = 0; stub < num_stubs; stub++) {
+				if (stubs[stub].addr != sym.st_value)
+					continue;
+				stubs[stub].sym_name = sym_name;
+				break;
+			}
+
+			if (stub == num_stubs)
+				FAILX("Global symbol %s in section %d not pointing to a valid stub",
+						sym_name, sym.st_shndx);
+		}
+
+		total_bytes += data->d_size;
+	}
+
+	return 1;
+
+failure:
+	return 0;
+}
+
 vita_elf_t *vita_elf_load(const char *filename)
 {
 	vita_elf_t *ve = NULL;
@@ -30,7 +129,6 @@ vita_elf_t *vita_elf_load(const char *filename)
 	GElf_Shdr shdr;
 	size_t shstrndx;
 	char *name;
-	int ndx;
 
 	if (elf_version(EV_CURRENT) == EV_NONE)
 		FAILX("ELF library initialization failed: %s", elf_errmsg(-1));
@@ -62,6 +160,8 @@ vita_elf_t *vita_elf_load(const char *filename)
 
 	scn = NULL;
 
+	int symtab_ndx = 0, dynsym_ndx = 0;
+
 	while ((scn = elf_nextscn(ve->elf, scn)) != NULL) {
 		if (gelf_getshdr(scn, &shdr) != &shdr)
 			FAILE("getshdr() failed");
@@ -80,33 +180,41 @@ vita_elf_t *vita_elf_load(const char *filename)
 		}
 
 		if (shdr.sh_type == SHT_SYMTAB)
-			ve->symtab_ndx = elf_ndxscn(scn);
+			symtab_ndx = elf_ndxscn(scn);
 		else if (shdr.sh_type == SHT_DYNSYM)
-			ve->dynsym_ndx = elf_ndxscn(scn);
+			dynsym_ndx = elf_ndxscn(scn);
 	}
 
 	if (ve->fstubs_ndx == 0 && ve->vstubs_ndx == 0)
 		FAILX("No .vitalink stub sections in binary, probably not a Vita binary");
 
+	if (ve->fstubs_ndx != 0) {
+		if (!load_stubs(ve, ve->fstubs_ndx, &ve->num_fstubs, &ve->fstubs)) goto failure;
+		if (!lookup_symbols(ve, ve->num_fstubs, ve->fstubs, symtab_ndx, ve->fstubs_ndx, STT_FUNC)) goto failure;
+	}
+
+	if (ve->vstubs_ndx != 0) {
+		if (!load_stubs(ve, ve->vstubs_ndx, &ve->num_vstubs, &ve->vstubs)) goto failure;
+		if (!lookup_symbols(ve, ve->num_vstubs, ve->vstubs, symtab_ndx, ve->vstubs_ndx, STT_OBJECT)) goto failure;
+	}
+
 
 	return ve;
 
 failure:
-	if (ve != NULL) {
-		if (ve->elf != NULL) {
-			elf_end(ve->elf);
-		}
-		if (ve->fd >= 0) {
-			close(ve->fd);
-		}
-		free(ve);
-	}
+	if (ve != NULL)
+		vita_elf_free(ve);
 	return NULL;
 }
 
 void vita_elf_free(vita_elf_t *ve)
 {
-	elf_end(ve->elf);
-	close(ve->fd);
+	/* free() is safe to call on NULL */
+	free(ve->fstubs);
+	free(ve->vstubs);
+	if (ve->elf != NULL)
+		elf_end(ve->elf);
+	if (ve->fd >= 0)
+		close(ve->fd);
 	free(ve);
 }
