@@ -87,7 +87,6 @@ void print_symtab(vita_elf_t *ve, int scndx)
 	GElf_Shdr shdr;
 	Elf_Data *data;
 	GElf_Sym sym;
-	uint32_t *p;
 	int n;
 	int data_beginsym, symndx;
 	size_t shstrndx;

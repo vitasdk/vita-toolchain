@@ -16,7 +16,9 @@ vita-elf-create: $(elfcreate_OBJS)
 	gcc $^ $(elfcreate_LIBS) -o $@
 
 %.o: %.c
-	gcc $(CFLAGS) -c $? -o $@
+	gcc -MD -MP $(CFLAGS) -c $? -o $@
+
+-include $(ALL_OBJS:.o=.d)
 
 clean:
-	@rm -rf $(ALL_OBJS) $(TARGETS)
+	@rm -rf $(ALL_OBJS) $(ALL_OBJS:.o=.d) $(TARGETS)
