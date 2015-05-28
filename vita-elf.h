@@ -6,26 +6,38 @@
 
 #include "vita-import.h"
 
+/* Convenience representation of a symtab entry */
+typedef struct vita_elf_symbol_t {
+	const char *name;
+	Elf32_Addr value;
+	uint8_t type;
+	uint8_t binding;
+	Elf32_Section shndx;
+} vita_elf_symbol_t;
+
 typedef struct vita_elf_stub_t {
 	Elf32_Addr addr;
 	uint32_t library_nid;
 	uint32_t module_nid;
 	uint32_t target_nid;
 
-	const char *sym_name;
+	vita_elf_symbol_t *symbol;
 
 	vita_imports_lib_t *library;
 	vita_imports_module_t *module;
 	vita_imports_stub_t *target;
 } vita_elf_stub_t;
 
-typedef struct vita_elf {
+typedef struct vita_elf_t {
 	int fd;
 	int mode;
 	Elf *elf;
 
-	int fstubs_ndx;
-	int vstubs_ndx;
+	Elf32_Section fstubs_ndx;
+	Elf32_Section vstubs_ndx;
+
+	vita_elf_symbol_t *symtab;
+	int num_symbols;
 
 	vita_elf_stub_t *fstubs;
 	vita_elf_stub_t *vstubs;

@@ -14,7 +14,7 @@ void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 	int i;
 
 	for (i = 0; i < num_stubs; i++) {
-		printf("  0x%06x (%s):\n", stubs[i].addr, stubs[i].sym_name ? stubs[i].sym_name : "unreferenced stub");
+		printf("  0x%06x (%s):\n", stubs[i].addr, stubs[i].symbol ? stubs[i].symbol->name : "unreferenced stub");
 		printf("    Library: %u (%s)\n", stubs[i].library_nid, stubs[i].library ? stubs[i].library->name : "not found");
 		printf("    Module : %u (%s)\n", stubs[i].module_nid, stubs[i].module ? stubs[i].module->name : "not found");
 		printf("    NID    : %u (%s)\n", stubs[i].target_nid, stubs[i].target ? stubs[i].target->name : "not found");
