@@ -14,6 +14,11 @@
 
 #include <endian.h>
 
+/* This may cause trouble with Windows portability, but there are Windows alternatives
+ * to mmap() that we can explore later.  It'll probably work under Cygwin.
+ */
+#include <sys/mman.h>
+
 #include "vita-elf.h"
 #include "vita-import.h"
 #include "elf-defs.h"
@@ -219,6 +224,11 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	gelf_getshdr(text_scn, &text_shdr);
 	text_data = elf_getdata(text_scn, NULL);
 
+	/* We're blatantly assuming here that both of these sections will store
+	 * the entirety of their data in one Elf_Data item.  This seems to be true
+	 * so far in my testing, and from the libelf source it looks like it's
+	 * unlikely to allocate multiple data items on initial file read, but
+	 * should be fixed someday. */
 	data = elf_getdata(scn, NULL);
 	for (relndx = 0; relndx < data->d_size / shdr.sh_entsize; relndx++) {
 		if (gelf_getrel(data, relndx, &rel) != &rel)
@@ -344,6 +354,11 @@ vita_elf_t *vita_elf_load(const char *filename)
 	size_t shstrndx;
 	char *name;
 
+	GElf_Phdr phdr;
+	size_t segment_count, segndx;
+	vita_elf_segment_info_t *curseg;
+
+
 	if (elf_version(EV_CURRENT) == EV_NONE)
 		FAILX("ELF library initialization failed: %s", elf_errmsg(-1));
 
@@ -424,6 +439,28 @@ vita_elf_t *vita_elf_load(const char *filename)
 		if (!lookup_stub_symbols(ve, ve->num_vstubs, ve->vstubs, ve->vstubs_ndx, STT_OBJECT)) goto failure;
 	}
 
+	if (elf_getphdrnum(ve->elf, &segment_count) != 0)
+		FAILE("elf_getphdrnum() failed");
+
+	ve->segments = calloc(segment_count, sizeof(vita_elf_segment_info_t));
+	ASSERT(ve->segments != NULL);
+	ve->num_segments = segment_count;
+
+	for (segndx = 0; segndx < segment_count; segndx++) {
+		if (gelf_getphdr(ve->elf, segndx, &phdr) != &phdr)
+			FAILE("gelf_getphdr(%zd) failed", segndx);
+
+		curseg = ve->segments + segndx;
+		curseg->vaddr = phdr.p_vaddr;
+		curseg->memsz = phdr.p_memsz;
+
+		if (curseg->memsz) {
+			curseg->vaddr_top = mmap(NULL, curseg->memsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+			if (curseg->vaddr_top == NULL)
+				FAIL("Could not allocate address space for segment %zd", segndx);
+			curseg->vaddr_bottom = curseg->vaddr_top + curseg->memsz;
+		}
+	}
 
 	return ve;
 
@@ -443,6 +480,13 @@ static void free_rela_table(vita_elf_rela_table_t *rtable)
 
 void vita_elf_free(vita_elf_t *ve)
 {
+	int i;
+
+	for (i = 0; i < ve->num_segments; i++) {
+		if (ve->segments[i].vaddr_top != NULL)
+			munmap((void *)ve->segments[i].vaddr_top, ve->segments[i].memsz);
+	}
+
 	/* free() is safe to call on NULL */
 	free(ve->fstubs);
 	free(ve->vstubs);

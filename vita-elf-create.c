@@ -58,6 +58,18 @@ void list_rels(vita_elf_t *ve)
 	}
 }
 
+void list_segments(vita_elf_t *ve)
+{
+	int i;
+
+	for (i = 0; i < ve->num_segments; i++) {
+		printf("  Segment %d: vaddr %06x, size 0x%x\n",
+				i, ve->segments[i].vaddr, ve->segments[i].memsz);
+		printf("    Host address region: %p - %p\n",
+				ve->segments[i].vaddr_top, ve->segments[i].vaddr_bottom);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	vita_elf_t *ve;
@@ -87,6 +99,9 @@ int main(int argc, char *argv[])
 
 	printf("Relocations:\n");
 	list_rels(ve);
+
+	printf("Segments");
+	list_segments(ve);
 
 	vita_elf_free(ve);
 	vita_imports_free(imports);
