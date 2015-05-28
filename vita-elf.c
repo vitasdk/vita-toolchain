@@ -16,6 +16,7 @@
 
 #include "vita-elf.h"
 #include "vita-import.h"
+#include "elf-defs.h"
 
 #define FAIL_EX(label, function, fmt...) do { \
 	function(fmt); \
@@ -124,8 +125,8 @@ static int lookup_stub_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *s
 			continue;
 
 		if (cursym->type != sym_type)
-			FAILX("Global symbol %s in section %d expected to have type %d; instead has type %d",
-					cursym->name, stubs_ndx, sym_type, cursym->type);
+			FAILX("Global symbol %s in section %d expected to have type %s; instead has type %s",
+					cursym->name, stubs_ndx, elf_decode_st_type(sym_type), elf_decode_st_type(cursym->type));
 
 		for (stub = 0; stub < num_stubs; stub++) {
 			if (stubs[stub].addr != cursym->value)
