@@ -83,11 +83,11 @@ void vita_elf_free(vita_elf_t *ve);
 
 int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t *imports);
 
-const void *vita_elf_vaddr_to_host(Elf32_Addr vaddr);
-const void *vita_elf_segoffset_to_host(int segndx, uint32_t offset);
+const void *vita_elf_vaddr_to_host(vita_elf_t *ve, Elf32_Addr vaddr);
+const void *vita_elf_segoffset_to_host(vita_elf_t *ve, int segndx, uint32_t offset);
 
-Elf32_Addr vita_elf_host_to_vaddr(const void *host_addr);
-int vita_elf_host_to_segndx(const void *host_addr);
-int32_t vita_elf_host_to_segoffset(const void *host_addr, int segndx);
+Elf32_Addr vita_elf_host_to_vaddr(vita_elf_t *ve, const void *host_addr);
+int vita_elf_host_to_segndx(vita_elf_t *ve, const void *host_addr);
+int32_t vita_elf_host_to_segoffset(vita_elf_t *ve, const void *host_addr, int segndx);
 
 #endif
