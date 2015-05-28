@@ -107,12 +107,22 @@ uint32_t get_rel_target(uint32_t data, int type, uint32_t addr)
 
 void list_rels(vita_elf_t *ve)
 {
-	Elf_Scn *scn, *text_scn;
-	GElf_Shdr shdr, text_shdr;
+	Elf_Scn *scn, *text_scn, *sym_scn;
+	GElf_Shdr shdr, text_shdr, sym_shdr;
 	GElf_Rel rel;
-	GElf_Rela rela;
-	Elf_Data *data, *text_data;
+	Elf_Data *data, *text_data, *sym_data;
+	GElf_Sym sym;
 	int relndx;
+	struct {
+		int type;
+		int expect;
+		int sym;
+		uint32_t offset;
+		uint32_t target;
+	} movw_rel = {0};
+	int rel_type, rel_sym;
+	uint32_t target;
+	const char *sym_name;
 
 	scn = NULL;
 
@@ -128,13 +138,55 @@ void list_rels(vita_elf_t *ve)
 			gelf_getshdr(text_scn, &text_shdr);
 			text_data = elf_getdata(text_scn, NULL);
 
+			sym_scn = elf_getscn(ve->elf, shdr.sh_link);
+			gelf_getshdr(sym_scn, &sym_shdr);
+			sym_data = elf_getdata(sym_scn, NULL);
+
 			data = elf_getdata(scn, NULL);
 			for (relndx = 0; relndx < data->d_size / shdr.sh_entsize; relndx++) {
 				if (gelf_getrel(data, relndx, &rel) != &rel)
 					errx(EXIT_FAILURE,"gelf_getrel() failed");
-				printf("  offset %06lx: sym %ld, type %s\n",
-						rel.r_offset, GELF_R_SYM(rel.r_info), get_rel_type_name(GELF_R_TYPE(rel.r_info)));
-				printf("    curval: 0x%08x\n", get_rel_target(le32toh(*((uint32_t*)(text_data->d_buf+(rel.r_offset - text_shdr.sh_addr)))), GELF_R_TYPE(rel.r_info), rel.r_offset));
+
+				rel_sym = GELF_R_SYM(rel.r_info);
+				rel_type = GELF_R_TYPE(rel.r_info);
+				if (rel_type == R_ARM_NONE || rel_type == R_ARM_V4BX)
+					continue;
+				gelf_getsym(sym_data, rel_sym, &sym);
+				sym_name = elf_strptr(ve->elf, sym_shdr.sh_link, sym.st_name);
+
+				target = get_rel_target(
+						le32toh(*((uint32_t*)(text_data->d_buf+(rel.r_offset - text_shdr.sh_addr)))),
+						rel_type, rel.r_offset);
+
+				printf("  offset %06lx: sym %d (%s), type %s\n",
+						rel.r_offset, rel_sym,
+						sym_name, get_rel_type_name(rel_type));
+
+				if (movw_rel.expect != 0) {
+					if (rel_type != movw_rel.expect)
+						errx(EXIT_FAILURE,"Expected %s relocation to follow %s!",
+								get_rel_type_name(movw_rel.expect), get_rel_type_name(movw_rel.type));
+					if (rel_sym != movw_rel.sym)
+						errx(EXIT_FAILURE,"Paired MOVW/MOVT relocations do not reference same symbol!");
+					if (rel.r_offset != movw_rel.offset + 4)
+						errx(EXIT_FAILURE,"Paired MOVW/MOVT relocation not adjacent!");
+					target |= movw_rel.target;
+					movw_rel.expect = 0;
+				} else {
+					if (rel_type == R_ARM_MOVT_ABS || rel_type == R_ARM_THM_MOVT_ABS)
+						errx(EXIT_FAILURE,"Encountered unexpected %s relocation!",get_rel_type_name(rel_type));
+					if (rel_type == R_ARM_MOVW_ABS_NC || rel_type == R_ARM_THM_MOVW_ABS_NC) {
+						movw_rel.type = rel_type;
+						movw_rel.expect = (rel_type == R_ARM_MOVW_ABS_NC ? R_ARM_MOVT_ABS : R_ARM_THM_MOVT_ABS);
+						movw_rel.sym = rel_sym;
+						movw_rel.offset = rel.r_offset;
+						movw_rel.target = target;
+						continue;
+					}
+				}
+
+				printf("    curval: 0x%08x (%s%+d)\n", target, sym_name, (int32_t)(target - sym.st_value));
+
 			}
 		}
 	}
