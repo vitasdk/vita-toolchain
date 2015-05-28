@@ -15,6 +15,22 @@ typedef struct vita_elf_symbol_t {
 	Elf32_Section shndx;
 } vita_elf_symbol_t;
 
+typedef struct vita_elf_rela_t {
+	uint8_t type;
+	vita_elf_symbol_t *symbol;
+	Elf32_Addr offset;
+	Elf32_Sword addend;
+} vita_elf_rela_t;
+
+typedef struct vita_elf_rela_table_t {
+	vita_elf_rela_t *relas;
+	int num_relas;
+
+	Elf32_Section target_ndx;
+
+	struct vita_elf_rela_table_t *next;
+} vita_elf_rela_table_t;
+
 typedef struct vita_elf_stub_t {
 	Elf32_Addr addr;
 	uint32_t library_nid;
@@ -36,8 +52,11 @@ typedef struct vita_elf_t {
 	Elf32_Section fstubs_ndx;
 	Elf32_Section vstubs_ndx;
 
+	Elf32_Section symtab_ndx;
 	vita_elf_symbol_t *symtab;
 	int num_symbols;
+
+	vita_elf_rela_table_t *rela_tables;
 
 	vita_elf_stub_t *fstubs;
 	vita_elf_stub_t *vstubs;

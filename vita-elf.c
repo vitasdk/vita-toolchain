@@ -29,6 +29,8 @@
 	if (!(condition)) FAILX("Assertion failed: (" #condition ")"); \
 } while (0)
 
+static void free_rela_table(vita_elf_rela_table_t *rtable);
+
 static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs)
 {
 	GElf_Shdr shdr;
@@ -72,6 +74,9 @@ static int load_symbols(vita_elf_t *ve, Elf_Scn *scn)
 	int data_beginsym, symndx;
 	vita_elf_symbol_t *cursym;
 
+	if (elf_ndxscn(scn) == ve->symtab_ndx)
+		return 1; /* Already loaded */
+
 	if (ve->symtab != NULL)
 		FAILX("ELF file appears to have multiple symbol tables!");
 
@@ -79,15 +84,14 @@ static int load_symbols(vita_elf_t *ve, Elf_Scn *scn)
 
 	ve->num_symbols = shdr.sh_size / shdr.sh_entsize;
 	ve->symtab = calloc(ve->num_symbols, sizeof(vita_elf_symbol_t));
+	ve->symtab_ndx = elf_ndxscn(scn);
 
 	data = NULL; total_bytes = 0;
 	while (total_bytes < shdr.sh_size &&
 			(data = elf_getdata(scn, data)) != NULL) {
 
 		data_beginsym = data->d_off / shdr.sh_entsize;
-		for (symndx = shdr.sh_info > data_beginsym ? shdr.sh_info - data_beginsym : 0;
-				symndx < data->d_size / shdr.sh_entsize;
-				symndx++) {
+		for (symndx = 0; symndx < data->d_size / shdr.sh_entsize; symndx++) {
 			if (gelf_getsym(data, symndx, &sym) != &sym)
 				FAILE("gelf_getsym() failed");
 
@@ -105,6 +109,188 @@ static int load_symbols(vita_elf_t *ve, Elf_Scn *scn)
 
 	return 1;
 failure:
+	return 0;
+}
+
+#define THUMB_SHUFFLE(x) ((((x) & 0xFFFF0000) >> 16) | (((x) & 0xFFFF) << 16))
+static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
+{
+	switch(type) {
+		case R_ARM_NONE:
+		case R_ARM_V4BX:
+			return 0xdeadbeef;
+		case R_ARM_ABS32:
+		case R_ARM_TARGET1:
+			return data;
+		case R_ARM_REL32:
+		case R_ARM_TARGET2:
+			return data + addr;
+		case R_ARM_PREL31:
+			return data + addr;
+		case R_ARM_THM_CALL: // bl (THUMB)
+			data = THUMB_SHUFFLE(data);
+			return (((((data >> 16) & 0x7ff) << 11)
+				| ((data & 0x7ff))) << 1) + addr + 4;
+		case R_ARM_CALL: // bl/blx
+		case R_ARM_JUMP24: // b/bl<cond>
+			return ((data & 0x00ffffff) << 2) + addr + 8;
+		case R_ARM_MOVW_ABS_NC: //movw
+			return ((data & 0xf0000) >> 4) | (data & 0xfff);
+		case R_ARM_MOVT_ABS: //movt
+			return (((data & 0xf0000) >> 4) | (data & 0xfff)) << 16;
+		case R_ARM_THM_MOVW_ABS_NC: //MOVW (THUMB)
+			data = THUMB_SHUFFLE(data);
+			return (((data >> 16) & 0xf) << 12)
+				| (((data >> 26) & 0x1) << 11)
+				| (((data >> 12) & 0x7) << 8)
+				| (data & 0xff);
+		case R_ARM_THM_MOVT_ABS: //MOVT (THUMB)
+			data = THUMB_SHUFFLE(data);
+			return (((data >> 16) & 0xf) << 28)
+				| (((data >> 26) & 0x1) << 27)
+				| (((data >> 12) & 0x7) << 24)
+				| ((data & 0xff) << 16);
+	}
+
+	errx(EXIT_FAILURE, "Invalid relocation type: %d", type);
+}
+
+#define REL_HANDLE_NORMAL 0
+#define REL_HANDLE_IGNORE -1
+#define REL_HANDLE_EXPECTED -2
+#define REL_HANDLE_INVALID -3
+static int get_rel_handling(int type)
+{
+	switch(type) {
+		case R_ARM_NONE:
+		case R_ARM_V4BX:
+			return REL_HANDLE_IGNORE;
+		case R_ARM_ABS32:
+		case R_ARM_TARGET1:
+		case R_ARM_REL32:
+		case R_ARM_TARGET2:
+		case R_ARM_PREL31:
+		case R_ARM_THM_CALL:
+		case R_ARM_CALL:
+		case R_ARM_JUMP24:
+			return REL_HANDLE_NORMAL;
+		case R_ARM_MOVW_ABS_NC:
+			return R_ARM_MOVT_ABS;
+		case R_ARM_MOVT_ABS:
+			return REL_HANDLE_EXPECTED;
+		case R_ARM_THM_MOVW_ABS_NC:
+			return R_ARM_THM_MOVT_ABS;
+		case R_ARM_THM_MOVT_ABS:
+			return REL_HANDLE_EXPECTED;
+	}
+
+	return REL_HANDLE_INVALID;
+}
+
+static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
+{
+	Elf_Scn *text_scn;
+	GElf_Shdr shdr, text_shdr;
+	Elf_Data *data, *text_data;
+	GElf_Rel rel;
+	int relndx;
+
+	int expect_type = 0;
+	int rel_sym;
+	int handling;
+
+	vita_elf_rela_table_t *rtable = NULL;
+	vita_elf_rela_t *currela = NULL, *prevrela = NULL;
+	uint32_t insn, target = 0;
+
+	gelf_getshdr(scn, &shdr);
+
+	if (!load_symbols(ve, elf_getscn(ve->elf, shdr.sh_link)))
+		goto failure;
+
+	rtable = calloc(1, sizeof(vita_elf_rela_table_t));
+	ASSERT(rtable != NULL);
+	rtable->num_relas = shdr.sh_size / shdr.sh_entsize;
+	rtable->relas = calloc(rtable->num_relas, sizeof(vita_elf_rela_t));
+	ASSERT(rtable->relas != NULL);
+
+	rtable->target_ndx = shdr.sh_info;
+	text_scn = elf_getscn(ve->elf, shdr.sh_info);
+	gelf_getshdr(text_scn, &text_shdr);
+	text_data = elf_getdata(text_scn, NULL);
+
+	data = elf_getdata(scn, NULL);
+	for (relndx = 0; relndx < data->d_size / shdr.sh_entsize; relndx++) {
+		if (gelf_getrel(data, relndx, &rel) != &rel)
+			FAILX("gelf_getrel() failed");
+
+		currela = rtable->relas + relndx;
+		currela->type = GELF_R_TYPE(rel.r_info);
+		currela->offset = rel.r_offset;
+
+		if (expect_type != 0 && currela->type != expect_type)
+			FAILX("Expected %s relocation to follow %s, got %s!",
+					elf_decode_r_type(expect_type), elf_decode_r_type(prevrela->type), elf_decode_r_type(currela->type));
+
+		handling = get_rel_handling(currela->type);
+
+		if (handling == REL_HANDLE_IGNORE)
+			continue;
+		else if (handling == REL_HANDLE_EXPECTED && expect_type == 0)
+			FAILX("Encountered unexpected %s relocation!", elf_decode_r_type(currela->type));
+		else if (handling == REL_HANDLE_INVALID)
+			FAILX("Invalid relocation type %d!", currela->type);
+
+		expect_type = 0;
+
+		rel_sym = GELF_R_SYM(rel.r_info);
+		if (rel_sym >= ve->num_symbols)
+			FAILX("REL entry tried to access symbol %d, but only %d symbols loaded", rel_sym, ve->num_symbols);
+
+		currela->symbol = ve->symtab + rel_sym;
+
+		insn = le32toh(*((uint32_t*)(text_data->d_buf+(rel.r_offset - text_shdr.sh_addr))));
+
+		if (handling == REL_HANDLE_EXPECTED) {
+			if (currela->symbol != prevrela->symbol)
+				FAILX("Paired MOVW/MOVT relocations do not reference same symbol!");
+			if (currela->offset != prevrela->offset + 4)
+				FAILX("Paired MOVW/MOVT relocation not adjacent!");
+			target |= decode_rel_target(insn, currela->type, rel.r_offset);
+		} else
+			target = decode_rel_target(insn, currela->type, rel.r_offset);
+
+		if (handling > 0) {
+			expect_type = handling;
+			prevrela = currela;
+			continue;
+		}
+
+		currela->addend = target - currela->symbol->value;
+
+		if (handling == REL_HANDLE_EXPECTED)
+			prevrela->addend = target - currela->symbol->value;
+
+
+		prevrela = NULL;
+	}
+
+	if (expect_type != 0)
+		FAILX("Found %s relocation without corresponding %s!",
+				elf_decode_r_type(prevrela->type), elf_decode_r_type(expect_type));
+
+	rtable->next = ve->rela_tables;
+	ve->rela_tables = rtable;
+
+	return 1;
+failure:
+	free_rela_table(rtable);
+	return 0;
+}
+
+static int load_rela_table(vita_elf_t *ve, Elf_Scn *scn)
+{
+	warnx("RELA sections currently unsupported");
 	return 0;
 }
 
@@ -212,6 +398,12 @@ vita_elf_t *vita_elf_load(const char *filename)
 		if (shdr.sh_type == SHT_SYMTAB) {
 			if (!load_symbols(ve, scn))
 				goto failure;
+		} else if (shdr.sh_type == SHT_REL) {
+			if (!load_rel_table(ve, scn))
+				goto failure;
+		} else if (shdr.sh_type == SHT_RELA) {
+			if (!load_rela_table(ve, scn))
+				goto failure;
 		}
 	}
 
@@ -220,6 +412,9 @@ vita_elf_t *vita_elf_load(const char *filename)
 
 	if (ve->symtab == NULL)
 		FAILX("No symbol table in binary, perhaps stripped out");
+
+	if (ve->rela_tables == NULL)
+		FAILX("No relocation sections in binary; use -Wl,-q while linking");
 
 	if (ve->fstubs_ndx != 0) {
 		if (!lookup_stub_symbols(ve, ve->num_fstubs, ve->fstubs, ve->fstubs_ndx, STT_FUNC)) goto failure;
@@ -236,6 +431,14 @@ failure:
 	if (ve != NULL)
 		vita_elf_free(ve);
 	return NULL;
+}
+
+static void free_rela_table(vita_elf_rela_table_t *rtable)
+{
+	if (rtable == NULL) return;
+	free(rtable->relas);
+	free_rela_table(rtable->next);
+	free(rtable);
 }
 
 void vita_elf_free(vita_elf_t *ve)
