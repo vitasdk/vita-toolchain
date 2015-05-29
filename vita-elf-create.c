@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 #include <err.h>
 
 #include <libelf.h>
@@ -11,6 +12,7 @@
 #include "vita-import.h"
 #include "elf-defs.h"
 #include "sce-elf.h"
+#include "elf-utils.h"
 
 void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 {
@@ -152,6 +154,17 @@ int main(int argc, char *argv[])
 
 	printf("Relocations from encoded modinfo:\n");
 	print_rtable(&rtable);
+
+	int outfd;
+	Elf *dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfd);
+	elf_utils_shift_contents(dest, 0x80f0, total_size);
+	elf_utils_duplicate_scn_contents(dest, 10);
+	sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo);
+	if (elf_update(dest, ELF_C_WRITE) < 0)
+		errx(EXIT_FAILURE, "elf_update() failed: %s", elf_errmsg(-1));
+	elf_end(dest);
+	close(outfd);
+
 
 	sce_elf_module_info_free(module_info);
 	vita_elf_free(ve);

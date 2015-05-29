@@ -12,4 +12,6 @@
 	if (!(condition)) FAILX("Assertion failed: (" #condition ")"); \
 } while (0)
 
+#define ELF_ASSERT(cmd) if (!(cmd)) FAILE(#cmd " failed")
+
 #endif

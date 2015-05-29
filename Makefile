@@ -1,6 +1,6 @@
 TARGETS = vita-libs-gen vita-elf-create
 libsgen_OBJS = vita-libs-gen.o vita-import.o vita-import-parse.o
-elfcreate_OBJS = vita-elf-create.o vita-elf.o vita-import.o vita-import-parse.o elf-defs.o sce-elf.o varray.o
+elfcreate_OBJS = vita-elf-create.o vita-elf.o vita-import.o vita-import-parse.o elf-defs.o sce-elf.o varray.o elf-utils.o
 ALL_OBJS = $(libsgen_OBJS) $(elfcreate_OBJS)
 
 CFLAGS = -Wall -g # -O2

@@ -2,8 +2,12 @@
 #include <string.h>
 #include <err.h>
 
+#include <libelf.h>
+#include <gelf.h>
+
 #include "vita-elf.h"
 #include "elf-defs.h"
+#include "elf-utils.h"
 #include "sce-elf.h"
 #include "fail-utils.h"
 #include "varray.h"
@@ -467,3 +471,106 @@ failure:
 }
 #undef INCR
 #undef ADDR
+#undef INTADDR
+#undef VADDR
+#undef OFFSET
+#undef CONVERT
+#undef CONVERT16
+#undef CONVERT32
+#undef CONVERTOFFSET
+#undef SETLOCALPTR
+#undef ADDRELA
+
+int sce_elf_write_module_info(
+		Elf *dest, const vita_elf_t *ve, const sce_section_sizes_t *sizes, void *module_info)
+{
+	/* Corresponds to the order in sce_section_sizes_t */
+	static const char *section_names[] = {
+		".sceModuleInfo.rodata",
+		".sceLib.ent",
+		".sceExport.rodata",
+		".sceLib.stubs",
+		".sceImport.rodata",
+		".sceFNID.rodata",
+		".sceFStub.rodata",
+		".sceVNID.rodata",
+		".sceVStub.rodata"
+	};
+	GElf_Ehdr ehdr;
+	GElf_Shdr shdr;
+	GElf_Phdr phdr;
+	Elf_Scn *scn;
+	Elf_Data *data;
+	sce_section_sizes_t section_addrs = {0};
+	int total_size = 0;
+	Elf32_Addr segment_base, start_vaddr;
+	Elf32_Word start_segoffset, start_foffset;
+	int cur_pos;
+	int segndx;
+	int i;
+
+	for (i = 0; i < sizeof(sce_section_sizes_t) / sizeof(Elf32_Word); i++) {
+		((Elf32_Word *)&section_addrs)[i] = total_size;
+		total_size += ((Elf32_Word *)sizes)[i];
+	}
+
+	ELF_ASSERT(gelf_getehdr(dest, &ehdr));
+
+	for (segndx = 0; segndx < ve->num_segments; segndx++) {
+		if (ehdr.e_entry >= ve->segments[segndx].vaddr
+				&& ehdr.e_entry < ve->segments[segndx].vaddr + ve->segments[segndx].memsz)
+			break;
+	}
+	ASSERT(segndx < ve->num_segments);
+
+	ELF_ASSERT(gelf_getphdr(dest, segndx, &phdr));
+
+	segment_base = ve->segments[segndx].vaddr;
+	start_segoffset = ve->segments[segndx].memsz;
+
+	start_vaddr = segment_base + start_segoffset;
+	start_foffset = phdr.p_offset + start_segoffset;
+	cur_pos = 0;
+
+	if (!elf_utils_shift_contents(dest, start_foffset, total_size))
+		FAILX("Unable to relocate ELF sections");
+
+	phdr.p_filesz += total_size;
+	phdr.p_memsz += total_size;
+	ELF_ASSERT(gelf_update_phdr(dest, segndx, &phdr));
+
+	ELF_ASSERT(gelf_getehdr(dest, &ehdr));
+	ehdr.e_entry = ((segndx & 0x3) << 30) | start_segoffset;
+	ELF_ASSERT(gelf_update_ehdr(dest, &ehdr));
+
+
+	for (i = 0; i < sizeof(sce_section_sizes_t) / sizeof(Elf32_Word); i++) {
+		int scn_size = ((Elf32_Word *)sizes)[i];
+		if (scn_size == 0)
+			continue;
+
+		scn = elf_utils_new_scn_with_name(dest, section_names[i]);
+		ELF_ASSERT(gelf_getshdr(scn, &shdr));
+		shdr.sh_type = SHT_PROGBITS;
+		shdr.sh_flags = SHF_ALLOC | SHF_EXECINSTR;
+		shdr.sh_addr = start_vaddr + cur_pos;
+		shdr.sh_offset = start_foffset + cur_pos;
+		shdr.sh_size = scn_size;
+		shdr.sh_addralign = 4;
+		ELF_ASSERT(gelf_update_shdr(scn, &shdr));
+
+		ELF_ASSERT(data = elf_newdata(scn));
+		data->d_buf = module_info + cur_pos;
+		data->d_type = ELF_T_BYTE;
+		data->d_version = EV_CURRENT;
+		data->d_size = scn_size;
+		data->d_off = 0;
+		data->d_align = 1;
+
+		cur_pos += scn_size;
+	}
+
+	return 1;
+failure:
+	return 0;
+}

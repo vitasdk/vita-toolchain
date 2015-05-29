@@ -359,14 +359,12 @@ vita_elf_t *vita_elf_load(const char *filename)
 	if ((ve->fd = open(filename, O_RDONLY)) < 0)
 		FAIL("open %s failed", filename);
 
-	if ((ve->elf = elf_begin(ve->fd, ELF_C_READ, NULL)) == NULL)
-		FAILE("elf_begin() failed");
+	ELF_ASSERT(ve->elf = elf_begin(ve->fd, ELF_C_READ, NULL));
 
 	if (elf_kind(ve->elf) != ELF_K_ELF)
 		FAILX("%s is not an ELF file", filename);
 
-	if (gelf_getehdr(ve->elf, &ehdr) == NULL)
-		FAILE("getehdr() failed");
+	ELF_ASSERT(gelf_getehdr(ve->elf, &ehdr));
 
 	if (ehdr.e_machine != EM_ARM)
 		FAILX("%s is not an ARM binary", filename);
@@ -374,17 +372,14 @@ vita_elf_t *vita_elf_load(const char *filename)
 	if (ehdr.e_ident[EI_CLASS] != ELFCLASS32 || ehdr.e_ident[EI_DATA] != ELFDATA2LSB)
 		FAILX("%s is not a 32-bit, little-endian binary", filename);
 
-	if (elf_getshdrstrndx(ve->elf, &shstrndx) != 0)
-		FAILE("elf_getshdrstrndx() failed");
+	ELF_ASSERT(elf_getshdrstrndx(ve->elf, &shstrndx) == 0);
 
 	scn = NULL;
 
 	while ((scn = elf_nextscn(ve->elf, scn)) != NULL) {
-		if (gelf_getshdr(scn, &shdr) != &shdr)
-			FAILE("getshdr() failed");
+		ELF_ASSERT(gelf_getshdr(scn, &shdr));
 
-		if ((name = elf_strptr(ve->elf, shstrndx, shdr.sh_name)) == NULL)
-			FAILE("elf_strptr() failed");
+		ELF_ASSERT(name = elf_strptr(ve->elf, shstrndx, shdr.sh_name));
 
 		if (shdr.sh_type == SHT_PROGBITS && strcmp(name, ".vitalink.fstubs") == 0) {
 			if (ve->fstubs_ndx != 0)
@@ -429,16 +424,14 @@ vita_elf_t *vita_elf_load(const char *filename)
 		if (!lookup_stub_symbols(ve, ve->num_vstubs, ve->vstubs, ve->vstubs_ndx, STT_OBJECT)) goto failure;
 	}
 
-	if (elf_getphdrnum(ve->elf, &segment_count) != 0)
-		FAILE("elf_getphdrnum() failed");
+	ELF_ASSERT(elf_getphdrnum(ve->elf, &segment_count) == 0);
 
 	ve->segments = calloc(segment_count, sizeof(vita_elf_segment_info_t));
 	ASSERT(ve->segments != NULL);
 	ve->num_segments = segment_count;
 
 	for (segndx = 0; segndx < segment_count; segndx++) {
-		if (gelf_getphdr(ve->elf, segndx, &phdr) != &phdr)
-			FAILE("gelf_getphdr(%zd) failed", segndx);
+		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
 
 		curseg = ve->segments + segndx;
 		curseg->vaddr = phdr.p_vaddr;

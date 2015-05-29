@@ -67,7 +67,7 @@ typedef union {
 #include "sce-elf-defs.h"
 #undef SCE_ELF_DEFS_TARGET
 
-/* This struct must only contain Elf32_Words, because we use it as an array in module_info_encode() */
+/* This struct must only contain Elf32_Words, because we use it as an array in sce-elf.c */
 typedef struct {
 	Elf32_Word sceModuleInfo_rodata;	/* The sce_module_info structure */
 	Elf32_Word sceLib_ent;			/* All sce_module_exports structures */
@@ -89,6 +89,9 @@ void sce_elf_module_info_free(sce_module_info_t *module_info);
 void *sce_elf_module_info_encode(
 		const sce_module_info_t *module_info, const vita_elf_t *ve, const sce_section_sizes_t *sizes,
 		vita_elf_rela_table_t *rtable);
+
+int sce_elf_write_module_info(
+		Elf *dest, const vita_elf_t *ve, const sce_section_sizes_t *sizes, void *module_info);
 
 const uint32_t sce_elf_stub_func[3];
 
