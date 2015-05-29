@@ -3,11 +3,13 @@
 
 #include "varray.h"
 
+#define _IDX(index) VARRAY_ELEMENT(va, index)
+
 varray *varray_new(int element_size, int initial_allocation)
 {
 	varray *va;
 
-	va = calloc(1, sizeof(varray));
+	va = malloc(sizeof(varray));
 	if (va == NULL)
 		return NULL;
 
@@ -21,6 +23,7 @@ varray *varray_new(int element_size, int initial_allocation)
 
 varray *varray_init(varray *va, int element_size, int initial_allocation)
 {
+	memset(va, 0, sizeof(varray));
 	va->element_size = element_size;
 	va->allocation = initial_allocation;
 
@@ -40,7 +43,7 @@ void varray_destroy(varray *va)
 
 	if (va->destroy_func != NULL) {
 		for (i = 0; i < va->count; i++) {
-			va->destroy_func(va->data + i);
+			va->destroy_func(_IDX(i));
 		}
 	}
 	free(va->data);
@@ -56,12 +59,26 @@ void varray_free(varray *va)
 	free(va);
 }
 
+void *varray_extract_array(varray *va)
+{
+	void *array;
+
+	if (va->count == 0) {
+		varray_destroy(va);
+		return NULL;
+	}
+
+	array = realloc(va->data, va->count * va->element_size);
+	memset(va, 0, sizeof(varray));
+	return array;
+}
+
 int varray_get_index(varray *va, void *element_ptr)
 {
 	if (va->data == NULL)
 		return -1;
 
-	if (element_ptr < va->data || element_ptr >= va->data + (va->count * va->element_size))
+	if (element_ptr < va->data || element_ptr >= _IDX(va->count))
 		return -1;
 
 	if ((element_ptr - va->data) % va->element_size != 0)
@@ -99,17 +116,17 @@ void *varray_push(varray *va, void *element)
 {
 	GROW_IF_NECESSARY(va, NULL);
 	if (element == NULL) {
-		memset(va->data + va->count, 0, va->element_size);
+		memset(_IDX(va->count), 0, va->element_size);
 		if (va->init_func) {
-			if (va->init_func(va->data + va->count) == NULL)
+			if (va->init_func(_IDX(va->count)) == NULL)
 				return NULL;
 		}
 	} else {
-		memcpy(va->data + va->count, element, va->element_size);
+		memcpy(_IDX(va->count), element, va->element_size);
 	}
 	va->count++;
 
-	return va->data + va->count - 1;
+	return _IDX(va->count - 1);
 }
 
 void *varray_insert(varray *va, void *element, int index)
@@ -119,23 +136,23 @@ void *varray_insert(varray *va, void *element, int index)
 
 	GROW_IF_NECESSARY(va, NULL);
 	if (index < va->count) {
-		memmove(va->data + index + 1, va->data + index, va->element_size * (va->count - index));
+		memmove(_IDX(index + 1), _IDX(index), va->element_size * (va->count - index));
 	}
 
 	if (element == NULL) {
-		memset(va->data + index, 0, va->element_size);
+		memset(_IDX(index), 0, va->element_size);
 		if (va->init_func) {
-			if (va->init_func(va->data + index) == NULL) {
+			if (va->init_func(_IDX(index)) == NULL) {
 				varray_remove(va, index);
 				return NULL;
 			}
 		}
 	} else {
-		memcpy(va->data + index, element, va->element_size);
+		memcpy(_IDX(index), element, va->element_size);
 	}
 
 	va->count++;
-	return va->data + index;
+	return _IDX(index);
 }
 
 void *varray_pop(varray *va)
@@ -144,7 +161,7 @@ void *varray_pop(varray *va)
 		return NULL;
 
 	va->count--;
-	return va->data + va->count;
+	return _IDX(va->count);
 }
 
 void *varray_remove(varray *va, int index)
@@ -155,12 +172,12 @@ void *varray_remove(varray *va, int index)
 	if (index == va->count - 1)
 		return varray_pop(va);
 
-	memcpy(va->data + va->allocation, va->data + index, va->element_size);
-	memmove(va->data + index, va->data + index + 1, va->element_size * (va->count - index));
+	memcpy(_IDX(va->allocation), _IDX(index), va->element_size);
+	memmove(_IDX(index), _IDX(index + 1), va->element_size * (va->count - index));
 	va->count--;
 
-	memcpy(va->data + va->count, va->data + va->allocation, va->element_size);
-	return va->data + va->count;
+	memcpy(_IDX(va->count), _IDX(va->allocation), va->element_size);
+	return _IDX(va->count);
 }
 
 void varray_sort(varray *va)
@@ -180,7 +197,7 @@ static int get_sorted_insert_index(const varray *va, const void *key_or_element,
 
 	while (low_idx < high_idx) {
 		int test_idx = (low_idx + high_idx) / 2;
-		int result = compar(key_or_element, va->data + test_idx);
+		int result = compar(key_or_element, _IDX(test_idx));
 
 		if (result == 0)
 			return test_idx;
@@ -197,7 +214,7 @@ void *varray_sorted_insert_ex(varray *va, void *element, int allow_dup)
 {
 	int insert_idx = get_sorted_insert_index(va, element, va->sort_compar);
 
-	if (!allow_dup && insert_idx < va->count && va->search_compar(element, va->data + insert_idx) == 0)
+	if (!allow_dup && insert_idx < va->count && va->search_compar(element, _IDX(insert_idx)) == 0)
 		return NULL;
 
 	return varray_insert(va, element, insert_idx);
@@ -217,10 +234,10 @@ void *varray_sorted_search_or_insert(varray *va, const void *key, int *found_exi
 
 	insert_idx = get_sorted_insert_index(va, key, compar);
 
-	if (insert_idx < va->count && compar(key, va->data + insert_idx) == 0) {
+	if (insert_idx < va->count && compar(key, _IDX(insert_idx)) == 0) {
 		if (found_existing != NULL)
 			*found_existing = 1;
-		return va->data + insert_idx;
+		return _IDX(insert_idx);
 	} else {
 		if (found_existing != NULL)
 			*found_existing = 0;

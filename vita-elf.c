@@ -540,7 +540,7 @@ int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t *imports)
 	return found_all;
 }
 
-const void *vita_elf_vaddr_to_host(vita_elf_t *ve, Elf32_Addr vaddr)
+const void *vita_elf_vaddr_to_host(const vita_elf_t *ve, Elf32_Addr vaddr)
 {
 	vita_elf_segment_info_t *seg;
 	int i;
@@ -552,7 +552,7 @@ const void *vita_elf_vaddr_to_host(vita_elf_t *ve, Elf32_Addr vaddr)
 
 	return NULL;
 }
-const void *vita_elf_segoffset_to_host(vita_elf_t *ve, int segndx, uint32_t offset)
+const void *vita_elf_segoffset_to_host(const vita_elf_t *ve, int segndx, uint32_t offset)
 {
 	vita_elf_segment_info_t *seg = ve->segments + segndx;
 
@@ -562,7 +562,7 @@ const void *vita_elf_segoffset_to_host(vita_elf_t *ve, int segndx, uint32_t offs
 	return NULL;
 }
 
-Elf32_Addr vita_elf_host_to_vaddr(vita_elf_t *ve, const void *host_addr)
+Elf32_Addr vita_elf_host_to_vaddr(const vita_elf_t *ve, const void *host_addr)
 {
 	vita_elf_segment_info_t *seg;
 	int i;
@@ -578,7 +578,7 @@ Elf32_Addr vita_elf_host_to_vaddr(vita_elf_t *ve, const void *host_addr)
 	return 0;
 }
 
-int vita_elf_host_to_segndx(vita_elf_t *ve, const void *host_addr)
+int vita_elf_host_to_segndx(const vita_elf_t *ve, const void *host_addr)
 {
 	vita_elf_segment_info_t *seg;
 	int i;
@@ -591,7 +591,7 @@ int vita_elf_host_to_segndx(vita_elf_t *ve, const void *host_addr)
 	return -1;
 }
 
-int32_t vita_elf_host_to_segoffset(vita_elf_t *ve, const void *host_addr, int segndx)
+int32_t vita_elf_host_to_segoffset(const vita_elf_t *ve, const void *host_addr, int segndx)
 {
 	vita_elf_segment_info_t *seg = ve->segments + segndx;
 

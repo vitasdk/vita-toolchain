@@ -39,24 +39,35 @@ const char *get_scndx_name(vita_elf_t *ve, int scndx)
 	return get_scn_name(ve, elf_getscn(ve->elf, scndx));
 }
 
+void print_rtable(vita_elf_rela_table_t *rtable)
+{
+	vita_elf_rela_t *rela;
+	int num_relas;
+
+	for (num_relas = rtable->num_relas, rela = rtable->relas; num_relas; num_relas--, rela++) {
+		if (rela->symbol) {
+			printf("    offset %06x: type %s, %s%+d\n",
+					rela->offset,
+					elf_decode_r_type(rela->type),
+					rela->symbol->name, rela->addend);
+		} else if (rela->offset) {
+			printf("    offset %06x: type %s, absolute %06x\n",
+					rela->offset,
+					elf_decode_r_type(rela->type),
+					(uint32_t)rela->addend);
+		}
+	}
+}
+
 void list_rels(vita_elf_t *ve)
 {
 	vita_elf_rela_table_t *rtable;
-	vita_elf_rela_t *rela;
-	int num_relas;
 
 	for (rtable = ve->rela_tables; rtable; rtable = rtable->next) {
 		printf("  Relocations for section %d: %s\n",
 				rtable->target_ndx, get_scndx_name(ve, rtable->target_ndx));
+		print_rtable(rtable);
 
-		for (num_relas = rtable->num_relas, rela = rtable->relas; num_relas; num_relas--, rela++) {
-			if (rela->symbol) {
-				printf("    offset %06x: type %s, %s%+d\n",
-						rela->offset,
-						elf_decode_r_type(rela->type),
-						rela->symbol->name, rela->addend);
-			}
-		}
 	}
 }
 
@@ -88,6 +99,8 @@ int main(int argc, char *argv[])
 	vita_imports_t *imports;
 	sce_module_info_t *module_info;
 	sce_section_sizes_t section_sizes;
+	void *encoded_modinfo;
+	vita_elf_rela_table_t rtable = {};
 
 	int status = EXIT_SUCCESS;
 
@@ -121,8 +134,9 @@ int main(int argc, char *argv[])
 	module_info = sce_elf_module_info_create(ve);
 
 	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes);
-	printf("Total SCE data size: %d\n", total_size);
-#define PRINTSEC(name) printf("  .%.*s.%s: %d\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name)
+	int curpos = 0;
+	printf("Total SCE data size: %d / %x\n", total_size, total_size);
+#define PRINTSEC(name) printf("  .%.*s.%s: %d (%x @ %x)\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name, section_sizes.name, curpos+ve->segments[0].vaddr+ve->segments[0].memsz); curpos += section_sizes.name
 	PRINTSEC(sceModuleInfo_rodata);
 	PRINTSEC(sceLib_ent);
 	PRINTSEC(sceExport_rodata);
@@ -132,6 +146,12 @@ int main(int argc, char *argv[])
 	PRINTSEC(sceFStub_rodata);
 	PRINTSEC(sceVNID_rodata);
 	PRINTSEC(sceVStub_rodata);
+
+	encoded_modinfo = sce_elf_module_info_encode(
+			module_info, ve, &section_sizes, &rtable);
+
+	printf("Relocations from encoded modinfo:\n");
+	print_rtable(&rtable);
 
 	sce_elf_module_info_free(module_info);
 	vita_elf_free(ve);

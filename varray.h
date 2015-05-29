@@ -25,6 +25,8 @@ varray *varray_init(varray *va, int element_size, int initial_allocation); /* In
 void varray_destroy(varray *va); /* Deinitialize varray contents */
 void varray_free(varray *va); /* Deinitialize and free memory */
 
+void *varray_extract_array(varray *va); /* Compact array storage and return; va becomes uninitialized */
+
 int varray_get_index(varray *va, void *element_ptr);
 
 /* if element is NULL in either function, the new element will be initialized to zero. */
@@ -41,5 +43,7 @@ void *varray_sorted_insert(varray *va, void *element);
 void *varray_sorted_insert_ex(varray *va, void *element, int allow_dup);
 /* found_existing, if not NULL, will be set to 1 if an existing element was found, otherwise 0 */
 void *varray_sorted_search_or_insert(varray *va, const void *key, int *found_existing);
+
+#define VARRAY_ELEMENT(va, index) ((va)->data + ((index) * (va)->element_size))
 
 #endif
