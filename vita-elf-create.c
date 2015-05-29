@@ -150,6 +150,8 @@ int main(int argc, char *argv[])
 	PRINTSEC(sceVNID_rodata);
 	PRINTSEC(sceVStub_rodata);
 
+	strncpy(module_info->name, argv[1], sizeof(module_info->name) - 1);
+
 	encoded_modinfo = sce_elf_module_info_encode(
 			module_info, ve, &section_sizes, &rtable);
 
@@ -164,8 +166,10 @@ int main(int argc, char *argv[])
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));
 	rtable.next = ve->rela_tables;
 	ASSERT(sce_elf_write_rela_sections(dest, ve, &rtable));
+	ASSERT(sce_elf_rewrite_stubs(dest, ve));
 	ELF_ASSERT(elf_update(dest, ELF_C_WRITE) >= 0);
 	elf_end(dest);
+	ASSERT(sce_elf_set_headers(outfd, ve));
 	close(outfd);
 
 

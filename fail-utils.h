@@ -12,6 +12,7 @@
 	if (!(condition)) FAILX("Assertion failed: (" #condition ")"); \
 } while (0)
 
+#define SYS_ASSERT(cmd) if ((cmd) < 0) FAIL(#cmd " failed")
 #define ELF_ASSERT(cmd) if (!(cmd)) FAILE(#cmd " failed")
 
 #endif

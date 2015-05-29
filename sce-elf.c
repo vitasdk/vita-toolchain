@@ -1,5 +1,7 @@
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+#include <unistd.h>
 #include <err.h>
 
 #include <libelf.h>
@@ -711,5 +713,63 @@ encode_relas:
 
 failure:
 	free(encoded_relas);
+	return 0;
+}
+
+int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
+{
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	Elf_Data *data;
+	size_t shstrndx;
+	void *shstrtab;
+	uint32_t *stubdata;
+
+	ELF_ASSERT(elf_getshdrstrndx(dest, &shstrndx) == 0);
+	ELF_ASSERT(scn = elf_getscn(dest, shstrndx));
+	ELF_ASSERT(data = elf_getdata(scn, NULL));
+	shstrtab = data->d_buf;
+
+	ELF_ASSERT(scn = elf_getscn(dest, ve->fstubs_ndx));
+	ELF_ASSERT(gelf_getshdr(scn, &shdr));
+	strcpy(shstrtab + shdr.sh_name, ".text.fstubs");
+	data = NULL;
+	while ((data = elf_getdata(scn, data)) != NULL) {
+		for (stubdata = (uint32_t *)data->d_buf;
+				(void *)stubdata < data->d_buf + data->d_size - 11; stubdata += 4) {
+			stubdata[0] = htole32(sce_elf_stub_func[0]);
+			stubdata[1] = htole32(sce_elf_stub_func[1]);
+			stubdata[2] = htole32(sce_elf_stub_func[2]);
+			stubdata[3] = 0;
+		}
+	}
+
+	ELF_ASSERT(scn = elf_getscn(dest, ve->vstubs_ndx));
+	ELF_ASSERT(gelf_getshdr(scn, &shdr));
+	strcpy(shstrtab + shdr.sh_name, ".data.vstubs");
+	data = NULL;
+	while ((data = elf_getdata(scn, data)) != NULL) {
+		for (stubdata = (uint32_t *)data->d_buf;
+				(void *)stubdata < data->d_buf + data->d_size - 11; stubdata += 4) {
+			memset(stubdata, 0, 16);
+		}
+	}
+
+	return 1;
+failure:
+	return 0;
+}
+
+int sce_elf_set_headers(int destfd, const vita_elf_t *ve)
+{
+	Elf32_Ehdr ehdr;
+
+	ehdr.e_type = htole16(ET_SCE_RELEXEC);
+
+	SYS_ASSERT(lseek(destfd, offsetof(Elf32_Ehdr, e_type), SEEK_SET));
+	SYS_ASSERT(write(destfd, &ehdr.e_type, sizeof(ehdr.e_type)));
+
+	return 1;
+failure:
 	return 0;
 }
