@@ -110,6 +110,17 @@ failure:
 	return;
 }
 
+int elf_utils_duplicate_shstrtab(Elf *e)
+{
+	size_t shstrndx;
+
+	ELF_ASSERT(elf_getshdrstrndx(e, &shstrndx) == 0);
+
+	return elf_utils_duplicate_scn_contents(e, shstrndx);
+failure:
+	return 0;
+}
+
 int elf_utils_shift_contents(Elf *e, int start_offset, int shift_amount)
 {
 	GElf_Ehdr ehdr;
@@ -180,6 +191,42 @@ Elf_Scn *elf_utils_new_scn_with_name(Elf *e, const char *scn_name)
 	shdr.sh_name = index;
 	ELF_ASSERT(gelf_update_shdr(scn, &shdr));
 	
+	return scn;
+failure:
+	return NULL;
+}
+
+Elf_Scn *elf_utils_new_scn_with_data(Elf *e, const char *scn_name, void *buf, int len)
+{
+	Elf_Scn *scn;
+	GElf_Ehdr ehdr;
+	GElf_Shdr shdr;
+	Elf_Data *data;
+	int offset;
+
+	scn = elf_utils_new_scn_with_name(e, scn_name);
+	if (scn == NULL)
+		goto failure;
+
+	ELF_ASSERT(gelf_getehdr(e, &ehdr));
+	offset = ehdr.e_shoff;
+	if (!elf_utils_shift_contents(e, offset, len))
+		goto failure;
+
+	ELF_ASSERT(gelf_getshdr(scn, &shdr));
+	shdr.sh_offset = offset;
+	shdr.sh_size = len;
+	shdr.sh_addralign = 1;
+	ELF_ASSERT(gelf_update_shdr(scn, &shdr));
+
+	ELF_ASSERT(data = elf_newdata(scn));
+	data->d_buf = buf;
+	data->d_type = ELF_T_BYTE;
+	data->d_version = EV_CURRENT;
+	data->d_size = len;
+	data->d_off = 0;
+	data->d_align = 1;
+
 	return scn;
 failure:
 	return NULL;

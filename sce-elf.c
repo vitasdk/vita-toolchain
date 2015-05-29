@@ -574,3 +574,142 @@ int sce_elf_write_module_info(
 failure:
 	return 0;
 }
+
+static int sce_rel_short(SCE_Rel *rel, int symseg, int code, int datseg, int offset, int addend)
+{
+	if (addend > 1 << 11)
+		return 0;
+	rel->r_short_entry.r_short = 1;
+	rel->r_short_entry.r_symseg = symseg;
+	rel->r_short_entry.r_code = code;
+	rel->r_short_entry.r_datseg = datseg;
+	rel->r_short_entry.r_offset_lo = offset & 0xFFF;
+	rel->r_short_entry.r_offset_hi = offset >> 20;
+	rel->r_short_entry.r_addend = addend;
+	return 1;
+}
+
+static int sce_rel_long(SCE_Rel *rel, int symseg, int code, int datseg, int offset, int addend)
+{
+	rel->r_long_entry.r_short = 0;
+	rel->r_long_entry.r_symseg = symseg;
+	rel->r_long_entry.r_code = code;
+	rel->r_long_entry.r_datseg = datseg;
+	rel->r_long_entry.r_code2 = 0;
+	rel->r_long_entry.r_dist2 = 0;
+	rel->r_long_entry.r_offset = offset;
+	rel->r_long_entry.r_addend = addend;
+	return 1;
+}
+
+static int encode_sce_rel(SCE_Rel *rel)
+{
+	if (rel->r_short_entry.r_short) {
+		rel->r_raw_entry.r_word1 = htole32(
+				(rel->r_short_entry.r_short) |
+				(rel->r_short_entry.r_symseg << 4) |
+				(rel->r_short_entry.r_code << 8) |
+				(rel->r_short_entry.r_datseg << 16) |
+				(rel->r_short_entry.r_offset_lo << 20));
+		rel->r_raw_entry.r_word2 = htole32(
+				(rel->r_short_entry.r_offset_hi) |
+				(rel->r_short_entry.r_addend << 20));
+
+		return 8;
+	} else {
+		rel->r_raw_entry.r_word1 = htole32(
+				(rel->r_long_entry.r_short) |
+				(rel->r_long_entry.r_symseg << 4) |
+				(rel->r_long_entry.r_code << 8) |
+				(rel->r_long_entry.r_datseg << 16) |
+				(rel->r_long_entry.r_code2 << 20) |
+				(rel->r_long_entry.r_dist2 << 28));
+		rel->r_raw_entry.r_word2 = htole32(rel->r_long_entry.r_addend);
+		rel->r_raw_entry.r_word3 = htole32(rel->r_long_entry.r_offset);
+		return 12;
+	}
+}
+
+int sce_elf_write_rela_sections(
+		Elf *dest, const vita_elf_t *ve, const vita_elf_rela_table_t *rtable)
+{
+	int total_relas = 0;
+	const vita_elf_rela_table_t *curtable;
+	const vita_elf_rela_t *vrela;
+	void *encoded_relas = NULL, *curpos;
+	SCE_Rel rel;
+	int relsz;
+	int i;
+	Elf32_Addr symvaddr;
+	Elf32_Word symseg, symoff;
+	Elf32_Word datseg, datoff;
+	int (*sce_rel_func)(SCE_Rel *, int, int, int, int, int);
+
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	GElf_Phdr *phdrs;
+	size_t segment_count = 0;
+
+	for (curtable = rtable; curtable; curtable = curtable->next)
+		total_relas += curtable->num_relas;
+
+	ASSERT(encoded_relas = calloc(total_relas, 12));
+
+	sce_rel_func = sce_rel_short;
+
+encode_relas:
+	curpos = encoded_relas;
+
+	for (curtable = rtable; curtable; curtable = curtable->next) {
+		for (i = 0, vrela = curtable->relas; i < curtable->num_relas; i++, vrela++) {
+			datseg = vita_elf_vaddr_to_segndx(ve, vrela->offset);
+			datoff = vita_elf_vaddr_to_segoffset(ve, vrela->offset, datseg);
+			if (vrela->symbol) {
+				symvaddr = vrela->symbol->value + vrela->addend;
+			} else {
+				symvaddr = vrela->addend;
+			}
+			symseg = vita_elf_vaddr_to_segndx(ve, symvaddr);
+			symoff = vita_elf_vaddr_to_segoffset(ve, symvaddr, symseg);
+			if (!sce_rel_func(&rel, symseg, vrela->type, datseg, datoff, symoff)) {
+				sce_rel_func = sce_rel_long;
+				goto encode_relas;
+			}
+			relsz = encode_sce_rel(&rel);
+			memcpy(curpos, &rel, relsz);
+			curpos += relsz;
+		}
+	}
+
+	scn = elf_utils_new_scn_with_data(dest, ".sce.rel", encoded_relas, curpos - encoded_relas);
+	if (scn == NULL)
+		goto failure;
+	encoded_relas = NULL;
+
+	ELF_ASSERT(gelf_getshdr(scn, &shdr));
+	shdr.sh_type = SHT_SCE_RELA;
+	shdr.sh_flags = 0;
+	shdr.sh_addralign = 4;
+	ELF_ASSERT(gelf_update_shdr(scn, &shdr));
+
+	ELF_ASSERT((elf_getphdrnum(dest, &segment_count), segment_count > 0));
+	ASSERT(phdrs = calloc(segment_count + 1, sizeof(GElf_Phdr)));
+	for (i = 0; i < segment_count; i++) {
+		ELF_ASSERT(gelf_getphdr(dest, i, phdrs + i));
+	}
+	ELF_ASSERT(gelf_newphdr(dest, segment_count + 1));
+	ELF_ASSERT(gelf_getphdr(dest, segment_count, phdrs + segment_count));
+	phdrs[segment_count].p_type = PT_SCE_RELA;
+	phdrs[segment_count].p_offset = shdr.sh_offset;
+	phdrs[segment_count].p_filesz = shdr.sh_size;
+	phdrs[segment_count].p_align = 16;
+	for (i = 0; i < segment_count + 1; i++) {
+		ELF_ASSERT(gelf_update_phdr(dest, i, phdrs + i));
+	}
+
+	return 1;
+
+failure:
+	free(encoded_relas);
+	return 0;
+}

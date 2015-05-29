@@ -93,6 +93,9 @@ void *sce_elf_module_info_encode(
 int sce_elf_write_module_info(
 		Elf *dest, const vita_elf_t *ve, const sce_section_sizes_t *sizes, void *module_info);
 
+int sce_elf_write_rela_sections(
+		Elf *dest, const vita_elf_t *ve, const vita_elf_rela_table_t *rtable);
+
 const uint32_t sce_elf_stub_func[3];
 
 #endif

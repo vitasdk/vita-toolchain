@@ -90,4 +90,7 @@ Elf32_Addr vita_elf_host_to_vaddr(const vita_elf_t *ve, const void *host_addr);
 int vita_elf_host_to_segndx(const vita_elf_t *ve, const void *host_addr);
 int32_t vita_elf_host_to_segoffset(const vita_elf_t *ve, const void *host_addr, int segndx);
 
+int vita_elf_vaddr_to_segndx(const vita_elf_t *ve, Elf32_Addr vaddr);
+uint32_t vita_elf_vaddr_to_segoffset(const vita_elf_t *ve, Elf32_Addr vaddr, int segndx);
+
 #endif

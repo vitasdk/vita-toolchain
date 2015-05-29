@@ -596,3 +596,36 @@ int32_t vita_elf_host_to_segoffset(const vita_elf_t *ve, const void *host_addr, 
 
 	return -1;
 }
+
+/* vita_elf_vaddr_to_segndx allows for fuzzy matching; if no segment directly includes the vaddr,
+ * they will assume the previous segment in memory has been extended to include it.
+ */
+int vita_elf_vaddr_to_segndx(const vita_elf_t *ve, Elf32_Addr vaddr)
+{
+	vita_elf_segment_info_t *seg;
+	int best_seg = -1;
+	Elf32_Addr closest_vaddr = 0;
+	int i;
+
+	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
+		if (vaddr >= seg->vaddr && vaddr < seg->vaddr + seg->memsz)
+			return i;
+		if (vaddr >= seg->vaddr && seg->vaddr + seg->memsz > closest_vaddr) {
+			best_seg = i;
+			closest_vaddr = seg->vaddr + seg->memsz;
+		}
+	}
+
+	return best_seg;
+}
+
+/* vita_elf_vaddr_to_segoffset won't check the validity of the address, it may have been fuzzy-matched */
+uint32_t vita_elf_vaddr_to_segoffset(const vita_elf_t *ve, Elf32_Addr vaddr, int segndx)
+{
+	vita_elf_segment_info_t *seg = ve->segments + segndx;
+
+	if (vaddr == 0)
+		return 0;
+
+	return vaddr - seg->vaddr;
+}

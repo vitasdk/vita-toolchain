@@ -13,6 +13,7 @@
 #include "elf-defs.h"
 #include "sce-elf.h"
 #include "elf-utils.h"
+#include "fail-utils.h"
 
 void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 {
@@ -156,12 +157,14 @@ int main(int argc, char *argv[])
 	print_rtable(&rtable);
 
 	int outfd;
-	Elf *dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfd);
-	elf_utils_shift_contents(dest, 0x80f0, total_size);
-	elf_utils_duplicate_scn_contents(dest, 10);
-	sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo);
-	if (elf_update(dest, ELF_C_WRITE) < 0)
-		errx(EXIT_FAILURE, "elf_update() failed: %s", elf_errmsg(-1));
+	Elf *dest;
+	ASSERT(dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfd));
+	ASSERT(elf_utils_shift_contents(dest, 0x80f0, total_size));
+	ASSERT(elf_utils_duplicate_shstrtab(dest));
+	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));
+	rtable.next = ve->rela_tables;
+	ASSERT(sce_elf_write_rela_sections(dest, ve, &rtable));
+	ELF_ASSERT(elf_update(dest, ELF_C_WRITE) >= 0);
 	elf_end(dest);
 	close(outfd);
 
@@ -171,4 +174,6 @@ int main(int argc, char *argv[])
 	vita_imports_free(imports);
 
 	return status;
+failure:
+	return EXIT_FAILURE;
 }
