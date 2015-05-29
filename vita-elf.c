@@ -22,17 +22,7 @@
 #include "vita-elf.h"
 #include "vita-import.h"
 #include "elf-defs.h"
-
-#define FAIL_EX(label, function, fmt...) do { \
-	function(fmt); \
-	goto label; \
-} while (0)
-#define FAIL(fmt...) FAIL_EX(failure, warn, fmt)
-#define FAILX(fmt...) FAIL_EX(failure, warnx, fmt)
-#define FAILE(fmt, args...) FAIL_EX(failure, warnx, fmt ": %s", ##args, elf_errmsg(-1))
-#define ASSERT(condition) do { \
-	if (!(condition)) FAILX("Assertion failed: (" #condition ")"); \
-} while (0)
+#include "fail-utils.h"
 
 static void free_rela_table(vita_elf_rela_table_t *rtable);
 
@@ -577,6 +567,9 @@ Elf32_Addr vita_elf_host_to_vaddr(vita_elf_t *ve, const void *host_addr)
 	vita_elf_segment_info_t *seg;
 	int i;
 
+	if (host_addr == NULL)
+		return 0;
+
 	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
 		if (host_addr >= seg->vaddr_top && host_addr < seg->vaddr_bottom)
 			return seg->vaddr + (uint32_t)(host_addr - seg->vaddr_top);
@@ -601,6 +594,9 @@ int vita_elf_host_to_segndx(vita_elf_t *ve, const void *host_addr)
 int32_t vita_elf_host_to_segoffset(vita_elf_t *ve, const void *host_addr, int segndx)
 {
 	vita_elf_segment_info_t *seg = ve->segments + segndx;
+
+	if (host_addr == NULL)
+		return 0;
 
 	if (host_addr >= seg->vaddr_top && host_addr < seg->vaddr_bottom)
 		return (uint32_t)(host_addr - seg->vaddr_top);

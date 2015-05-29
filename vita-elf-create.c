@@ -9,6 +9,7 @@
 #include "vita-elf.h"
 #include "vita-import.h"
 #include "elf-defs.h"
+#include "sce-elf.h"
 
 void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 {
@@ -84,6 +85,8 @@ int main(int argc, char *argv[])
 {
 	vita_elf_t *ve;
 	vita_imports_t *imports;
+	sce_module_info_t *module_info;
+
 	int status = EXIT_SUCCESS;
 
 	if (argc < 4)
@@ -112,6 +115,8 @@ int main(int argc, char *argv[])
 
 	printf("Segments:\n");
 	list_segments(ve);
+
+	module_info = sce_elf_module_info_create(ve);
 
 	vita_elf_free(ve);
 	vita_imports_free(imports);
