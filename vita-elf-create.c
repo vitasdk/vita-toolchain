@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <err.h>
 
 #include <libelf.h>
@@ -86,6 +87,7 @@ int main(int argc, char *argv[])
 	vita_elf_t *ve;
 	vita_imports_t *imports;
 	sce_module_info_t *module_info;
+	sce_section_sizes_t section_sizes;
 
 	int status = EXIT_SUCCESS;
 
@@ -118,6 +120,20 @@ int main(int argc, char *argv[])
 
 	module_info = sce_elf_module_info_create(ve);
 
+	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes);
+	printf("Total SCE data size: %d\n", total_size);
+#define PRINTSEC(name) printf("  .%.*s.%s: %d\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name)
+	PRINTSEC(sceModuleInfo_rodata);
+	PRINTSEC(sceLib_ent);
+	PRINTSEC(sceExport_rodata);
+	PRINTSEC(sceLib_stubs);
+	PRINTSEC(sceImport_rodata);
+	PRINTSEC(sceFNID_rodata);
+	PRINTSEC(sceFStub_rodata);
+	PRINTSEC(sceVNID_rodata);
+	PRINTSEC(sceVStub_rodata);
+
+	sce_elf_module_info_free(module_info);
 	vita_elf_free(ve);
 	vita_imports_free(imports);
 

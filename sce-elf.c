@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <err.h>
 
 #include "vita-elf.h"
@@ -12,6 +13,8 @@ const uint32_t sce_elf_stub_func[3] = {
 	0xe12fff1e,	/* bx lr */
 	0xe1a00000	/* mov r0, r0 */
 };
+
+#define ALIGN_4(size) (((size) + 3) & ~0x3)
 
 typedef struct {
 	uint32_t nid;
@@ -195,11 +198,70 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve)
 
 failure:
 	varray_destroy(&modlist.va);
-	if (module_info != NULL) {
-		free(module_info->export_top);
-		free(module_info->import_top);
-		free(module_info);
-	}
+	sce_elf_module_info_free(module_info);
 	return NULL;
 }
 
+#define INCR(section, size) do { \
+	sizes->section += (size); \
+	total_size += (size); \
+} while (0)
+
+int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes)
+{
+	int total_size = 0;
+	sce_module_exports_t *export;
+	sce_module_imports_t *import;
+
+	memset(sizes, 0, sizeof(*sizes));
+
+	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
+	for (export = module_info->export_top; export < module_info->export_end; export++) {
+		INCR(sceLib_ent, sizeof(sce_module_exports_raw));
+		if (export->module_name != NULL) {
+			INCR(sceExport_rodata, ALIGN_4(strlen(export->module_name) + 1));
+		}
+		INCR(sceExport_rodata, (export->num_syms_funcs + export->num_syms_vars + export->num_syms_unk) * 8);
+	}
+
+	for (import = module_info->import_top; import < module_info->import_end; import++) {
+		INCR(sceLib_stubs, sizeof(sce_module_imports_raw));
+		if (import->module_name != NULL) {
+			INCR(sceImport_rodata, ALIGN_4(strlen(import->module_name) + 1));
+		}
+		INCR(sceFNID_rodata, import->num_syms_funcs * 4);
+		INCR(sceFStub_rodata, import->num_syms_funcs * 4);
+		INCR(sceVNID_rodata, import->num_syms_vars * 4);
+		INCR(sceVStub_rodata, import->num_syms_vars * 4);
+		INCR(sceImport_rodata, import->num_syms_unk * 8);
+	}
+
+	return total_size;
+}
+
+void sce_elf_module_info_free(sce_module_info_t *module_info)
+{
+	sce_module_exports_t *export;
+	sce_module_imports_t *import;
+
+	if (module_info == NULL)
+		return;
+
+	for (export = module_info->export_top; export < module_info->export_end; export++) {
+		free(export->nid_table);
+		free(export->entry_table);
+	}
+	free(module_info->export_top);
+
+	for (import = module_info->import_top; import < module_info->import_end; import++) {
+		free(import->func_nid_table);
+		free(import->func_entry_table);
+		free(import->var_nid_table);
+		free(import->var_entry_table);
+		free(import->unk_nid_table);
+		free(import->unk_entry_table);
+	}
+
+	free(module_info->import_top);
+	free(module_info);
+}

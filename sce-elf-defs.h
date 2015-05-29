@@ -49,7 +49,7 @@ typedef struct SCE_TYPE(sce_module_exports) {
 	uint32_t num_syms_vars;			/* Number of variable exports */
 	uint32_t num_syms_unk;
 	uint32_t module_nid;			/* NID of this module */
-	SCE_PTR(char *) module_name;		/* Pointer to name of this module */
+	SCE_PTR(const char *) module_name;	/* Pointer to name of this module */
 	SCE_PTR(uint32_t *) nid_table;		/* Pointer to array of 32-bit NIDs to export */
 	SCE_PTR(const void **) entry_table;	/* Pointer to array of data pointers for each NID */
 } SCE_TYPE(sce_module_exports);
@@ -63,7 +63,7 @@ typedef struct SCE_TYPE(sce_module_imports) {
 	uint16_t num_syms_unk;
 	uint32_t reserved1;
 	uint32_t module_nid;			/* NID of module to import */
-	SCE_PTR(char *) module_name;		/* Pointer to name of imported module, for debugging */
+	SCE_PTR(const char *) module_name;	/* Pointer to name of imported module, for debugging */
 	uint32_t reserved2;
 	SCE_PTR(uint32_t *) func_nid_table;	/* Pointer to array of function NIDs to import */
 	SCE_PTR(const void **) func_entry_table;/* Pointer to array of stub functions to fill */

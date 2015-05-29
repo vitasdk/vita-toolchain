@@ -67,9 +67,21 @@ typedef union {
 #include "sce-elf-defs.h"
 #undef SCE_ELF_DEFS_TARGET
 
+typedef struct {
+	Elf32_Word sceModuleInfo_rodata;	/* The sce_module_info structure */
+	Elf32_Word sceLib_ent;			/* All sce_module_exports structures */
+	Elf32_Word sceExport_rodata;		/* The tables referenced by sce_module_exports */
+	Elf32_Word sceLib_stubs;		/* All sce_module_imports structures */
+	Elf32_Word sceImport_rodata;		/* Misc data referenced by sce_module_imports */
+	Elf32_Word sceFNID_rodata;		/* The imported function NID arrays */
+	Elf32_Word sceFStub_rodata;		/* The imported function pointer arrays */
+	Elf32_Word sceVNID_rodata;		/* The imported function NID arrays */
+	Elf32_Word sceVStub_rodata;		/* The imported function NID arrays */
+} sce_section_sizes_t;
+
 sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve);
 
-int sce_elf_module_info_get_size(sce_module_info_t *module_info);
+int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes);
 
 void sce_elf_module_info_free(sce_module_info_t *module_info);
 
