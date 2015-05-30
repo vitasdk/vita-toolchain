@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-#include <unistd.h>
 #include <err.h>
 
 #include <libelf.h>
@@ -760,14 +759,14 @@ failure:
 	return 0;
 }
 
-int sce_elf_set_headers(int destfd, const vita_elf_t *ve)
+int sce_elf_set_headers(FILE *destfile, const vita_elf_t *ve)
 {
 	Elf32_Ehdr ehdr;
 
 	ehdr.e_type = htole16(ET_SCE_RELEXEC);
 
-	SYS_ASSERT(lseek(destfd, offsetof(Elf32_Ehdr, e_type), SEEK_SET));
-	SYS_ASSERT(write(destfd, &ehdr.e_type, sizeof(ehdr.e_type)));
+	SYS_ASSERT(fseek(destfile, offsetof(Elf32_Ehdr, e_type), SEEK_SET));
+	SYS_ASSERT(fwrite(&ehdr.e_type, sizeof(ehdr.e_type), 1, destfile));
 
 	return 1;
 failure:

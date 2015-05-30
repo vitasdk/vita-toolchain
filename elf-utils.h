@@ -1,11 +1,12 @@
 #ifndef ELF_UTILS_H
 #define ELF_UTILS_H
 
+#include <stdio.h>
 #include <libelf.h>
 
 int elf_utils_copy(Elf *dest, Elf *source);
 
-Elf *elf_utils_copy_to_file(const char *filename, Elf *source, int *fd);
+Elf *elf_utils_copy_to_file(const char *filename, Elf *source, FILE **file);
 
 int elf_utils_duplicate_scn_contents(Elf *e, int scndx);
 int elf_utils_duplicate_shstrtab(Elf *e);

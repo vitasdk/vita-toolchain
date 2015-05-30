@@ -1,6 +1,7 @@
 #ifndef VITA_ELF_H
 #define VITA_ELF_H
 
+#include <stdio.h>
 #include <libelf.h>
 #include <stdint.h>
 
@@ -56,7 +57,7 @@ typedef struct vita_elf_segment_info_t {
 } vita_elf_segment_info_t;
 
 typedef struct vita_elf_t {
-	int fd;
+	FILE *file;
 	int mode;
 	Elf *elf;
 

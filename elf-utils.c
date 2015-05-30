@@ -1,7 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <err.h>
 #include <libelf.h>
 #include <gelf.h>
@@ -51,17 +49,17 @@ failure:
 	return 0;
 }
 
-Elf *elf_utils_copy_to_file(const char *filename, Elf *source, int *fd)
+Elf *elf_utils_copy_to_file(const char *filename, Elf *source, FILE **file)
 {
 	Elf *dest = NULL;
 
-	*fd = open(filename, O_WRONLY|O_CREAT, 0755);
-	if (*fd < 0)
+	*file = fopen(filename, "wb");
+	if (*file == NULL)
 		FAIL("Could not open %s for writing", filename);
 
 
 	ELF_ASSERT(elf_version(EV_CURRENT) != EV_NONE);
-	ELF_ASSERT(dest = elf_begin(*fd, ELF_C_WRITE, NULL));
+	ELF_ASSERT(dest = elf_begin(fileno(*file), ELF_C_WRITE, NULL));
 
 	if (!elf_utils_copy(dest, source))
 		goto failure;

@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
 #include <err.h>
 
 #include <libelf.h>
@@ -158,9 +157,9 @@ int main(int argc, char *argv[])
 	printf("Relocations from encoded modinfo:\n");
 	print_rtable(&rtable);
 
-	int outfd;
+	FILE *outfile;
 	Elf *dest;
-	ASSERT(dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfd));
+	ASSERT(dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfile));
 	ASSERT(elf_utils_duplicate_shstrtab(dest));
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));
 	rtable.next = ve->rela_tables;
@@ -168,8 +167,8 @@ int main(int argc, char *argv[])
 	ASSERT(sce_elf_rewrite_stubs(dest, ve));
 	ELF_ASSERT(elf_update(dest, ELF_C_WRITE) >= 0);
 	elf_end(dest);
-	ASSERT(sce_elf_set_headers(outfd, ve));
-	close(outfd);
+	ASSERT(sce_elf_set_headers(outfile, ve));
+	fclose(outfile);
 
 
 	sce_elf_module_info_free(module_info);

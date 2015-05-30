@@ -1,7 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <err.h>
 
 #include <libelf.h>
@@ -354,12 +352,11 @@ vita_elf_t *vita_elf_load(const char *filename)
 
 	ve = calloc(1, sizeof(vita_elf_t));
 	ASSERT(ve != NULL);
-	ve->fd = -1;
 
-	if ((ve->fd = open(filename, O_RDONLY)) < 0)
+	if ((ve->file = fopen(filename, "rb")) == NULL)
 		FAIL("open %s failed", filename);
 
-	ELF_ASSERT(ve->elf = elf_begin(ve->fd, ELF_C_READ, NULL));
+	ELF_ASSERT(ve->elf = elf_begin(fileno(ve->file), ELF_C_READ, NULL));
 
 	if (elf_kind(ve->elf) != ELF_K_ELF)
 		FAILX("%s is not an ELF file", filename);
@@ -476,8 +473,8 @@ void vita_elf_free(vita_elf_t *ve)
 	free(ve->symtab);
 	if (ve->elf != NULL)
 		elf_end(ve->elf);
-	if (ve->fd >= 0)
-		close(ve->fd);
+	if (ve->file != NULL)
+		fclose(ve->file);
 	free(ve);
 }
 
