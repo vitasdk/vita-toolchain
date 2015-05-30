@@ -12,7 +12,7 @@ typedef struct vita_elf_symbol_t {
 	Elf32_Addr value;
 	uint8_t type;
 	uint8_t binding;
-	Elf32_Section shndx;
+	int shndx;
 } vita_elf_symbol_t;
 
 typedef struct vita_elf_rela_t {
@@ -26,7 +26,7 @@ typedef struct vita_elf_rela_table_t {
 	vita_elf_rela_t *relas;
 	int num_relas;
 
-	Elf32_Section target_ndx;
+	int target_ndx;
 
 	struct vita_elf_rela_table_t *next;
 } vita_elf_rela_table_t;
@@ -60,10 +60,10 @@ typedef struct vita_elf_t {
 	int mode;
 	Elf *elf;
 
-	Elf32_Section fstubs_ndx;
-	Elf32_Section vstubs_ndx;
+	int fstubs_ndx;
+	int vstubs_ndx;
 
-	Elf32_Section symtab_ndx;
+	int symtab_ndx;
 	vita_elf_symbol_t *symtab;
 	int num_symbols;
 

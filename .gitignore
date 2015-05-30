@@ -7,3 +7,5 @@ vita-elf-create
 *.a
 test/*.S
 test/Makefile
+vita-elf-create.exe
+vita-libs-gen.exe

@@ -1,4 +1,4 @@
-#include <elf.h>
+#include <libelf.h>
 #include "elf-defs.h"
 
 const char *elf_decode_e_type(int e_type)

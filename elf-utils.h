@@ -1,7 +1,7 @@
 #ifndef ELF_UTILS_H
 #define ELF_UTILS_H
 
-#include <elf.h>
+#include <libelf.h>
 
 int elf_utils_copy(Elf *dest, Elf *source);
 

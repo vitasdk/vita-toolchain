@@ -3,6 +3,7 @@ libsgen_OBJS = vita-libs-gen.o vita-import.o vita-import-parse.o
 elfcreate_OBJS = vita-elf-create.o vita-elf.o vita-import.o vita-import-parse.o elf-defs.o sce-elf.o varray.o elf-utils.o
 ALL_OBJS = $(libsgen_OBJS) $(elfcreate_OBJS)
 
+CC = gcc
 CFLAGS = -Wall -g # -O2
 libsgen_LIBS = -ljansson
 elfcreate_LIBS = -lelf -ljansson
@@ -10,13 +11,13 @@ elfcreate_LIBS = -lelf -ljansson
 all: $(TARGETS)
 
 vita-libs-gen: $(libsgen_OBJS)
-	gcc $^ $(libsgen_LIBS) -o $@
+	$(CC) $(LDFLAGS) $^ $(libsgen_LIBS) -o $@
 
 vita-elf-create: $(elfcreate_OBJS)
-	gcc $^ $(elfcreate_LIBS) -o $@
+	$(CC) $(LDFLAGS) $^ $(elfcreate_LIBS) -o $@
 
 %.o: %.c
-	gcc -MD -MP $(CFLAGS) -c $< -o $@
+	$(CC) -MD -MP $(CFLAGS) -c $< -o $@
 
 TEST_OUTPUT = test/Makefile test/*.S test/test.elf test/test.velf test/*.o test/*.a
 .PHONY: test
