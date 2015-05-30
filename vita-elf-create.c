@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <err.h>
 
 #include <libelf.h>
 #include <gelf.h>

@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <string.h>
-#include <err.h>
 
 #include <libelf.h>
 #include <gelf.h>
@@ -12,6 +11,7 @@
 #include "sce-elf.h"
 #include "fail-utils.h"
 #include "varray.h"
+#include "endian-utils.h"
 
 const uint32_t sce_elf_stub_func[3] = {
 	0xe3e00000,	/* mvn r0, #0 */

@@ -1,6 +1,17 @@
 #ifndef FAIL_UTILS_H
 #define FAIL_UTILS_H
 
+#ifndef __MINGW32__
+#include <err.h>
+#else
+#include <stdio.h>
+#include <string.h>
+#define warnx(fmt, args...) fprintf(stderr, __FILE__ ": " fmt, ##args)
+#define warn(fmt, args...) warnx(fmt ": %s", ##args, strerror(errno))
+#define errx(retval, args...) do {warnx(args); exit(retval);} while (0)
+#define err(retval, args...) do {warn(args); exit(retval);} while (0)
+#endif
+
 #define FAIL_EX(label, function, fmt...) do { \
 	function(fmt); \
 	goto label; \

@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <string.h>
-#include <err.h>
 
 #include <libelf.h>
 #include <gelf.h>
@@ -10,17 +9,21 @@
  * functions.  This is because they have extra sanity checking baked in.
  */
 
-#include <endian.h>
-
+#ifndef __MINGW32__
 /* This may cause trouble with Windows portability, but there are Windows alternatives
  * to mmap() that we can explore later.  It'll probably work under Cygwin.
  */
 #include <sys/mman.h>
+#else
+#define mmap(ptr,size,c,d,e,f) malloc(size)
+#define munmap(ptr, size) free(ptr)
+#endif
 
 #include "vita-elf.h"
 #include "vita-import.h"
 #include "elf-defs.h"
 #include "fail-utils.h"
+#include "endian-utils.h"
 
 static void free_rela_table(vita_elf_rela_table_t *rtable);
 
@@ -437,7 +440,7 @@ vita_elf_t *vita_elf_load(const char *filename)
 		if (curseg->memsz) {
 			curseg->vaddr_top = mmap(NULL, curseg->memsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 			if (curseg->vaddr_top == NULL)
-				FAIL("Could not allocate address space for segment %zd", segndx);
+				FAIL("Could not allocate address space for segment %d", (int)segndx);
 			curseg->vaddr_bottom = curseg->vaddr_top + curseg->memsz;
 		}
 	}
