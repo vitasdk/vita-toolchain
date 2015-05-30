@@ -128,6 +128,7 @@ int elf_utils_shift_contents(Elf *e, int start_offset, int shift_amount)
 	GElf_Shdr shdr;
 	size_t segment_count = 0, segndx;
 	GElf_Phdr phdr;
+	int bottom_section_offset = 0;
 
 	ELF_ASSERT(gelf_getehdr(e, &ehdr));
 	if (ehdr.e_shoff >= start_offset) {
@@ -142,6 +143,15 @@ int elf_utils_shift_contents(Elf *e, int start_offset, int shift_amount)
 			shdr.sh_offset += shift_amount;
 			ELF_ASSERT(gelf_update_shdr(scn, &shdr));
 		}
+		if (shdr.sh_offset + shdr.sh_size > bottom_section_offset) {
+			bottom_section_offset = shdr.sh_offset + shdr.sh_size;
+		}
+	}
+
+	if (bottom_section_offset > ehdr.e_shoff) {
+		ELF_ASSERT(gelf_getehdr(e, &ehdr));
+		ehdr.e_shoff = bottom_section_offset;
+		ELF_ASSERT(gelf_update_ehdr(e, &ehdr));
 	}
 
 	/* A bug in libelf means that getphdrnum will report failure in a new file.

@@ -161,7 +161,6 @@ int main(int argc, char *argv[])
 	int outfd;
 	Elf *dest;
 	ASSERT(dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfd));
-	ASSERT(elf_utils_shift_contents(dest, 0x80f0, total_size));
 	ASSERT(elf_utils_duplicate_shstrtab(dest));
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));
 	rtable.next = ve->rela_tables;
