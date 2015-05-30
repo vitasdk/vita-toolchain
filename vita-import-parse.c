@@ -14,7 +14,7 @@ vita_imports_t *vita_imports_load(const char *filename, int verbose)
 	size_t size = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 
-	char *text = malloc(size * sizeof(char));
+	char *text = calloc(size + 1, 1);
 
 	fread(text, 1, size, fp);
 	fclose(fp);
