@@ -40,4 +40,4 @@ test/%.a: vita-libs-gen sample-db.json
 -include $(ALL_OBJS:.o=.d)
 
 clean:
-	rm -rf $(ALL_OBJS) $(ALL_OBJS:.o=.d) $(TARGETS) $(TEST_OUTPUT)
+	rm -f $(ALL_OBJS) $(ALL_OBJS:.o=.d) $(TARGETS) $(TEST_OUTPUT)
