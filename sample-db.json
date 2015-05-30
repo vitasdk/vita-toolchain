@@ -1,36 +1,32 @@
-[
-  {
-    "name":"SceLibKernel",
+{
+  "SceLibKernel": {
     "nid":1237592384,
-    "modules":[
-      {
-        "name":"SceLibKernel",
+    "modules": {
+      "SceLibKernel": {
         "nid":3404311782,
         "kernel":false,
-        "functions":[
-          {"name":"sceKernelPuts","nid":37661282},
-          {"name":"sceKernelGetThreadId","nid":263811833},
-          {"name":"sceIoDevctl","nid":78843058}
-        ],
-        "variables":[
-          {"name":"SceKernelStackGuard","nid":1146666227}
-        ]
+        "functions": {
+          "sceKernelPuts":37661282,
+          "sceKernelGetThreadId":263811833,
+          "sceIoDevctl":78843058
+        },
+        "variables":{
+          "SceKernelStackGuard":1146666227
+        }
       },
-      {
-        "name":"SceLibGcc",
+      "SceLibGcc": {
         "nid":1450899878,
         "kernel":false,
-        "functions":[
-        ],
-        "variables":[
-        ]
+        "functions":{
+        },
+        "variables":{
+        }
       }
-    ]
+    }
   },
-  {
-    "name":"SceIoFilemgr",
+  "SceIoFilemgr": {
     "nid":1042566167,
-    "modules":[
-    ]
+    "modules":{
+    }
   }
-]
+}
