@@ -149,7 +149,8 @@ int generate_makefile(vita_imports_t *imports)
 
 	fputs(
 		"ALL_OBJS=\n\n"
-		"define LIBRARY_template =\n"
+		"all: $(TARGETS)\n\n"
+		"define LIBRARY_template\n"
 		" $(1): $$($(1:lib%.a=%)_OBJS)\n"
 		" ALL_OBJS += $$($(1:lib%.a=%)_OBJS)\n"
 		"endef\n\n"
