@@ -2,3 +2,8 @@ vita-libs-gen
 vita-elf-create
 *.o
 *.d
+*.elf
+*.velf
+*.a
+test/*.S
+test/Makefile
