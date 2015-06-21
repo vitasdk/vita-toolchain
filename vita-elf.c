@@ -9,6 +9,7 @@
  * functions.  This is because they have extra sanity checking baked in.
  */
 
+// MacOS compatibility
 #ifndef MAP_ANONYMOUS
 #  define MAP_ANONYMOUS MAP_ANON
 #endif
