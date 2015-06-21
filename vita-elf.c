@@ -9,6 +9,10 @@
  * functions.  This is because they have extra sanity checking baked in.
  */
 
+#ifndef MAP_ANONYMOUS
+#  define MAP_ANONYMOUS MAP_ANON
+#endif
+
 #ifndef __MINGW32__
 /* This may cause trouble with Windows portability, but there are Windows alternatives
  * to mmap() that we can explore later.  It'll probably work under Cygwin.
