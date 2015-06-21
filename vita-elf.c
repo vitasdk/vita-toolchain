@@ -129,7 +129,7 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 				| ((data & 0x7ff))) << 1) + addr + 4;
 		case R_ARM_CALL: // bl/blx
 		case R_ARM_JUMP24: // b/bl<cond>
-			return ((data & 0x00ffffff) << 2) + addr + 8;
+			return ((data & 0x00ffffff) << 2) + addr;
 		case R_ARM_MOVW_ABS_NC: //movw
 			return ((data & 0xf0000) >> 4) | (data & 0xfff);
 		case R_ARM_MOVT_ABS: //movt
