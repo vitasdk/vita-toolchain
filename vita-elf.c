@@ -126,7 +126,7 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 		case R_ARM_THM_CALL: // bl (THUMB)
 			data = THUMB_SHUFFLE(data);
 			return (((((data >> 16) & 0x7ff) << 11)
-				| ((data & 0x7ff))) << 1) + addr + 4;
+				| ((data & 0x7ff))) << 1) + addr;
 		case R_ARM_CALL: // bl/blx
 		case R_ARM_JUMP24: // b/bl<cond>
 			return ((data & 0x00ffffff) << 2) + addr;
