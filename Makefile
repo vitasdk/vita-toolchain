@@ -28,7 +28,7 @@ test: test/test.elf vita-elf-create
 	arm-none-eabi-objdump -s -j .data.vstubs -j .sceModuleInfo.rodata -j .sceLib.ent -j .sceExport.rodata -j .sceLib.stubs -j .sceImport.rodata -j .sceFNID.rodata -j .sceFStub.rodata -j .sceVNID.rodata -j .sceVStub.rodata -j .sce.rel test/test.velf
 
 test/test.elf: test/test.o test/libSceLibKernel.a
-	arm-none-eabi-gcc -Wl,-q -nostartfiles $^ -o $@
+	arm-none-eabi-gcc -Wl,-q -nostartfiles -nostdlib $^ -o $@
 
 test/test.o: test/test.c
 	arm-none-eabi-gcc -march=armv7-a -c $< -o $@
