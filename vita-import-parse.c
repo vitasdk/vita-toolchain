@@ -83,6 +83,7 @@ vita_imports_t *vita_imports_loads(const char *text, int verbose)
 		j = -1;
 		json_object_foreach(modules, mod_name, mod_data) {
 			json_t *nid, *kernel, *functions, *variables, *target_nid;
+			int has_variables = 1;
 
 			j++;
 
@@ -114,7 +115,11 @@ vita_imports_t *vita_imports_loads(const char *text, int verbose)
 			}
 
 			variables = json_object_get(mod_data, "variables");
-			if (!json_is_object(variables)) {
+			if (variables == NULL) {
+				has_variables = 0;
+			}
+
+			if (has_variables && !json_is_object(variables)) {
 				fprintf(stderr, "error: module %s: variables is not an array\n", mod_name);
 				json_decref(libs);
 				return NULL;
@@ -146,6 +151,10 @@ vita_imports_t *vita_imports_loads(const char *text, int verbose)
 						target_name,
 						json_integer_value(target_nid));
 
+			}
+
+			if (!has_variables) {
+				continue;
 			}
 
 			k = -1;

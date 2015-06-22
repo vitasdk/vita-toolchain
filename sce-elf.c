@@ -458,7 +458,7 @@ void *sce_elf_module_info_encode(
 	}
 
 	for (i = 0; i < sizeof(sce_section_sizes_t) / sizeof(Elf32_Word); i++) {
-		if (((Elf32_Word *)&cur_sizes)[i] != ((Elf32_Word *)sizes)[i]) 
+		if (((Elf32_Word *)&cur_sizes)[i] != ((Elf32_Word *)sizes)[i])
 			FAILX("sce_elf_module_info_encode() did not use all space in section %d!", i);
 	}
 
@@ -746,6 +746,12 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 	ELF_ASSERT(scn = elf_getscn(dest, ve->vstubs_ndx));
 	ELF_ASSERT(gelf_getshdr(scn, &shdr));
 	strcpy(shstrtab + shdr.sh_name, ".data.vstubs");
+
+	/* If the section index is zero, it means that it's nonexistent */
+	if (ve->vstubs_ndx == 0) {
+		return 1;
+	}
+
 	data = NULL;
 	while ((data = elf_getdata(scn, data)) != NULL) {
 		for (stubdata = (uint32_t *)data->d_buf;
