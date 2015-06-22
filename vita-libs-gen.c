@@ -87,7 +87,7 @@ int generate_assembly(vita_imports_t *imports)
 			fprintf(fp, "\n");
 
 			if (imports->libs[i]->modules[j]->n_variables > 0)
-				fprintf(fp, ".section .vitalink.vstubs,\"awx\",%%progbits\n\n");
+				fprintf(fp, ".section .vitalink.vstubs,\"aw\",%%progbits\n\n");
 
 			for (k = 0; k < imports->libs[i]->modules[j]->n_variables; k++) {
 
