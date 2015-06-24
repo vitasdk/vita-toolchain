@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <string.h>
 #include <jansson.h>
 #include "vita-import.h"
@@ -10,28 +9,20 @@ vita_imports_t *vita_imports_load(const char *filename, int verbose)
 		fprintf(stderr, "Error: could not open %s\n", filename);
 		return NULL;
 	}
-	fseek(fp, 0, SEEK_END);
-	size_t size = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
+	vita_imports_t *imports = vita_imports_loads(fp, verbose);
 
-	char *text = calloc(size + 1, 1);
-
-	fread(text, 1, size, fp);
 	fclose(fp);
 
-	vita_imports_t *imports = vita_imports_loads(text, verbose);
-
-	free(text);
 	return imports;
 }
 
-vita_imports_t *vita_imports_loads(const char *text, int verbose)
+vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 {
 	json_t *libs, *lib_data;
 	json_error_t error;
 	const char *lib_name, *mod_name, *target_name;
 
-	libs = json_loads(text, 0, &error);
+	libs = json_loadf(text, 0, &error);
 	if (libs == NULL) {
 		fprintf(stderr, "error: on line %d: %s\n", error.line, error.text);
 		return NULL;
