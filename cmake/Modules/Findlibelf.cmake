@@ -4,7 +4,7 @@ pkg_check_modules(PC_libelf libelf)
 find_path(libelf_INCLUDE_DIR libelf.h
           HINTS ${PC_libelf_INCLUDEDIR} ${PC_libelf_INCLUDE_DIRS})
 
-find_library(libelf_LIBRARY NAMES libelf
+find_library(libelf_LIBRARY NAMES elf
              HINTS ${PC_libelf_LIBDIR} ${PC_libelf_LIBRARY_DIRS} )
 
 set(libelf_LIBRARIES ${libelf_LIBRARY})
