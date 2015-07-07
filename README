@@ -1,0 +1,8 @@
+vita-toolchain
+==============
+
+A simplistic, open-source toolchain for the ps vita.
+
+TODO:
+make check (tests/ subdir needs to be done with this properly)
+

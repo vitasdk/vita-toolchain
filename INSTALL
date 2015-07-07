@@ -1,0 +1,14 @@
+First, clone the repo.
+
+To install the vita-toolchain you require some dependencies:
+- autotools (optional)
+- make
+- install
+- a compiler
+- an arm compiler (devkitarm r44 or above works fine)
+
+Once you have these, a simple:
+./configure && make
+sudo make install
+
+Will install the toolchain for you. You can change the install location using the --prefix flag on the ./configure script.
