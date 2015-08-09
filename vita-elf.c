@@ -239,13 +239,6 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	gelf_getshdr(text_scn, &text_shdr);
 	text_data = elf_getdata(text_scn, NULL);
 
-	// skip unsupported section (for ex ARM_EXIDX)
-	if (text_data == NULL)
-	{
-		free_rela_table(rtable);
-		return 1;
-	}
-
 	/* We're blatantly assuming here that both of these sections will store
 	 * the entirety of their data in one Elf_Data item.  This seems to be true
 	 * so far in my testing, and from the libelf source it looks like it's
