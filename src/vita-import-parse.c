@@ -121,6 +121,7 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 
 			imports->libs[i]->modules[j] = vita_imports_module_new(
 					mod_name,
+					json_boolean_value(kernel),
 					json_integer_value(nid),
 					json_object_size(functions),
 					json_object_size(variables));

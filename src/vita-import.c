@@ -42,7 +42,7 @@ vita_imports_lib_t *vita_imports_lib_new(const char *name, uint32_t NID, int n_m
 }
 
 
-vita_imports_module_t *vita_imports_module_new(const char *name, uint32_t NID, int n_functions, int n_variables)
+vita_imports_module_t *vita_imports_module_new(const char *name, bool kernel, uint32_t NID, int n_functions, int n_variables)
 {
 	vita_imports_module_t *mod = malloc(sizeof(*mod));
 	if (mod == NULL)
@@ -50,6 +50,7 @@ vita_imports_module_t *vita_imports_module_new(const char *name, uint32_t NID, i
 
 	mod->name = strdup(name);
 	mod->NID = NID;
+	mod->is_kernel = kernel;
 	mod->n_functions = n_functions;
 	mod->n_variables = n_variables;
 

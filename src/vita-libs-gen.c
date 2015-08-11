@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include "vita-import.h"
 
+#define KERNEL_LIBS_STUB "SceLibKernel"
+
 void usage();
 int generate_assembly(vita_imports_t *imports);
 int generate_makefile(vita_imports_t *imports);
@@ -118,10 +120,19 @@ int generate_makefile(vita_imports_t *imports)
 {
 	FILE *fp;
 	int i, j;
+	char *str1, *str2, *tmp;
+	size_t size, len;
+	int is_special;
 
 	if ((fp = fopen("Makefile", "w")) == NULL) {
 		return 0;
 	}
+
+	size = 1024;
+	str1 = malloc(1024);
+	str2 = malloc(1024);
+	str1[0] = '\0';
+	str2[0] = '\0';
 
 	fputs(
 		"ARCH = arm-none-eabi\n"
@@ -138,14 +149,42 @@ int generate_makefile(vita_imports_t *imports)
 	fprintf(fp, "\n\n");
 
 	for (i = 0; i < imports->n_libs; i++) {
-		fprintf(fp, "%s_OBJS =", imports->libs[i]->name);
+		is_special = (strcmp(KERNEL_LIBS_STUB, imports->libs[i]->name) == 0);
 
-		for (j = 0; j < imports->libs[i]->n_modules; j++) {
-			fprintf(fp, " %s.o", imports->libs[i]->modules[j]->name);
+		if (!is_special) {
+			fprintf(fp, "%s_OBJS =", imports->libs[i]->name);
 		}
 
-		fprintf(fp, "\n");
+		for (j = 0; j < imports->libs[i]->n_modules; j++) {
+			if (is_special || imports->libs[i]->modules[j]->is_kernel) {
+				len = snprintf(str2, size, "%s %s.o", str1, imports->libs[i]->modules[j]->name);
+				if (len > size) {
+					// expand both buffers
+					size *= 2;
+					str1 = realloc(str1, size);
+					free(str2);
+					str2 = malloc(size);
+					// retry this
+					j--;
+					continue;
+				}
+				// swap the two buffers
+				tmp = str2;
+				str2 = str1;
+				str1 = tmp;
+			}
+			else {
+				fprintf(fp, " %s.o", imports->libs[i]->modules[j]->name);
+			}
+		}
+
+		if (!is_special) {
+			fprintf(fp, "\n");
+		}
 	}
+
+	// write kernel lib stub
+	fprintf(fp, "%s_OBJS =%s\n", KERNEL_LIBS_STUB, str1);
 
 	fputs(
 		"ALL_OBJS=\n\n"
@@ -166,6 +205,8 @@ int generate_makefile(vita_imports_t *imports)
 		, fp);
 
 	fclose(fp);
+	free(str1);
+	free(str2);
 
 	return 1;
 }

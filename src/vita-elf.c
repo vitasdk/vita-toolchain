@@ -155,6 +155,25 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 	errx(EXIT_FAILURE, "Invalid relocation type: %d", type);
 }
 
+static uint8_t decode_rel_table_idx(uint32_t data, int type)
+{
+	if (type == R_ARM_THM_MOVW_ABS_NC || type == R_ARM_THM_MOVT_ABS)
+	{
+		// for thumb, each table entry is just always-conditional
+		data = THUMB_SHUFFLE(data);
+		return 0xe0 | ((data >> 8) & 0xf);
+	}
+	else if (type == R_ARM_MOVW_ABS_NC || type == R_ARM_MOVT_ABS)
+	{
+		// for arm, we use both the condition and register to get an index
+		return ((data >> 28) << 4) | ((data >> 12) & 0xf);
+	}
+	else
+	{
+		return 255;
+	}
+}
+
 #define REL_HANDLE_NORMAL 0
 #define REL_HANDLE_IGNORE -1
 #define REL_HANDLE_EXPECTED -2
@@ -195,13 +214,14 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	GElf_Rel rel;
 	int relndx;
 
-	int expect_type = 0;
+	int expect_type[256] = {0};
 	int rel_sym;
 	int handling;
 
 	vita_elf_rela_table_t *rtable = NULL;
-	vita_elf_rela_t *currela = NULL, *prevrela = NULL;
+	vita_elf_rela_t *currela = NULL, *prevrela[256] = {0};
 	uint32_t insn, target = 0;
+	uint8_t idx = 0;
 
 	gelf_getshdr(scn, &shdr);
 
@@ -233,20 +253,24 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		currela->type = GELF_R_TYPE(rel.r_info);
 		currela->offset = rel.r_offset;
 
-		if (expect_type != 0 && currela->type != expect_type)
+		insn = le32toh(*((uint32_t*)(text_data->d_buf+(rel.r_offset - text_shdr.sh_addr))));
+
+		idx = decode_rel_table_idx(insn, currela->type);
+
+		if (expect_type[idx] != 0 && currela->type != expect_type[idx])
 			FAILX("Expected %s relocation to follow %s, got %s!",
-					elf_decode_r_type(expect_type), elf_decode_r_type(prevrela->type), elf_decode_r_type(currela->type));
+					elf_decode_r_type(expect_type[idx]), elf_decode_r_type(prevrela[idx]->type), elf_decode_r_type(currela->type));
 
 		handling = get_rel_handling(currela->type);
 
 		if (handling == REL_HANDLE_IGNORE)
 			continue;
-		else if (handling == REL_HANDLE_EXPECTED && expect_type == 0)
+		else if (handling == REL_HANDLE_EXPECTED && expect_type[idx] == 0)
 			FAILX("Encountered unexpected %s relocation!", elf_decode_r_type(currela->type));
 		else if (handling == REL_HANDLE_INVALID)
 			FAILX("Invalid relocation type %d!", currela->type);
 
-		expect_type = 0;
+		expect_type[idx] = 0;
 
 		rel_sym = GELF_R_SYM(rel.r_info);
 		if (rel_sym >= ve->num_symbols)
@@ -254,35 +278,31 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 
 		currela->symbol = ve->symtab + rel_sym;
 
-		insn = le32toh(*((uint32_t*)(text_data->d_buf+(rel.r_offset - text_shdr.sh_addr))));
-
 		if (handling == REL_HANDLE_EXPECTED) {
-			if (currela->symbol != prevrela->symbol)
+			if (currela->symbol != prevrela[idx]->symbol)
 				FAILX("Paired MOVW/MOVT relocations do not reference same symbol!");
-			if (currela->offset != prevrela->offset + 4)
-				FAILX("Paired MOVW/MOVT relocation not adjacent!");
 			target |= decode_rel_target(insn, currela->type, rel.r_offset);
 		} else
 			target = decode_rel_target(insn, currela->type, rel.r_offset);
 
 		if (handling > 0) {
-			expect_type = handling;
-			prevrela = currela;
+			expect_type[idx] = handling;
+			prevrela[idx] = currela;
 			continue;
 		}
 
 		currela->addend = target - currela->symbol->value;
 
 		if (handling == REL_HANDLE_EXPECTED)
-			prevrela->addend = target - currela->symbol->value;
+			prevrela[idx]->addend = target - currela->symbol->value;
 
 
-		prevrela = NULL;
+		prevrela[idx] = NULL;
 	}
 
-	if (expect_type != 0)
+	if (expect_type[idx] != 0)
 		FAILX("Found %s relocation without corresponding %s!",
-				elf_decode_r_type(prevrela->type), elf_decode_r_type(expect_type));
+				elf_decode_r_type(prevrela[idx]->type), elf_decode_r_type(expect_type[idx]));
 
 	rtable->next = ve->rela_tables;
 	ve->rela_tables = rtable;
@@ -418,7 +438,7 @@ vita_elf_t *vita_elf_load(const char *filename)
 		FAILX("No symbol table in binary, perhaps stripped out");
 
 	if (ve->rela_tables == NULL)
-		FAILX("No relocation sections in binary; use -Wl,-q while linking");
+		FAILX("No relocation sections in binary; use -Wl,-q while compiling");
 
 	if (ve->fstubs_ndx != 0) {
 		if (!lookup_stub_symbols(ve, ve->num_fstubs, ve->fstubs, ve->fstubs_ndx, STT_FUNC)) goto failure;
