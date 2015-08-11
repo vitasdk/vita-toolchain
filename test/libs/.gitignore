@@ -1,0 +1,4 @@
+Makefile
+*.a
+*.o
+*.S
