@@ -221,7 +221,7 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	vita_elf_rela_table_t *rtable = NULL;
 	vita_elf_rela_t *currela = NULL, *prevrela[256] = {0};
 	uint32_t insn, target = 0;
-	uint8_t idx = 0;
+	uint32_t idx = 0;
 
 	gelf_getshdr(scn, &shdr);
 
@@ -281,13 +281,15 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		if (handling == REL_HANDLE_EXPECTED) {
 			if (currela->symbol != prevrela[idx]->symbol)
 				FAILX("Paired MOVW/MOVT relocations do not reference same symbol!");
-			target |= decode_rel_target(insn, currela->type, rel.r_offset);
+			target = prevrela[idx]->addend | decode_rel_target(insn, currela->type, rel.r_offset);
 		} else
 			target = decode_rel_target(insn, currela->type, rel.r_offset);
 
 		if (handling > 0) {
 			expect_type[idx] = handling;
 			prevrela[idx] = currela;
+			// temp save 'target' to addend, will reuse when handling REL_HANDLE_EXPECTED
+			currela->addend = target;
 			continue;
 		}
 
@@ -300,9 +302,11 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		prevrela[idx] = NULL;
 	}
 
-	if (expect_type[idx] != 0)
-		FAILX("Found %s relocation without corresponding %s!",
-				elf_decode_r_type(prevrela[idx]->type), elf_decode_r_type(expect_type[idx]));
+	for (idx = 0; idx < sizeof(expect_type) / sizeof(expect_type[0]); ++idx) {
+		if (expect_type[idx] != 0)
+			FAILX("Found %s relocation without corresponding %s!",
+				  elf_decode_r_type(prevrela[idx]->type), elf_decode_r_type(expect_type[idx]));
+	}
 
 	rtable->next = ve->rela_tables;
 	ve->rela_tables = rtable;
