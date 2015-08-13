@@ -664,6 +664,11 @@ encode_relas:
 	for (curtable = rtable; curtable; curtable = curtable->next) {
 		for (i = 0, vrela = curtable->relas; i < curtable->num_relas; i++, vrela++) {
 			datseg = vita_elf_vaddr_to_segndx(ve, vrela->offset);
+			/* We can get -1 here and for 'symseg' for some debugging-related relocations.
+			 * These are done against debug sections that aren't mapped to any segment.
+			 * Just ignore these */
+			if (datseg == -1)
+				continue;
 			datoff = vita_elf_vaddr_to_segoffset(ve, vrela->offset, datseg);
 			if (vrela->symbol) {
 				symvaddr = vrela->symbol->value + vrela->addend;
@@ -671,6 +676,8 @@ encode_relas:
 				symvaddr = vrela->addend;
 			}
 			symseg = vita_elf_vaddr_to_segndx(ve, symvaddr);
+			if (symseg == -1)
+				continue;
 			symoff = vita_elf_vaddr_to_segoffset(ve, symvaddr, symseg);
 			if (!sce_rel_func(&rel, symseg, vrela->type, datseg, datoff, symoff)) {
 				sce_rel_func = sce_rel_long;

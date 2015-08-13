@@ -115,6 +115,7 @@ failure:
 #define THUMB_SHUFFLE(x) ((((x) & 0xFFFF0000) >> 16) | (((x) & 0xFFFF) << 16))
 static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 {
+	uint32_t upper, lower, sign, j1, j2, imm10, imm11;
 	switch(type) {
 		case R_ARM_NONE:
 		case R_ARM_V4BX:
@@ -129,8 +130,14 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 			return data + addr;
 		case R_ARM_THM_CALL: // bl (THUMB)
 			data = THUMB_SHUFFLE(data);
-			return (((((((data >> 16) & 0x7ff) << 11)
-				| ((data & 0x7ff))) << 1) + addr) << 16) >> 16;
+			upper = data >> 16;
+			lower = data & 0xFFFF;
+			sign = (upper >> 10) & 1;
+			j1 = (lower >> 13) & 1;
+			j2 = (lower >> 11) & 1;
+			imm10 = upper & 0x3ff;
+			imm11 = lower & 0x7ff;
+			return addr + (((imm11 | (imm10 << 11) | (!(j2 ^ sign) << 21) | (!(j1 ^ sign) << 22) | (sign << 23)) << 1) | (sign ? 0xff000000 : 0));
 		case R_ARM_CALL: // bl/blx
 		case R_ARM_JUMP24: // b/bl<cond>
 			return ((((data & 0x00ffffff) << 2) + addr) << 8) >> 8;
@@ -155,29 +162,9 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 	errx(EXIT_FAILURE, "Invalid relocation type: %d", type);
 }
 
-static uint8_t decode_rel_table_idx(uint32_t data, int type)
-{
-	if (type == R_ARM_THM_MOVW_ABS_NC || type == R_ARM_THM_MOVT_ABS)
-	{
-		// for thumb, each table entry is just always-conditional
-		data = THUMB_SHUFFLE(data);
-		return 0xe0 | ((data >> 8) & 0xf);
-	}
-	else if (type == R_ARM_MOVW_ABS_NC || type == R_ARM_MOVT_ABS)
-	{
-		// for arm, we use both the condition and register to get an index
-		return ((data >> 28) << 4) | ((data >> 12) & 0xf);
-	}
-	else
-	{
-		return 255;
-	}
-}
-
 #define REL_HANDLE_NORMAL 0
 #define REL_HANDLE_IGNORE -1
-#define REL_HANDLE_EXPECTED -2
-#define REL_HANDLE_INVALID -3
+#define REL_HANDLE_INVALID -2
 static int get_rel_handling(int type)
 {
 	switch(type) {
@@ -192,15 +179,11 @@ static int get_rel_handling(int type)
 		case R_ARM_THM_CALL:
 		case R_ARM_CALL:
 		case R_ARM_JUMP24:
-			return REL_HANDLE_NORMAL;
 		case R_ARM_MOVW_ABS_NC:
-			return R_ARM_MOVT_ABS;
 		case R_ARM_MOVT_ABS:
-			return REL_HANDLE_EXPECTED;
 		case R_ARM_THM_MOVW_ABS_NC:
-			return R_ARM_THM_MOVT_ABS;
 		case R_ARM_THM_MOVT_ABS:
-			return REL_HANDLE_EXPECTED;
+			return REL_HANDLE_NORMAL;
 	}
 
 	return REL_HANDLE_INVALID;
@@ -214,14 +197,12 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	GElf_Rel rel;
 	int relndx;
 
-	int expect_type[256] = {0};
 	int rel_sym;
 	int handling;
 
 	vita_elf_rela_table_t *rtable = NULL;
-	vita_elf_rela_t *currela = NULL, *prevrela[256] = {0};
+	vita_elf_rela_t *currela = NULL;
 	uint32_t insn, target = 0;
-	uint8_t idx = 0;
 
 	gelf_getshdr(scn, &shdr);
 
@@ -251,26 +232,23 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 
 		currela = rtable->relas + relndx;
 		currela->type = GELF_R_TYPE(rel.r_info);
+		/* R_ARM_THM_JUMP24 is functionally the same as R_ARM_THM_CALL, however Vita only supports the second one */
+		if (currela->type == R_ARM_THM_JUMP24)
+			currela->type = R_ARM_THM_CALL;
+		/* This one comes from libstdc++.
+		 * Should be safe to ignore because it's pc-relative and already encoded in the file. */
+		if (currela->type == R_ARM_THM_PC11)
+			continue;
 		currela->offset = rel.r_offset;
 
 		insn = le32toh(*((uint32_t*)(text_data->d_buf+(rel.r_offset - text_shdr.sh_addr))));
-
-		idx = decode_rel_table_idx(insn, currela->type);
-
-		if (expect_type[idx] != 0 && currela->type != expect_type[idx])
-			FAILX("Expected %s relocation to follow %s, got %s!",
-					elf_decode_r_type(expect_type[idx]), elf_decode_r_type(prevrela[idx]->type), elf_decode_r_type(currela->type));
 
 		handling = get_rel_handling(currela->type);
 
 		if (handling == REL_HANDLE_IGNORE)
 			continue;
-		else if (handling == REL_HANDLE_EXPECTED && expect_type[idx] == 0)
-			FAILX("Encountered unexpected %s relocation!", elf_decode_r_type(currela->type));
 		else if (handling == REL_HANDLE_INVALID)
 			FAILX("Invalid relocation type %d!", currela->type);
-
-		expect_type[idx] = 0;
 
 		rel_sym = GELF_R_SYM(rel.r_info);
 		if (rel_sym >= ve->num_symbols)
@@ -278,31 +256,20 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 
 		currela->symbol = ve->symtab + rel_sym;
 
-		if (handling == REL_HANDLE_EXPECTED) {
-			if (currela->symbol != prevrela[idx]->symbol)
-				FAILX("Paired MOVW/MOVT relocations do not reference same symbol!");
-			target |= decode_rel_target(insn, currela->type, rel.r_offset);
-		} else
-			target = decode_rel_target(insn, currela->type, rel.r_offset);
+		target = decode_rel_target(insn, currela->type, rel.r_offset);
 
-		if (handling > 0) {
-			expect_type[idx] = handling;
-			prevrela[idx] = currela;
-			continue;
-		}
-
-		currela->addend = target - currela->symbol->value;
-
-		if (handling == REL_HANDLE_EXPECTED)
-			prevrela[idx]->addend = target - currela->symbol->value;
-
-
-		prevrela[idx] = NULL;
+		/* From some testing the added for MOVT/MOVW should actually always be 0 */
+		if (currela->type == R_ARM_MOVT_ABS || currela->type == R_ARM_THM_MOVT_ABS)
+			currela->addend = target - (currela->symbol->value & 0xFFFF0000);
+		else if (currela->type == R_ARM_MOVW_ABS_NC || currela->type == R_ARM_THM_MOVW_ABS_NC)
+			currela->addend = target - (currela->symbol->value & 0xFFFF);
+		/* Symbol value could be OR'ed with 1 if the function is compiled in Thumb mode,
+		 * however for the relocation addend we need the actual address. */
+		else if (currela->type == R_ARM_THM_CALL)
+			currela->addend = target - (currela->symbol->value & 0xFFFFFFFE);
+		else
+			currela->addend = target - currela->symbol->value;
 	}
-
-	if (expect_type[idx] != 0)
-		FAILX("Found %s relocation without corresponding %s!",
-				elf_decode_r_type(prevrela[idx]->type), elf_decode_r_type(expect_type[idx]));
 
 	rtable->next = ve->rela_tables;
 	ve->rela_tables = rtable;
