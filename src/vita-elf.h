@@ -46,6 +46,7 @@ typedef struct vita_elf_stub_t {
 } vita_elf_stub_t;
 
 typedef struct vita_elf_segment_info_t {
+	Elf32_Word type;	/* Segment type */
 	Elf32_Addr vaddr;	/* Top of segment space on TARGET */
 	Elf32_Word memsz;	/* Size of segment space */
 

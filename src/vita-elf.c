@@ -425,6 +425,7 @@ vita_elf_t *vita_elf_load(const char *filename)
 		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
 
 		curseg = ve->segments + segndx;
+		curseg->type = phdr.p_type;
 		curseg->vaddr = phdr.p_vaddr;
 		curseg->memsz = phdr.p_memsz;
 
@@ -599,6 +600,10 @@ int vita_elf_vaddr_to_segndx(const vita_elf_t *ve, Elf32_Addr vaddr)
 	int i;
 
 	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
+		/* Segments of type EXIDX will duplicate '.ARM.extab .ARM.exidx' sections already present in the data segment
+		 * Since these won't be loaded, we should prefer the actual data segment */
+		if (seg->type == SHT_ARM_EXIDX)
+			continue;
 		if (vaddr >= seg->vaddr && vaddr < seg->vaddr + seg->memsz)
 			return i;
 		if (vaddr >= seg->vaddr && seg->vaddr + seg->memsz > closest_vaddr) {
