@@ -160,6 +160,7 @@ int main(int argc, char *argv[])
 	Elf *dest;
 	ASSERT(dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfile));
 	ASSERT(elf_utils_duplicate_shstrtab(dest));
+	ASSERT(sce_elf_discard_invalid_relocs(ve, ve->rela_tables));
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));
 	rtable.next = ve->rela_tables;
 	ASSERT(sce_elf_write_rela_sections(dest, ve, &rtable));
