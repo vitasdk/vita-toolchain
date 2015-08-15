@@ -7,6 +7,7 @@
 # define R_ARM_THM_CALL        10
 # define R_ARM_CALL            28
 # define R_ARM_JUMP24          29
+# define R_ARM_THM_JUMP24      30
 # define R_ARM_TARGET1         38
 # define R_ARM_SBREL31         39
 # define R_ARM_V4BX            40
@@ -18,6 +19,7 @@
 # define R_ARM_MOVT_PREL       46
 # define R_ARM_THM_MOVW_ABS_NC 47
 # define R_ARM_THM_MOVT_ABS    48
+# define R_ARM_THM_PC11        102
 
 #define STB_NUM     3
 
