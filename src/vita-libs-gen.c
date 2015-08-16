@@ -157,7 +157,7 @@ int generate_makefile(vita_imports_t *imports)
 		"TARGETS =", fp);
 
 	for (i = 0; i < imports->n_libs; i++) {
-		fprintf(fp, " lib%s.a", imports->libs[i]->name);
+		fprintf(fp, " lib%s_stub.a", imports->libs[i]->name);
 	}
 
 	fprintf(fp, "\n\n");
@@ -197,8 +197,8 @@ int generate_makefile(vita_imports_t *imports)
 		"ALL_OBJS=\n\n"
 		"all: $(TARGETS)\n\n"
 		"define LIBRARY_template\n"
-		" $(1): $$($(1:lib%.a=%)_OBJS)\n"
-		" ALL_OBJS += $$($(1:lib%.a=%)_OBJS)\n"
+		" $(1): $$($(1:lib%_stub.a=%)_OBJS)\n"
+		" ALL_OBJS += $$($(1:lib%_stub.a=%)_OBJS)\n"
 		"endef\n\n"
 		"$(foreach library,$(TARGETS),$(eval $(call LIBRARY_template,$(library))))\n\n"
 		"all: $(TARGETS)\n\n"
