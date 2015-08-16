@@ -536,6 +536,9 @@ int sce_elf_write_module_info(
 	if (!elf_utils_shift_contents(dest, start_foffset, total_size))
 		FAILX("Unable to relocate ELF sections");
 
+	/* Extend in our copy of phdrs so that vita_elf_vaddr_to_segndx can match it */
+	ve->segments[segndx].memsz += total_size;
+
 	phdr.p_filesz += total_size;
 	phdr.p_memsz += total_size;
 	ELF_ASSERT(gelf_update_phdr(dest, segndx, &phdr));
@@ -631,6 +634,30 @@ static int encode_sce_rel(SCE_Rel *rel)
 	}
 }
 
+/* We have to check all relocs. If any of the point to a space in ELF that is not contained in any segment,
+ * we should discard this reloc. This should be done before we extend the code segment with modinfo, because otherwise
+ * the invalid addresses may become valid */
+int sce_elf_discard_invalid_relocs(const vita_elf_t *ve, vita_elf_rela_table_t *rtable) {
+	vita_elf_rela_table_t *curtable;
+	vita_elf_rela_t *vrela;
+	int i, datseg;
+	for (curtable = rtable; curtable; curtable = curtable->next) {
+		for (i = 0, vrela = curtable->relas; i < curtable->num_relas; i++, vrela++) {
+			if (vrela->type == R_ARM_NONE || (vrela->symbol && vrela->symbol->shndx == 0)) {
+				vrela->type = R_ARM_NONE;
+				continue;
+			}
+			datseg = vita_elf_vaddr_to_segndx(ve, vrela->offset);
+			/* We can get -1 here for some debugging-related relocations.
+			 * These are done against debug sections that aren't mapped to any segment.
+			 * Just ignore these */
+			if (datseg == -1)
+				vrela->type = R_ARM_NONE;
+		}
+	}
+	return 1;
+}
+
 int sce_elf_write_rela_sections(
 		Elf *dest, const vita_elf_t *ve, const vita_elf_rela_table_t *rtable)
 {
@@ -663,19 +690,16 @@ encode_relas:
 
 	for (curtable = rtable; curtable; curtable = curtable->next) {
 		for (i = 0, vrela = curtable->relas; i < curtable->num_relas; i++, vrela++) {
-			datseg = vita_elf_vaddr_to_segndx(ve, vrela->offset);
-			/* We can get -1 here and for 'symseg' for some debugging-related relocations.
-			 * These are done against debug sections that aren't mapped to any segment.
-			 * Just ignore these */
-			if (datseg == -1)
+			if (vrela->type == R_ARM_NONE)
 				continue;
+			datseg = vita_elf_vaddr_to_segndx(ve, vrela->offset);
 			datoff = vita_elf_vaddr_to_segoffset(ve, vrela->offset, datseg);
 			if (vrela->symbol) {
 				symvaddr = vrela->symbol->value + vrela->addend;
 			} else {
 				symvaddr = vrela->addend;
 			}
-			symseg = vita_elf_vaddr_to_segndx(ve, symvaddr);
+			symseg = vita_elf_vaddr_to_segndx(ve, vrela->symbol ? vrela->symbol->value : vrela->addend);
 			if (symseg == -1)
 				continue;
 			symoff = vita_elf_vaddr_to_segoffset(ve, symvaddr, symseg);

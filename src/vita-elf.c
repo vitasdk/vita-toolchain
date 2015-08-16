@@ -386,6 +386,9 @@ vita_elf_t *vita_elf_load(const char *filename)
 				goto failure;
 		}
 
+		if (strcmp(name, ".rel.debug_line") == 0)
+			FAILX("Your binary contains debugging information. This is known to cause issues. Please run 'arm-vita-eabi-strip -g homebrew.elf'.");
+
 		if (shdr.sh_type == SHT_SYMTAB) {
 			if (!load_symbols(ve, scn))
 				goto failure;
@@ -425,6 +428,7 @@ vita_elf_t *vita_elf_load(const char *filename)
 		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
 
 		curseg = ve->segments + segndx;
+		curseg->type = phdr.p_type;
 		curseg->vaddr = phdr.p_vaddr;
 		curseg->memsz = phdr.p_memsz;
 
@@ -588,26 +592,21 @@ int32_t vita_elf_host_to_segoffset(const vita_elf_t *ve, const void *host_addr, 
 	return -1;
 }
 
-/* vita_elf_vaddr_to_segndx allows for fuzzy matching; if no segment directly includes the vaddr,
- * they will assume the previous segment in memory has been extended to include it.
- */
 int vita_elf_vaddr_to_segndx(const vita_elf_t *ve, Elf32_Addr vaddr)
 {
 	vita_elf_segment_info_t *seg;
-	int best_seg = -1;
-	Elf32_Addr closest_vaddr = 0;
 	int i;
 
 	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
+		/* Segments of type EXIDX will duplicate '.ARM.extab .ARM.exidx' sections already present in the data segment
+		 * Since these won't be loaded, we should prefer the actual data segment */
+		if (seg->type == SHT_ARM_EXIDX)
+			continue;
 		if (vaddr >= seg->vaddr && vaddr < seg->vaddr + seg->memsz)
 			return i;
-		if (vaddr >= seg->vaddr && seg->vaddr + seg->memsz > closest_vaddr) {
-			best_seg = i;
-			closest_vaddr = seg->vaddr + seg->memsz;
-		}
 	}
 
-	return best_seg;
+	return -1;
 }
 
 /* vita_elf_vaddr_to_segoffset won't check the validity of the address, it may have been fuzzy-matched */
