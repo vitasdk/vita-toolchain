@@ -120,8 +120,8 @@ int generate_makefile(vita_imports_t *imports)
 {
 	FILE *fp;
 	int i, j, k;
-	char *str1, *str2, *tmp;
-	size_t size, len;
+	char *kernel_objs, *tmp;
+	size_t size, written;
 	int is_special;
 
 	if ((fp = fopen("Makefile", "w")) == NULL) {
@@ -129,10 +129,9 @@ int generate_makefile(vita_imports_t *imports)
 	}
 
 	size = 1024;
-	str1 = malloc(1024);
-	str2 = malloc(1024);
-	str1[0] = '\0';
-	str2[0] = '\0';
+	written = 0;
+	kernel_objs = malloc(size);
+	kernel_objs[0] = '\0';
 
 	fputs(
 		"ARCH ?= arm-none-eabi\n"
@@ -158,25 +157,18 @@ int generate_makefile(vita_imports_t *imports)
 
 		for (j = 0; j < library->n_modules; j++) {
 			vita_imports_module_t *module = library->modules[j];
+			char buf[4096];
+			snprintf(buf, sizeof(buf), " %s.o", module->name);
 			if (is_special || module->is_kernel) {
-				len = snprintf(str2, size, "%s %s.o", str1, module->name);
-				if (len > size) {
-					// expand both buffers
+				size_t len = strlen(buf);
+				while (written + len >= size) {
 					size *= 2;
-					str1 = realloc(str1, size);
-					free(str2);
-					str2 = malloc(size);
-					// retry this
-					j--;
-					continue;
+					kernel_objs = realloc(kernel_objs, size);
 				}
-				// swap the two buffers
-				tmp = str2;
-				str2 = str1;
-				str1 = tmp;
-			}
-			else {
-				fprintf(fp, " %s.o", module->name);
+				strcat(kernel_objs, buf);
+				written += len;
+			} else {
+				fprintf(fp, buf, module->name);
 			}
 		}
 
@@ -186,7 +178,7 @@ int generate_makefile(vita_imports_t *imports)
 	}
 
 	// write kernel lib stub
-	fprintf(fp, "%s_OBJS =%s\n", KERNEL_LIBS_STUB, str1);
+	fprintf(fp, "%s_OBJS =%s\n", KERNEL_LIBS_STUB, kernel_objs);
 
 	fputs(
 		"ALL_OBJS=\n\n"
@@ -207,8 +199,7 @@ int generate_makefile(vita_imports_t *imports)
 		, fp);
 
 	fclose(fp);
-	free(str1);
-	free(str2);
+	free(kernel_objs);
 
 	return 1;
 }
