@@ -81,10 +81,6 @@ int generate_assembly(vita_imports_t *imports)
 					function->NID);
 				fclose(fp);
 			}
-			fprintf(fp, "\n");
-
-			if (module->n_variables > 0)
-				fprintf(fp, ".section .vitalink.vstubs,\"aw\",%%progbits\n\n");
 
 			for (k = 0; k < module->n_variables; k++) {
 				vita_imports_stub_t *variable = module->variables[k];
