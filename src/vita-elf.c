@@ -327,6 +327,8 @@ failure:
 	return 0;
 }
 
+const char *debug_sections[] = { ".rel.debug_info", ".rel.debug_arange", ".rel.debug_line", ".rel.debug_frame", NULL };
+
 vita_elf_t *vita_elf_load(const char *filename)
 {
 	vita_elf_t *ve = NULL;
@@ -335,6 +337,7 @@ vita_elf_t *vita_elf_load(const char *filename)
 	GElf_Shdr shdr;
 	size_t shstrndx;
 	char *name;
+	const char **debug_name;
 
 	GElf_Phdr phdr;
 	size_t segment_count, segndx;
@@ -386,8 +389,9 @@ vita_elf_t *vita_elf_load(const char *filename)
 				goto failure;
 		}
 
-		if (strcmp(name, ".rel.debug_line") == 0)
-			FAILX("Your binary contains debugging information. This is known to cause issues. Please run 'arm-vita-eabi-strip -g homebrew.elf'.");
+		for (debug_name = &debug_sections[0]; *debug_name; ++debug_name)
+			if (strcmp(name, *debug_name) == 0)
+				FAILX("Your binary contains debugging information. This is known to cause issues. Please run 'arm-vita-eabi-strip -g homebrew.elf'.");
 
 		if (shdr.sh_type == SHT_SYMTAB) {
 			if (!load_symbols(ve, scn))
