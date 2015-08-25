@@ -29,7 +29,7 @@ int elf_utils_copy(Elf *dest, Elf *source)
 		ELF_ASSERT(gelf_update_shdr(dst_scn, &shdr));
 
 		src_data = NULL;
-		while ((src_data = elf_getdata(src_scn, src_data)) != NULL) {
+		while ((src_data = elf_rawdata(src_scn, src_data)) != NULL) {
 			ELF_ASSERT(dst_data = elf_newdata(dst_scn));
 			memcpy(dst_data, src_data, sizeof(Elf_Data));
 		}
