@@ -10,8 +10,6 @@ void usage();
 int generate_assembly(vita_imports_t **imports, int imports_count);
 int generate_makefile(vita_imports_t **imports, int imports_count);
 
-static vita_imports_t **imports;
-
 int main(int argc, char *argv[])
 {
 	if (argc < 3) {
@@ -21,7 +19,7 @@ int main(int argc, char *argv[])
 
 	int imports_count = argc - 2;
 
-	imports = malloc(sizeof(vita_imports_t*) * imports_count);
+    vita_imports_t **imports = malloc(sizeof(vita_imports_t*) * imports_count);
 
 	int i;
 	for (i = 0; i < imports_count; i++)
