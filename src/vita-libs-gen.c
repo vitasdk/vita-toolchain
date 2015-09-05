@@ -241,6 +241,6 @@ void usage()
 {
 	fprintf(stderr,
 		"vita-libs-gen by xerpi\n"
-		"usage:\n\tvita-libs-gen nids.json output-dir\n"
+        "usage:\n\tvita-libs-gen nids.json [extra.json ...] output-dir\n"
 	);
 }
