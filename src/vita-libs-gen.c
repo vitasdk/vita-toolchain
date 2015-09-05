@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
 
 	int imports_count = argc - 2;
 
-    vita_imports_t **imports = malloc(sizeof(vita_imports_t*) * imports_count);
+	vita_imports_t **imports = malloc(sizeof(vita_imports_t*) * imports_count);
 
 	int i;
 	for (i = 0; i < imports_count; i++)
@@ -241,6 +241,6 @@ void usage()
 {
 	fprintf(stderr,
 		"vita-libs-gen by xerpi\n"
-        "usage:\n\tvita-libs-gen nids.json [extra.json ...] output-dir\n"
+		"usage:\n\tvita-libs-gen nids.json [extra.json ...] output-dir\n"
 	);
 }
