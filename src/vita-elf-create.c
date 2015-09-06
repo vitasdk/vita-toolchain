@@ -97,7 +97,7 @@ void list_segments(vita_elf_t *ve)
 int main(int argc, char *argv[])
 {
 	vita_elf_t *ve;
-	vita_imports_t *imports;
+	vita_imports_t **imports;
 	sce_module_info_t *module_info;
 	sce_section_sizes_t section_sizes;
 	void *encoded_modinfo;
@@ -106,15 +106,22 @@ int main(int argc, char *argv[])
 	int status = EXIT_SUCCESS;
 
 	if (argc < 4)
-		errx(EXIT_FAILURE,"Usage: vita-elf-create input-elf output-elf db.json");
+		errx(EXIT_FAILURE,"Usage: vita-elf-create input-elf output-elf db.json [extra.json ...]");
 
 	if ((ve = vita_elf_load(argv[1])) == NULL)
 		return EXIT_FAILURE;
 
-	if ((imports = vita_imports_load(argv[3], 0)) == NULL)
-		return EXIT_FAILURE;
+	int imports_count = argc - 3;
 
-	if (!vita_elf_lookup_imports(ve, imports))
+	imports = malloc(sizeof(vita_imports_t*) * imports_count);
+
+	int i;
+	for (i = 0; i < imports_count; i++) {
+		if ((imports[i] = vita_imports_load(argv[i + 3], 0)) == NULL)
+			return EXIT_FAILURE;
+	}
+
+	if (!vita_elf_lookup_imports(ve, imports, imports_count))
 		status = EXIT_FAILURE;
 
 	if (ve->fstubs_ndx) {
@@ -173,7 +180,12 @@ int main(int argc, char *argv[])
 
 	sce_elf_module_info_free(module_info);
 	vita_elf_free(ve);
-	vita_imports_free(imports);
+
+	for (i = 0; i < imports_count; i++) {
+		vita_imports_free(imports[i]);
+	}
+
+	free(imports);
 
 	return status;
 failure:

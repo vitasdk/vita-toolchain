@@ -83,7 +83,7 @@ typedef struct vita_elf_t {
 vita_elf_t *vita_elf_load(const char *filename);
 void vita_elf_free(vita_elf_t *ve);
 
-int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t *imports);
+int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t **imports, int imports_count);
 
 const void *vita_elf_vaddr_to_host(const vita_elf_t *ve, Elf32_Addr vaddr);
 const void *vita_elf_segoffset_to_host(const vita_elf_t *ve, int segndx, uint32_t offset);

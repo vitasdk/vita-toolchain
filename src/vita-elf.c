@@ -477,16 +477,22 @@ void vita_elf_free(vita_elf_t *ve)
 }
 
 typedef vita_imports_stub_t *(*find_stub_func_ptr)(vita_imports_module_t *, uint32_t);
-static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, vita_imports_t *imports, find_stub_func_ptr find_stub, const char *stub_type_name)
+static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, vita_imports_t **imports, int imports_count, find_stub_func_ptr find_stub, const char *stub_type_name)
 {
 	int found_all = 1;
-	int i;
+	int i, j;
 	vita_elf_stub_t *stub;
 
 	for (i = 0; i < num_stubs; i++) {
 		stub = &(stubs[i]);
 
-		stub->library = vita_imports_find_lib(imports, stub->library_nid);
+		for (j = 0; j < imports_count; j++) {
+			stub->library = vita_imports_find_lib(imports[j], stub->library_nid);
+			if (stub->library != NULL) {
+				break;
+			}
+		}
+
 		if (stub->library == NULL) {
 			warnx("Unable to find library with NID %u for %s symbol %s",
 					stub->library_nid, stub_type_name,
@@ -516,13 +522,13 @@ static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, vita_imports_t *i
 	return found_all;
 }
 
-int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t *imports)
+int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t **imports, int imports_count)
 {
 	int found_all = 1;
 
-	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, imports, &vita_imports_find_function, "function"))
+	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, imports, imports_count, &vita_imports_find_function, "function"))
 		found_all = 0;
-	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, imports, &vita_imports_find_variable, "variable"))
+	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, imports, imports_count, &vita_imports_find_variable, "variable"))
 		found_all = 0;
 
 	return found_all;
