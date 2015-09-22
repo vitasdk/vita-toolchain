@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <limits.h>
+
 #include <libelf.h>
 #include <gelf.h>
 
@@ -94,6 +96,88 @@ void list_segments(vita_elf_t *ve)
 	}
 }
 
+#if defined(_WIN32) && !defined(__CYGWIN__)
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#elif defined(__linux__) || defined(__CYGWIN__)
+#include <unistd.h>
+#endif
+
+void get_binary_directory(char *out, size_t n)
+{
+	char *c;
+	char pathsep = '\0';
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	GetModuleFileName(NULL, out, n);
+	pathsep = '\\';
+#elif defined(__linux__) || defined(__CYGWIN__)
+	readlink("/proc/self/exe", out, n);
+	pathsep = '/';
+#elif defined(DEFAULT_JSON)
+	#error "Sorry, your platform is not supported with -DDEFAULT_JSON."
+#endif
+	if (pathsep && (c = strrchr(out, pathsep)))
+		*++c = '\0';
+}
+
+// The format is path1:path2:path3 where all pathes are relative to the binary directory
+#ifdef DEFAULT_JSON
+char default_json[] = DEFAULT_JSON;
+#else
+char default_json[] = "";
+#endif
+
+vita_imports_t **load_imports(int argc, char *argv[], int *imports_count)
+{
+	vita_imports_t **imports = NULL;
+	int user_count = argc - 3;
+	int default_count = 0;
+	int loaded = 0;
+	char path[PATH_MAX] = { 0 };
+	int i;
+	char *s;
+	char *saveptr;
+	int count;
+	int base_length;
+
+	for (s = default_json; *s; ++s)
+		if (*s == ':')
+			++default_count;
+	// Only way we get 0 is when default_json is empty
+	if (*default_json)
+		++default_count;
+
+	count = user_count + default_count;
+	imports = calloc(count, sizeof(*imports));
+	if (!imports)
+		goto failure;
+
+	// First, load default imports
+	get_binary_directory(path, sizeof(path));
+	base_length = strlen(path);
+
+	s = strtok_r(default_json, ":", &saveptr);
+	while (s) {
+		strncpy(path + base_length, s, sizeof(path) - base_length - 1);
+		if ((imports[loaded++] = vita_imports_load(path, 0)) == NULL)
+			goto failure;
+		s = strtok_r(NULL, ":", &saveptr);
+	}
+
+	// Load imports specified by the user
+	for (i = 0; i < user_count; i++) {
+		if ((imports[loaded++] = vita_imports_load(argv[i + 3], 0)) == NULL)
+			goto failure;
+	}
+	*imports_count = count;
+	return imports;
+failure:
+	for (i = 0; i < count; ++i)
+		vita_imports_free(imports[i]);
+	free(imports);
+	return NULL;
+}
+
 int main(int argc, char *argv[])
 {
 	vita_elf_t *ve;
@@ -102,24 +186,18 @@ int main(int argc, char *argv[])
 	sce_section_sizes_t section_sizes;
 	void *encoded_modinfo;
 	vita_elf_rela_table_t rtable = {};
+	int imports_count;
 
 	int status = EXIT_SUCCESS;
 
-	if (argc < 4)
-		errx(EXIT_FAILURE,"Usage: vita-elf-create input-elf output-elf db.json [extra.json ...]");
+	if (argc < 3)
+		errx(EXIT_FAILURE,"Usage: vita-elf-create input-elf output-elf [extra.json ...]");
 
 	if ((ve = vita_elf_load(argv[1])) == NULL)
 		return EXIT_FAILURE;
 
-	int imports_count = argc - 3;
-
-	imports = malloc(sizeof(vita_imports_t*) * imports_count);
-
-	int i;
-	for (i = 0; i < imports_count; i++) {
-		if ((imports[i] = vita_imports_load(argv[i + 3], 0)) == NULL)
-			return EXIT_FAILURE;
-	}
+	if (!(imports = load_imports(argc, argv, &imports_count)))
+		return EXIT_FAILURE;
 
 	if (!vita_elf_lookup_imports(ve, imports, imports_count))
 		status = EXIT_FAILURE;
@@ -181,6 +259,7 @@ int main(int argc, char *argv[])
 	sce_elf_module_info_free(module_info);
 	vita_elf_free(ve);
 
+	int i;
 	for (i = 0; i < imports_count; i++) {
 		vita_imports_free(imports[i]);
 	}
