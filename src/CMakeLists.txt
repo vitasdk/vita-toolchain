@@ -8,6 +8,10 @@ if(USE_BUNDLED_ENDIAN_H)
 	add_definitions(-DUSE_BUNDLED_ENDIAN_H)
 endif()
 
+if(DEFINED DEFAULT_JSON)
+	add_definitions(-DDEFAULT_JSON="${DEFAULT_JSON}")
+endif()
+
 add_executable(vita-libs-gen vita-libs-gen.c vita-import.c vita-import-parse.c)
 add_executable(vita-elf-create vita-elf-create.c vita-elf.c vita-import.c vita-import-parse.c elf-defs.c sce-elf.c varray.c elf-utils.c)
 
