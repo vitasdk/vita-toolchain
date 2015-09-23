@@ -101,6 +101,8 @@ void list_segments(vita_elf_t *ve)
 #include <Windows.h>
 #elif defined(__linux__) || defined(__CYGWIN__)
 #include <unistd.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
 #endif
 
 void get_binary_directory(char *out, size_t n)
@@ -112,6 +114,9 @@ void get_binary_directory(char *out, size_t n)
 	pathsep = '\\';
 #elif defined(__linux__) || defined(__CYGWIN__)
 	readlink("/proc/self/exe", out, n);
+	pathsep = '/';
+#elif defined(__APPLE__)
+	_NSGetExecutablePath(out, &n);
 	pathsep = '/';
 #elif defined(DEFAULT_JSON)
 	#error "Sorry, your platform is not supported with -DDEFAULT_JSON."
