@@ -98,7 +98,8 @@ void list_segments(vita_elf_t *ve)
 
 #if defined(_WIN32) && !defined(__CYGWIN__)
 #define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
+#include <windows.h>
+#define strtok_r strtok_s
 #elif defined(__linux__) || defined(__CYGWIN__)
 #include <unistd.h>
 #elif defined(__APPLE__)
