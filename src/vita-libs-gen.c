@@ -164,7 +164,7 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 	g_kernel_objs[0] = '\0';
 
 	fputs(
-		"ARCH ?= arm-none-eabi\n"
+		"ARCH ?= arm-vita-eabi\n"
 		"AS = $(ARCH)-as\n"
 		"AR = $(ARCH)-ar\n"
 		"RANLIB = $(ARCH)-ranlib\n\n"
