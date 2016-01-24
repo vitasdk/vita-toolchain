@@ -104,6 +104,9 @@ void list_segments(vita_elf_t *ve)
 #include <unistd.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
+#elif defined(__FreeBSD__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
 #endif
 
 void get_binary_directory(char *out, size_t n)
@@ -118,6 +121,14 @@ void get_binary_directory(char *out, size_t n)
 	pathsep = '/';
 #elif defined(__APPLE__)
 	_NSGetExecutablePath(out, &n);
+	pathsep = '/';
+#elif defined(__FreeBSD__)
+	int mib[4];
+	mib[0] = CTL_KERN;
+	mib[1] = KERN_PROC;
+	mib[2] = KERN_PROC_PATHNAME;
+	mib[3] = -1;
+	sysctl(mib, 4, out, &n, NULL, 0);
 	pathsep = '/';
 #elif defined(DEFAULT_JSON)
 	#error "Sorry, your platform is not supported with -DDEFAULT_JSON."
