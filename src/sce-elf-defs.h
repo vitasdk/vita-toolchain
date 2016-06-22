@@ -39,6 +39,11 @@ typedef struct SCE_TYPE(sce_module_info) {
 	SCE_PTR(const void *) exidx_end;	/* Offset to end of ARM EXIDX (optional) */
 	SCE_PTR(const void *) extab_top;	/* Offset to start of ARM EXTAB (optional) */
 	SCE_PTR(const void *) extab_end;	/* Offset to end of ARM EXTAB (optional */
+
+	// i decided to include process param into module_info (xyz)
+	uint32_t process_param_size;
+	uint32_t process_param_magic;
+	uint32_t process_param_unk[11];
 } SCE_TYPE(sce_module_info);
 
 typedef struct SCE_TYPE(sce_module_exports) {
