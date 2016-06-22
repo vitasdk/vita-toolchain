@@ -541,6 +541,7 @@ int sce_elf_write_module_info(
 	start_foffset = phdr.p_offset + start_segoffset;
 	cur_pos = 0;
 
+	total_size += 0x10 - (total_size & 0xF);
 	if (!elf_utils_shift_contents(dest, start_foffset, total_size))
 		FAILX("Unable to relocate ELF sections");
 

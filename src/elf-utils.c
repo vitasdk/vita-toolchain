@@ -217,11 +217,11 @@ Elf_Scn *elf_utils_new_scn_with_data(Elf *e, const char *scn_name, void *buf, in
 
 	ELF_ASSERT(gelf_getehdr(e, &ehdr));
 	offset = ehdr.e_shoff;
-	if (!elf_utils_shift_contents(e, offset, len))
+	if (!elf_utils_shift_contents(e, offset, len + 0x10))
 		goto failure;
 
 	ELF_ASSERT(gelf_getshdr(scn, &shdr));
-	shdr.sh_offset = offset;
+	shdr.sh_offset = (offset + 0x10) & ~0xF;
 	shdr.sh_size = len;
 	shdr.sh_addralign = 1;
 	ELF_ASSERT(gelf_update_shdr(scn, &shdr));
