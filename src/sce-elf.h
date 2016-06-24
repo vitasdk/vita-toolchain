@@ -30,6 +30,7 @@
 #define NID_MODULE_EXIT		0x913482A9
 #define NID_MODULE_START	0x935CD196
 #define NID_MODULE_INFO		0x6C2224BA
+#define NID_PROCESS_PARAM	0x70FBA1E7
 
 typedef union {
 	Elf32_Word r_short : 4;

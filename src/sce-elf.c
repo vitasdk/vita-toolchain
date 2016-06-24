@@ -106,13 +106,16 @@ static void set_main_module_export(sce_module_exports_t *export, const sce_modul
 	export->version = 0;
 	export->flags = 0x8000;
 	export->num_syms_funcs = 1;
-	export->num_syms_vars = 1;
-	export->nid_table = calloc(2, sizeof(uint32_t));
+	export->num_syms_vars = 2;
+	int total_exports = export->num_syms_funcs + export->num_syms_vars;
+	export->nid_table = calloc(total_exports, sizeof(uint32_t));
 	export->nid_table[0] = NID_MODULE_START;
 	export->nid_table[1] = NID_MODULE_INFO;
-	export->entry_table = calloc(2, sizeof(void*));
+	export->nid_table[2] = NID_PROCESS_PARAM;
+	export->entry_table = calloc(total_exports, sizeof(void*));
 	export->entry_table[0] = module_info->module_start;
 	export->entry_table[1] = module_info;
+	export->entry_table[2] = &module_info->process_param_size;
 }
 
 static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, const import_module *module)
@@ -154,6 +157,7 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve)
 	module_info = calloc(1, sizeof(sce_module_info_t));
 	ASSERT(module_info != NULL);
 
+	module_info->type = 6;
 	module_info->version = 0x0101;
 	module_info->module_start = vita_elf_vaddr_to_host(ve, elf32_getehdr(ve->elf)->e_entry);
 
@@ -361,6 +365,8 @@ void *sce_elf_module_info_encode(
 	CONVERTOFFSET(module_info, exidx_end);
 	CONVERTOFFSET(module_info, extab_top);
 	CONVERTOFFSET(module_info, extab_end);
+	module_info_raw->process_param_size = 0x34;
+	memcpy(&module_info_raw->process_param_magic, "PSP2", 4);
 
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		int num_syms;
@@ -393,6 +399,8 @@ void *sce_elf_module_info_encode(
 			raw_nids[i] = htole32(export->nid_table[i]);
 			if (export->entry_table[i] == module_info) { /* Special case */
 				raw_entries[i] = htole32(segment_base + start_offset);
+			} else if (export->entry_table[i] == &module_info->process_param_size) {
+				raw_entries[i] = htole32(segment_base + start_offset + offsetof(sce_module_info_raw, process_param_size));
 			} else {
 				raw_entries[i] = htole32(vita_elf_host_to_vaddr(ve, export->entry_table[i]));
 			}
@@ -533,6 +541,7 @@ int sce_elf_write_module_info(
 	start_foffset = phdr.p_offset + start_segoffset;
 	cur_pos = 0;
 
+	total_size += 0x10 - (total_size & 0xF);
 	if (!elf_utils_shift_contents(dest, start_foffset, total_size))
 		FAILX("Unable to relocate ELF sections");
 
@@ -683,7 +692,8 @@ int sce_elf_write_rela_sections(
 
 	ASSERT(encoded_relas = calloc(total_relas, 12));
 
-	sce_rel_func = sce_rel_short;
+	// sce_rel_func = sce_rel_short;
+	sce_rel_func = sce_rel_long;
 
 encode_relas:
 	curpos = encoded_relas;
