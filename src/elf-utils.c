@@ -126,6 +126,7 @@ int elf_utils_shift_contents(Elf *e, int start_offset, int shift_amount)
 	size_t segment_count = 0, segndx;
 	GElf_Phdr phdr;
 	int bottom_section_offset = 0;
+	GElf_Xword sh_size;
 
 	ELF_ASSERT(gelf_getehdr(e, &ehdr));
 	if (ehdr.e_shoff >= start_offset) {
@@ -140,8 +141,9 @@ int elf_utils_shift_contents(Elf *e, int start_offset, int shift_amount)
 			shdr.sh_offset += shift_amount;
 			ELF_ASSERT(gelf_update_shdr(scn, &shdr));
 		}
-		if (shdr.sh_offset + shdr.sh_size > bottom_section_offset) {
-			bottom_section_offset = shdr.sh_offset + shdr.sh_size;
+		sh_size = (shdr.sh_type == SHT_NOBITS) ? 0 : shdr.sh_size;
+		if (shdr.sh_offset + sh_size > bottom_section_offset) {
+			bottom_section_offset = shdr.sh_offset + sh_size;
 		}
 	}
 
