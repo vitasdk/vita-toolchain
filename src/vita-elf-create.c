@@ -15,15 +15,25 @@
 #include "elf-utils.h"
 #include "fail-utils.h"
 
+// logging level
+int g_log = 0;
+
+#define NONE 0
+#define VERBOSE 1
+#define DEBUG 2
+
+#define TRACEF(lvl, ...) \
+	do { if (g_log >= lvl) printf(__VA_ARGS__); } while (0)
+
 void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 {
 	int i;
 
 	for (i = 0; i < num_stubs; i++) {
-		printf("  0x%06x (%s):\n", stubs[i].addr, stubs[i].symbol ? stubs[i].symbol->name : "unreferenced stub");
-		printf("    Library: %u (%s)\n", stubs[i].library_nid, stubs[i].library ? stubs[i].library->name : "not found");
-		printf("    Module : %u (%s)\n", stubs[i].module_nid, stubs[i].module ? stubs[i].module->name : "not found");
-		printf("    NID    : %u (%s)\n", stubs[i].target_nid, stubs[i].target ? stubs[i].target->name : "not found");
+		TRACEF(VERBOSE, "  0x%06x (%s):\n", stubs[i].addr, stubs[i].symbol ? stubs[i].symbol->name : "unreferenced stub");
+		TRACEF(VERBOSE, "    Library: %u (%s)\n", stubs[i].library_nid, stubs[i].library ? stubs[i].library->name : "not found");
+		TRACEF(VERBOSE, "    Module : %u (%s)\n", stubs[i].module_nid, stubs[i].module ? stubs[i].module->name : "not found");
+		TRACEF(VERBOSE, "    NID    : %u (%s)\n", stubs[i].target_nid, stubs[i].target ? stubs[i].target->name : "not found");
 	}
 }
 
@@ -49,12 +59,12 @@ void print_rtable(vita_elf_rela_table_t *rtable)
 
 	for (num_relas = rtable->num_relas, rela = rtable->relas; num_relas; num_relas--, rela++) {
 		if (rela->symbol) {
-			printf("    offset %06x: type %s, %s%+d\n",
+			TRACEF(VERBOSE, "    offset %06x: type %s, %s%+d\n",
 					rela->offset,
 					elf_decode_r_type(rela->type),
 					rela->symbol->name, rela->addend);
 		} else if (rela->offset) {
-			printf("    offset %06x: type %s, absolute %06x\n",
+			TRACEF(VERBOSE, "    offset %06x: type %s, absolute %06x\n",
 					rela->offset,
 					elf_decode_r_type(rela->type),
 					(uint32_t)rela->addend);
@@ -67,7 +77,7 @@ void list_rels(vita_elf_t *ve)
 	vita_elf_rela_table_t *rtable;
 
 	for (rtable = ve->rela_tables; rtable; rtable = rtable->next) {
-		printf("  Relocations for section %d: %s\n",
+		TRACEF(VERBOSE, "  Relocations for section %d: %s\n",
 				rtable->target_ndx, get_scndx_name(ve, rtable->target_ndx));
 		print_rtable(rtable);
 
@@ -79,18 +89,18 @@ void list_segments(vita_elf_t *ve)
 	int i;
 
 	for (i = 0; i < ve->num_segments; i++) {
-		printf("  Segment %d: vaddr %06x, size 0x%x\n",
+		TRACEF(VERBOSE, "  Segment %d: vaddr %06x, size 0x%x\n",
 				i, ve->segments[i].vaddr, ve->segments[i].memsz);
 		if (ve->segments[i].memsz) {
-			printf("    Host address region: %p - %p\n",
+			TRACEF(VERBOSE, "    Host address region: %p - %p\n",
 					ve->segments[i].vaddr_top, ve->segments[i].vaddr_bottom);
-			printf("    4 bytes into segment (%p): %x\n",
+			TRACEF(VERBOSE, "    4 bytes into segment (%p): %x\n",
 					ve->segments[i].vaddr_top + 4, vita_elf_host_to_vaddr(ve, ve->segments[i].vaddr_top + 4));
-			printf("    addr of 8 bytes into segment (%x): %p\n",
+			TRACEF(VERBOSE, "    addr of 8 bytes into segment (%x): %p\n",
 					ve->segments[i].vaddr + 8, vita_elf_vaddr_to_host(ve, ve->segments[i].vaddr + 8));
-			printf("    12 bytes into segment offset (%p): %d\n",
+			TRACEF(VERBOSE, "    12 bytes into segment offset (%p): %d\n",
 					ve->segments[i].vaddr_top + 12, vita_elf_host_to_segoffset(ve, ve->segments[i].vaddr_top + 12, i));
-			printf("    addr of 16 bytes into segment (%d): %p\n",
+			TRACEF(VERBOSE, "    addr of 16 bytes into segment (%d): %p\n",
 					16, vita_elf_segoffset_to_host(ve, i, 16));
 		}
 	}
@@ -176,14 +186,14 @@ vita_imports_t **load_imports(int argc, char *argv[], int *imports_count)
 	s = strtok_r(default_json, ":", &saveptr);
 	while (s) {
 		strncpy(path + base_length, s, sizeof(path) - base_length - 1);
-		if ((imports[loaded++] = vita_imports_load(path, 0)) == NULL)
+		if ((imports[loaded++] = vita_imports_load(path, g_log >= DEBUG)) == NULL)
 			goto failure;
 		s = strtok_r(NULL, ":", &saveptr);
 	}
 
 	// Load imports specified by the user
 	for (i = 0; i < user_count; i++) {
-		if ((imports[loaded++] = vita_imports_load(argv[i + 3], 0)) == NULL)
+		if ((imports[loaded++] = vita_imports_load(argv[i + 3], g_log >= DEBUG)) == NULL)
 			goto failure;
 	}
 	*imports_count = count;
@@ -207,8 +217,20 @@ int main(int argc, char *argv[])
 
 	int status = EXIT_SUCCESS;
 
+	if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'v') {
+		g_log = 1;
+		for (int i = 2; argv[1][i] != '\0'; i++) {
+			switch (argv[1][i]) {
+				case 'v': g_log++; break;
+				default: argc = 0; break; // ensure error in next statement
+			}
+		}
+		argv++;
+		argc--;
+	}
+
 	if (argc < 3)
-		errx(EXIT_FAILURE,"Usage: vita-elf-create input-elf output-elf [extra.json ...]");
+		errx(EXIT_FAILURE,"Usage: vita-elf-create [-v|-vv] input-elf output-elf [extra.json ...]");
 
 	if ((ve = vita_elf_load(argv[1])) == NULL)
 		return EXIT_FAILURE;
@@ -220,26 +242,26 @@ int main(int argc, char *argv[])
 		status = EXIT_FAILURE;
 
 	if (ve->fstubs_ndx) {
-		printf("Function stubs in section %d:\n", ve->fstubs_ndx);
+		TRACEF(VERBOSE, "Function stubs in section %d:\n", ve->fstubs_ndx);
 		print_stubs(ve->fstubs, ve->num_fstubs);
 	}
 	if (ve->vstubs_ndx) {
-		printf("Variable stubs in section %d:\n", ve->vstubs_ndx);
+		TRACEF(VERBOSE, "Variable stubs in section %d:\n", ve->vstubs_ndx);
 		print_stubs(ve->vstubs, ve->num_vstubs);
 	}
 
-	printf("Relocations:\n");
+	TRACEF(VERBOSE, "Relocations:\n");
 	list_rels(ve);
 
-	printf("Segments:\n");
+	TRACEF(VERBOSE, "Segments:\n");
 	list_segments(ve);
 
 	module_info = sce_elf_module_info_create(ve);
 
 	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes);
 	int curpos = 0;
-	printf("Total SCE data size: %d / %x\n", total_size, total_size);
-#define PRINTSEC(name) printf("  .%.*s.%s: %d (%x @ %x)\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name, section_sizes.name, curpos+ve->segments[0].vaddr+ve->segments[0].memsz); curpos += section_sizes.name
+	TRACEF(VERBOSE, "Total SCE data size: %d / %x\n", total_size, total_size);
+#define PRINTSEC(name) TRACEF(VERBOSE, "  .%.*s.%s: %d (%x @ %x)\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name, section_sizes.name, curpos+ve->segments[0].vaddr+ve->segments[0].memsz); curpos += section_sizes.name
 	PRINTSEC(sceModuleInfo_rodata);
 	PRINTSEC(sceLib_ent);
 	PRINTSEC(sceExport_rodata);
@@ -255,7 +277,7 @@ int main(int argc, char *argv[])
 	encoded_modinfo = sce_elf_module_info_encode(
 			module_info, ve, &section_sizes, &rtable);
 
-	printf("Relocations from encoded modinfo:\n");
+	TRACEF(VERBOSE, "Relocations from encoded modinfo:\n");
 	print_rtable(&rtable);
 
 	FILE *outfile;
