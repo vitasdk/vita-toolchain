@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include "vita-import.h"
 
 #define KERNEL_LIBS_STUB "SceKernel"
@@ -32,6 +33,8 @@ int main(int argc, char *argv[])
 
 		imports[i] = imp;
 	}
+
+	mkdir(argv[argc - 1], 0777); // create directory if it doesn't exist
 
 	if (chdir(argv[argc - 1])) {
 		perror(argv[argc - 1]);
