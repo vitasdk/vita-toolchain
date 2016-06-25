@@ -331,7 +331,43 @@ failure:
 	return 0;
 }
 
-const char *debug_sections[] = { ".rel.debug_info", ".rel.debug_arange", ".rel.debug_line", ".rel.debug_frame", NULL };
+static int is_valid_relsection(vita_elf_t *ve, GElf_Shdr *rel) {
+	Elf_Scn *info;
+	size_t phnum;
+	GElf_Shdr shdr;
+	GElf_Phdr phdr;
+
+	ASSERT(rel->sh_type == SHT_REL || rel->sh_type == SHT_RELA);
+	ELF_ASSERT(info = elf_getscn(ve->elf, rel->sh_info));
+	ELF_ASSERT(gelf_getshdr(info, &shdr));
+	ELF_ASSERT(elf_getphdrnum(ve->elf, &phnum) == 0);
+
+	if (shdr.sh_type == SHT_NOBITS) {
+		shdr.sh_size = 0;
+	}
+
+	// Here we assume that every section falls into EXACTLY one segment
+	// However, the ELF format allows for weird things like one section that 
+	// is partially in one segment and partially in another one (or even 
+	// multiple).
+	// TODO: For robustness, consider these corner cases
+	// Right now, we just assume if you have one of these messed up ELFs, 
+	// we don't support it because it's likely to break in other parts of this 
+	// code :)
+	for (int i = 0; i < phnum; i++) {
+		ELF_ASSERT(gelf_getphdr(ve->elf, i, &phdr));
+		if (phdr.p_type != PT_LOAD) {
+			continue;
+		}
+		// TODO: Take account of possible integer wrap-arounds
+		if (phdr.p_offset <= shdr.sh_offset && shdr.sh_offset + shdr.sh_size <= phdr.p_offset + phdr.p_filesz) {
+			return 1;
+		}
+	}
+
+failure:
+	return 0;
+}
 
 vita_elf_t *vita_elf_load(const char *filename)
 {
@@ -393,17 +429,17 @@ vita_elf_t *vita_elf_load(const char *filename)
 				goto failure;
 		}
 
-		for (debug_name = &debug_sections[0]; *debug_name; ++debug_name)
-			if (strcmp(name, *debug_name) == 0)
-				FAILX("Your binary contains debugging information. This is known to cause issues. Please run 'arm-vita-eabi-strip -g homebrew.elf'.");
-
 		if (shdr.sh_type == SHT_SYMTAB) {
 			if (!load_symbols(ve, scn))
 				goto failure;
 		} else if (shdr.sh_type == SHT_REL) {
+			if (!is_valid_relsection(ve, &shdr))
+				continue;
 			if (!load_rel_table(ve, scn))
 				goto failure;
 		} else if (shdr.sh_type == SHT_RELA) {
+			if (!is_valid_relsection(ve, &shdr))
+				continue;
 			if (!load_rela_table(ve, scn))
 				goto failure;
 		}
