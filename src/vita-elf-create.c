@@ -120,7 +120,7 @@ void get_binary_directory(char *out, size_t n)
 	readlink("/proc/self/exe", out, n);
 	pathsep = '/';
 #elif defined(__APPLE__)
-	_NSGetExecutablePath(out, &n);
+	_NSGetExecutablePath(out, (uint32_t *)&n);
 	pathsep = '/';
 #elif defined(__FreeBSD__)
 	int mib[4];
