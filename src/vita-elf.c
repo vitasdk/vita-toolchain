@@ -140,7 +140,11 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 			return addr + (((imm11 | (imm10 << 11) | (!(j2 ^ sign) << 21) | (!(j1 ^ sign) << 22) | (sign << 23)) << 1) | (sign ? 0xff000000 : 0));
 		case R_ARM_CALL: // bl/blx
 		case R_ARM_JUMP24: // b/bl<cond>
-			return ((((data & 0x00ffffff) << 2) + addr) << 8) >> 8;
+			data = (data & 0x00ffffff) << 2;
+			// if we got a negative value, sign extend it
+			if (data & (1 << 25))
+				data |= 0xfc000000;
+			return data + addr;
 		case R_ARM_MOVW_ABS_NC: //movw
 			return ((data & 0xf0000) >> 4) | (data & 0xfff);
 		case R_ARM_MOVT_ABS: //movt
