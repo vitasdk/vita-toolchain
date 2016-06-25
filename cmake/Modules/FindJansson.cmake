@@ -1,5 +1,5 @@
 find_package(PkgConfig)
-pkg_check_modules(PC_Jansson jansson)
+pkg_check_modules(PC_Jansson jansson>=2.7)
 
 find_path(Jansson_INCLUDE_DIR jansson.h
           HINTS ${PC_Jansson_INCLUDEDIR} ${PC_Jansson_INCLUDE_DIRS})
