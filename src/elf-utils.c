@@ -13,7 +13,7 @@ int elf_utils_copy(Elf *dest, Elf *source)
 	Elf_Scn *dst_scn, *src_scn;
 	GElf_Shdr shdr;
 	Elf_Data *dst_data, *src_data;
-	size_t segment_count, segndx;
+	size_t segment_count, segndx, new_segndx;
 	GElf_Phdr phdr;
 
 	ELF_ASSERT(elf_flagelf(dest, ELF_C_SET, ELF_F_LAYOUT));
@@ -36,11 +36,26 @@ int elf_utils_copy(Elf *dest, Elf *source)
 	}
 
 	ELF_ASSERT(elf_getphdrnum(source, &segment_count) == 0);
-	ELF_ASSERT(gelf_newphdr(dest, segment_count));
 
+	// only count PT_LOAD segments
+	new_segndx = 0;
 	for (segndx = 0; segndx < segment_count; segndx++) {
 		ELF_ASSERT(gelf_getphdr(source, segndx, &phdr));
-		ELF_ASSERT(gelf_update_phdr(dest, segndx, &phdr));
+		if (phdr.p_type == PT_LOAD) {
+			new_segndx++;
+		}
+	}
+	ASSERT(new_segndx > 0);
+
+	// copy PT_LOAD segments
+	ELF_ASSERT(gelf_newphdr(dest, new_segndx));
+	new_segndx = 0;
+	for (segndx = 0; segndx < segment_count; segndx++) {
+		ELF_ASSERT(gelf_getphdr(source, segndx, &phdr));
+		if (phdr.p_type == PT_LOAD) {
+			ELF_ASSERT(gelf_update_phdr(dest, new_segndx, &phdr));
+			new_segndx++;
+		}
 	}
 		
 	return 1;
