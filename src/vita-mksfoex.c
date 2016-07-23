@@ -1,7 +1,7 @@
 /*
-# _____     ___ ____     ___ ____
-#  ____|   |    ____|   |        | |____|
-# |     ___|   |     ___|    ____| |    \    PSPDEV Open Source Project.
+# _____	 ___ ____	 ___ ____
+#  ____|   |	____|   |		| |____|
+# |	 ___|   |	 ___|	____| |	\	PSPDEV Open Source Project.
 #-----------------------------------------------------------------------
 # Review pspsdk README & LICENSE files for further details.
 #
@@ -15,7 +15,7 @@
 #include "getopt.h"
 #include "types.h"
 
-#define PSF_MAGIC    0x46535000
+#define PSF_MAGIC	0x46535000
 #define PSF_VERSION  0x00000101
 
 struct SfoHeader 
@@ -50,23 +50,23 @@ struct EntryContainer
 };
 
 struct EntryContainer g_defaults[] = {
-    { "APP_VER", PSF_TYPE_STR, 0, "00.00" },
-    { "ATTRIBUTE", PSF_TYPE_VAL, 0, NULL },
-    { "BOOT_FILE", PSF_TYPE_STR, 32, "" },
-    { "CATEGORY", PSF_TYPE_STR, 0, "gd" },
-    { "CONTENT_ID", PSF_TYPE_STR, 48, "" },
-    { "EBOOT_APP_MEMSIZE", PSF_TYPE_VAL, 0, NULL },
-    { "EBOOT_ATTRIBUTE", PSF_TYPE_VAL, 0, NULL },
-    { "EBOOT_PHY_MEMSIZE", PSF_TYPE_VAL, 0, NULL },
-    { "LAREA_TYPE", PSF_TYPE_VAL, 0, NULL },
-    { "NP_COMMUNICATION_ID", PSF_TYPE_STR, 16, "" },
-    { "PARENTAL_LEVEL", PSF_TYPE_VAL, 0, NULL },
-    { "PSP2_DISP_VER", PSF_TYPE_STR, 0, "00.000" },
-    { "PSP2_SYSTEM_VER", PSF_TYPE_VAL, 0, NULL },
-    { "STITLE", PSF_TYPE_STR, 52, "Homebrew" },
-    { "TITLE", PSF_TYPE_STR, 0x80, "Homebrew" },
-    { "TITLE_ID", PSF_TYPE_STR, 0, "ABCD99999" },
-    { "VERSION", PSF_TYPE_STR, 0, "00.00" },
+	{ "APP_VER", PSF_TYPE_STR, 0, "00.00" },
+	{ "ATTRIBUTE", PSF_TYPE_VAL, 0, NULL },
+	{ "BOOT_FILE", PSF_TYPE_STR, 32, "" },
+	{ "CATEGORY", PSF_TYPE_STR, 0, "gd" },
+	{ "CONTENT_ID", PSF_TYPE_STR, 48, "" },
+	{ "EBOOT_APP_MEMSIZE", PSF_TYPE_VAL, 0, NULL },
+	{ "EBOOT_ATTRIBUTE", PSF_TYPE_VAL, 0, NULL },
+	{ "EBOOT_PHY_MEMSIZE", PSF_TYPE_VAL, 0, NULL },
+	{ "LAREA_TYPE", PSF_TYPE_VAL, 0, NULL },
+	{ "NP_COMMUNICATION_ID", PSF_TYPE_STR, 16, "" },
+	{ "PARENTAL_LEVEL", PSF_TYPE_VAL, 0, NULL },
+	{ "PSP2_DISP_VER", PSF_TYPE_STR, 0, "00.000" },
+	{ "PSP2_SYSTEM_VER", PSF_TYPE_VAL, 0, NULL },
+	{ "STITLE", PSF_TYPE_STR, 52, "Homebrew" },
+	{ "TITLE", PSF_TYPE_STR, 0x80, "Homebrew" },
+	{ "TITLE_ID", PSF_TYPE_STR, 0, "ABCD99999" },
+	{ "VERSION", PSF_TYPE_STR, 0, "00.00" },
 };
 
 #define MAX_OPTIONS (256)
@@ -127,26 +127,26 @@ int add_string(char *str)
 	}
 
 	*equals++ = 0;
-    
-    if ((entry = find_name(str)))
-    {
-        entry->data = equals;
-    }
-    else
-    {
-        entry = find_free();
-        if(entry == NULL)
-        {
-            fprintf(stderr, "Maximum options reached\n");
-            return 0;
-        }
+	
+	if ((entry = find_name(str)))
+	{
+		entry->data = equals;
+	}
+	else
+	{
+		entry = find_free();
+		if(entry == NULL)
+		{
+			fprintf(stderr, "Maximum options reached\n");
+			return 0;
+		}
 
-        memset(entry, 0, sizeof(struct EntryContainer));
-        entry->name = str;
-        entry->type = PSF_TYPE_STR;
-        entry->data = equals;
-    }
-    
+		memset(entry, 0, sizeof(struct EntryContainer));
+		entry->name = str;
+		entry->type = PSF_TYPE_STR;
+		entry->data = equals;
+	}
+	
 	return 1;
 }
 
@@ -164,24 +164,24 @@ int add_dword(char *str)
 
 	*equals++ = 0;
 
-    if ((entry = find_name(str)))
-    {
-        entry->value = strtoul(equals, NULL, 0);
-    }
-    else
-    {
-        entry = find_free();
-        if(entry == NULL)
-        {
-            fprintf(stderr, "Maximum options reached\n");
-            return 0;
-        }
+	if ((entry = find_name(str)))
+	{
+		entry->value = strtoul(equals, NULL, 0);
+	}
+	else
+	{
+		entry = find_free();
+		if(entry == NULL)
+		{
+			fprintf(stderr, "Maximum options reached\n");
+			return 0;
+		}
 
-        memset(entry, 0, sizeof(struct EntryContainer));
-        entry->name = str;
-        entry->type = PSF_TYPE_VAL;
-        entry->value = strtoul(equals, NULL, 0);        
-    }
+		memset(entry, 0, sizeof(struct EntryContainer));
+		entry->name = str;
+		entry->type = PSF_TYPE_VAL;
+		entry->value = strtoul(equals, NULL, 0);		
+	}
 
 	return 1;
 }
@@ -254,18 +254,18 @@ int main(int argc, char **argv)
 	unsigned int align;
 	unsigned int keyofs;
 	unsigned int count;
-    
-    for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
-    {
-        struct EntryContainer *entry = find_free();
-        if(entry == NULL)
-        {
-            fprintf(stderr, "Maximum options reached\n");
-            return 0;
-        }
-        *entry = g_defaults[i];
-    }
-    
+	
+	for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
+	{
+		struct EntryContainer *entry = find_free();
+		if(entry == NULL)
+		{
+			fprintf(stderr, "Maximum options reached\n");
+			return 0;
+		}
+		*entry = g_defaults[i];
+	}
+	
 	if(!process_args(argc, argv)) 
 	{
 		fprintf(stderr, "Usage: mksfoex [options] TITLE output.sfo\n");
@@ -275,15 +275,15 @@ int main(int argc, char **argv)
 
 		return 1;
 	}
-    
-    if (g_title)
-    {
-        struct EntryContainer *entry = find_name("TITLE");
-        entry->data = g_title;
-        
-        entry = find_name("STITLE");
-        entry->data = g_title;
-    }
+	
+	if (g_title)
+	{
+		struct EntryContainer *entry = find_name("TITLE");
+		entry->data = g_title;
+		
+		entry = find_name("STITLE");
+		entry->data = g_title;
+	}
 
 	memset(head, 0, sizeof(head));
 	memset(keys, 0, sizeof(keys));
@@ -318,15 +318,15 @@ int main(int argc, char **argv)
 			int totalsize;
 			int valsize = 0;
 
-            if (g_vals[i].data)
-                valsize = strlen(g_vals[i].data)+1;
+			if (g_vals[i].data)
+				valsize = strlen(g_vals[i].data)+1;
 			totalsize = (g_vals[i].value) ? (g_vals[i].value) : ((valsize + 3) & ~3);
 			SW(&e->valsize, valsize);
 			SW(&e->totalsize, totalsize);
 			memset(d, 0, totalsize);
-            
-            if (g_vals[i].data)
-                memcpy(d, g_vals[i].data, valsize);
+			
+			if (g_vals[i].data)
+				memcpy(d, g_vals[i].data, valsize);
 			d += totalsize;
 		}
 		e++;

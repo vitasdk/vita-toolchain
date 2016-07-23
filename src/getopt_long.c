@@ -11,17 +11,17 @@
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *        This product includes software developed by the NetBSD
- *        Foundation, Inc. and its contributors.
+ *	must display the following acknowledgement:
+ *		This product includes software developed by the NetBSD
+ *		Foundation, Inc. and its contributors.
  * 4. Neither the name of The NetBSD Foundation nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
+ *	contributors may be used to endorse or promote products derived
+ *	from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
  * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
@@ -47,15 +47,15 @@ int	opterr = 1;		/* if error message should be printed */
 int	optind = 1;		/* index into parent argv vector */
 int	optopt = '?';		/* character checked for validity */
 int	optreset;		/* reset getopt */
-char    *optarg;		/* argument associated with option */
+char	*optarg;		/* argument associated with option */
 
 #define IGNORE_FIRST	(*options == '-' || *options == '+')
 #define PRINT_ERROR	((opterr) && ((*options != ':') \
-				      || (IGNORE_FIRST && options[1] != ':')))
+					  || (IGNORE_FIRST && options[1] != ':')))
 #define IS_POSIXLY_CORRECT (getenv("POSIXLY_CORRECT") != NULL)
-#define PERMUTE         (!IS_POSIXLY_CORRECT && !IGNORE_FIRST)
+#define PERMUTE		 (!IS_POSIXLY_CORRECT && !IGNORE_FIRST)
 /* XXX: GNU ignores PC if *options == '-' */
-#define IN_ORDER        (!IS_POSIXLY_CORRECT && *options == '-')
+#define IN_ORDER		(!IS_POSIXLY_CORRECT && *options == '-')
 
 /* return values */
 #define	BADCH	(int)'?'
@@ -164,12 +164,12 @@ getopt_internal(int nargc, char **nargv, const char *options)
 start:
 	if (optreset || !*place) {		/* update scanning pointer */
 		optreset = 0;
-		if (optind >= nargc) {          /* end of argument vector */
+		if (optind >= nargc) {		  /* end of argument vector */
 			place = EMSG;
 			if (nonopt_end != -1) {
 				/* do permutation, if we have to */
 				permute_args(nonopt_start, nonopt_end,
-				    optind, nargv);
+					optind, nargv);
 				optind -= nonopt_end - nonopt_start;
 			}
 			else if (nonopt_start != -1) {
@@ -183,7 +183,7 @@ start:
 			return -1;
 		}
 		if ((*(place = nargv[optind]) != '-')
-		    || (place[1] == '\0')) {    /* found non-option */
+			|| (place[1] == '\0')) {	/* found non-option */
 			place = EMSG;
 			if (IN_ORDER) {
 				/*
@@ -205,9 +205,9 @@ start:
 				nonopt_start = optind;
 			else if (nonopt_end != -1) {
 				permute_args(nonopt_start, nonopt_end,
-				    optind, nargv);
+					optind, nargv);
 				nonopt_start = optind -
-				    (nonopt_end - nonopt_start);
+					(nonopt_end - nonopt_start);
 				nonopt_end = -1;
 			}
 			optind++;
@@ -222,7 +222,7 @@ start:
 		}
 	}
 	if ((optchar = (int)*place++) == (int)':' ||
-	    (oli = strchr(options + (IGNORE_FIRST ? 1 : 0), optchar)) == NULL) {
+		(oli = strchr(options + (IGNORE_FIRST ? 1 : 0), optchar)) == NULL) {
 		/* option letter unknown or ':' */
 		if (!*place)
 			++optind;
@@ -303,7 +303,7 @@ getopt_long(int nargc, char * const *nargv, const char *options, const struct op
 			 */
 			if (nonopt_end != -1) {
 				permute_args(nonopt_start, nonopt_end,
-				    optind, (char **) (nargv));
+					optind, (char **) (nargv));
 				optind -= nonopt_end - nonopt_start;
 			}
 			nonopt_start = nonopt_end = -1;
@@ -315,15 +315,15 @@ getopt_long(int nargc, char * const *nargv, const char *options, const struct op
 			has_equal++;
 		} else
 			current_argv_len = strlen(current_argv);
-	    
+		
 		for (i = 0; long_options[i].name; i++) {
 			/* find matching long option */
 			if (strncmp(current_argv, long_options[i].name,
-			    current_argv_len))
+				current_argv_len))
 				continue;
 
 			if (strlen(long_options[i].name) ==
-			    (unsigned)current_argv_len) {
+				(unsigned)current_argv_len) {
 				/* exact match */
 				match = i;
 				break;
@@ -334,17 +334,17 @@ getopt_long(int nargc, char * const *nargv, const char *options, const struct op
 				/* ambiguous abbreviation */
 				if (PRINT_ERROR)
 					fprintf(stderr, ambig, (int)current_argv_len,
-					     current_argv);
+						 current_argv);
 				optopt = 0;
 				return BADCH;
 			}
 		}
 		if (match != -1) {			/* option found */
-		        if (long_options[match].has_arg == no_argument
-			    && has_equal) {
+				if (long_options[match].has_arg == no_argument
+				&& has_equal) {
 				if (PRINT_ERROR)
 					fprintf(stderr, noarg, (int)current_argv_len,
-					     current_argv);
+						 current_argv);
 				/*
 				 * XXX: GNU sets optopt to val regardless of
 				 * flag
@@ -356,11 +356,11 @@ getopt_long(int nargc, char * const *nargv, const char *options, const struct op
 				return BADARG;
 			}
 			if (long_options[match].has_arg == required_argument ||
-			    long_options[match].has_arg == optional_argument) {
+				long_options[match].has_arg == optional_argument) {
 				if (has_equal)
 					optarg = has_equal;
 				else if (long_options[match].has_arg ==
-				    required_argument) {
+					required_argument) {
 					/*
 					 * optional argument doesn't use
 					 * next nargv
@@ -369,7 +369,7 @@ getopt_long(int nargc, char * const *nargv, const char *options, const struct op
 				}
 			}
 			if ((long_options[match].has_arg == required_argument)
-			    && (optarg == NULL)) {
+				&& (optarg == NULL)) {
 				/*
 				 * Missing argument; leading ':'
 				 * indicates no error should be generated
