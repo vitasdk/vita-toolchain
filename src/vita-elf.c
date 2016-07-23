@@ -380,7 +380,7 @@ vita_elf_t *vita_elf_load(const char *filename)
 	const char **debug_name;
 
 	GElf_Phdr phdr;
-	size_t segment_count, segndx;
+	size_t segment_count, segndx, loaded_segments;
 	vita_elf_segment_info_t *curseg;
 
 
@@ -466,12 +466,16 @@ vita_elf_t *vita_elf_load(const char *filename)
 
 	ve->segments = calloc(segment_count, sizeof(vita_elf_segment_info_t));
 	ASSERT(ve->segments != NULL);
-	ve->num_segments = segment_count;
+	loaded_segments = 0;
 
 	for (segndx = 0; segndx < segment_count; segndx++) {
 		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
 
-		curseg = ve->segments + segndx;
+		if (phdr.p_type != PT_LOAD) {
+			continue; // skip non-loadable segments
+		}
+
+		curseg = ve->segments + loaded_segments;
 		curseg->type = phdr.p_type;
 		curseg->vaddr = phdr.p_vaddr;
 		curseg->memsz = phdr.p_memsz;
@@ -482,7 +486,10 @@ vita_elf_t *vita_elf_load(const char *filename)
 				FAIL("Could not allocate address space for segment %d", (int)segndx);
 			curseg->vaddr_bottom = curseg->vaddr_top + curseg->memsz;
 		}
+		
+		loaded_segments++;
 	}
+	ve->num_segments = loaded_segments;
 
 	return ve;
 
