@@ -14,9 +14,11 @@ endif()
 
 add_executable(vita-libs-gen vita-libs-gen.c vita-import.c vita-import-parse.c)
 add_executable(vita-elf-create vita-elf-create.c vita-elf.c vita-import.c vita-import-parse.c elf-defs.c sce-elf.c varray.c elf-utils.c)
+add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
 
 target_link_libraries(vita-libs-gen ${Jansson_LIBRARIES})
 target_link_libraries(vita-elf-create ${Jansson_LIBRARIES} ${libelf_LIBRARIES})
 
 install(TARGETS vita-libs-gen DESTINATION bin)
 install(TARGETS vita-elf-create DESTINATION bin)
+install(TARGETS vita-mksfoex DESTINATION bin)
