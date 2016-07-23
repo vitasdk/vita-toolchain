@@ -4,6 +4,8 @@ find_package(libelf REQUIRED)
 include_directories(${Jansson_INCLUDE_DIRS})
 include_directories(${libelf_INCLUDE_DIRS})
 
+set(CMAKE_C_FLAGS "-std=gnu99")
+
 if(USE_BUNDLED_ENDIAN_H)
 	add_definitions(-DUSE_BUNDLED_ENDIAN_H)
 endif()
