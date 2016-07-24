@@ -51,7 +51,7 @@ struct EntryContainer
 
 struct EntryContainer g_defaults[] = {
 	{ "APP_VER", PSF_TYPE_STR, 0, "00.00" },
-	{ "ATTRIBUTE", PSF_TYPE_VAL, 0, NULL },
+	{ "ATTRIBUTE", PSF_TYPE_VAL, 0x8000, NULL },
 	{ "BOOT_FILE", PSF_TYPE_STR, 32, "" },
 	{ "CATEGORY", PSF_TYPE_STR, 0, "gd" },
 	{ "CONTENT_ID", PSF_TYPE_STR, 48, "" },
