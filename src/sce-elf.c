@@ -656,6 +656,16 @@ int sce_elf_discard_invalid_relocs(const vita_elf_t *ve, vita_elf_rela_table_t *
 				vrela->type = R_ARM_NONE;
 				continue;
 			}
+			/* We skip relocations that are not real relocations 
+			 * In all current tested output, we have that the unrelocated value is correct. 
+			 * However, there is nothing that says this has to be the case. SCE RELS 
+			 * does not support ABS value relocations anymore, so there's not much 
+			 * we can do. */
+			// TODO: Consider a better solution for this.
+			if (vrela->symbol && (vrela->symbol->shndx == SHN_ABS || vrela->symbol->shndx == SHN_COMMON)) {
+				vrela->type = R_ARM_NONE;
+				continue;
+			}
 			datseg = vita_elf_vaddr_to_segndx(ve, vrela->offset);
 			/* We can get -1 here for some debugging-related relocations.
 			 * These are done against debug sections that aren't mapped to any segment.
