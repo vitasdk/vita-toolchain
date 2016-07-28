@@ -34,7 +34,11 @@ int main(int argc, char *argv[])
 		imports[i] = imp;
 	}
 
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	mkdir(argv[argc - 1]);
+#else
 	mkdir(argv[argc - 1], 0777); // create directory if it doesn't exist
+#endif
 
 	if (chdir(argv[argc - 1])) {
 		perror(argv[argc - 1]);
