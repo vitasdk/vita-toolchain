@@ -94,8 +94,8 @@ static void parse_add_subopt(char *optarg)
 	src_len = equals - optarg;
 	dst_len = len - (equals - optarg + 1);
 
-	src = malloc(sizeof(char) * (dst_len + 1));
-	dst = malloc(sizeof(char) * (src_len + 1));
+	src = malloc(sizeof(char) * (src_len + 1));
+	dst = malloc(sizeof(char) * (dst_len + 1));
 
 	strncpy(src, optarg, src_len);
 	src[src_len] = '\0';
