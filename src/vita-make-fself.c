@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
 		e_phdr *phdr = (e_phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i);
 		// but fixup alignment, TODO: fix in toolchain
-		if (phdr->p_align == 0x8000)
+		if (phdr->p_align >= 0x8000)
 			phdr->p_align = 0x1000;
 		if (fwrite(phdr, sizeof(*phdr), 1, fout) != 1) {
 			perror("Failed to write phdr");
