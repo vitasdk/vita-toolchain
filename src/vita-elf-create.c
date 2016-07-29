@@ -140,6 +140,14 @@ void get_binary_directory(char *out, size_t n)
 	mib[3] = -1;
 	sysctl(mib, 4, out, &n, NULL, 0);
 	pathsep = '/';
+#elif defined(__FreeBSD__)
+	int mib[4];
+	mib[0] = CTL_KERN;
+	mib[1] = KERN_PROC;
+	mib[2] = KERN_PROC_PATHNAME;
+	mib[3] = -1;
+	sysctl(mib, 4, out, &n, NULL, 0);
+	pathsep = '/';
 #elif defined(DEFAULT_JSON)
 	#error "Sorry, your platform is not supported with -DDEFAULT_JSON."
 #endif
