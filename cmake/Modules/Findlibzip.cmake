@@ -1,10 +1,10 @@
 find_package(PkgConfig)
 pkg_check_modules(PC_libzip libzip>=1.1.3)
 
-find_path(libzip_INCLUDE_DIR libzip.h
+find_path(libzip_INCLUDE_DIR zip.h
           HINTS ${PC_libzip_INCLUDEDIR} ${PC_libzip_INCLUDE_DIRS})
 
-find_library(libzip_LIBRARY NAMES elf
+find_library(libzip_LIBRARY NAMES zip
              HINTS ${PC_libzip_LIBDIR} ${PC_libzip_LIBRARY_DIRS} )
 
 set(libzip_LIBRARIES ${libzip_LIBRARY})
