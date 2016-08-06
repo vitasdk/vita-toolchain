@@ -14,6 +14,10 @@ if(USE_BUNDLED_ENDIAN_H)
 	add_definitions(-DUSE_BUNDLED_ENDIAN_H)
 endif()
 
+if(DEFINED ZIP_STATIC)
+	add_definitions(-DZIP_STATIC)
+endif()
+
 if(DEFINED DEFAULT_JSON)
 	add_definitions(-DDEFAULT_JSON="${DEFAULT_JSON}")
 endif()
