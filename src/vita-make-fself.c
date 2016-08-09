@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
 
 	ELF_header myhdr = { 0 };
 	memcpy(myhdr.e_ident, "\177ELF\1\1\1", 8);
-	myhdr.e_type = 0xFE04;
+	myhdr.e_type = ehdr->e_type;
 	myhdr.e_machine = 0x28;
 	myhdr.e_version = 1;
 	myhdr.e_entry = ehdr->e_entry;
