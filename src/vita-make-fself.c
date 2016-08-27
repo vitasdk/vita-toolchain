@@ -5,10 +5,22 @@
 
 #include "self.h"
 
+void usage(char *argv[]) {
+	fprintf(stderr, "Usage: %s input.velf output-eboot.bin [-s]\n", argv[0] ? argv[0] : "make_fself");
+	fprintf(stderr, "\t-s: Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
+	exit(1);
+}
+
 int main(int argc, char *argv[]) {
-	if (argc != 3) {
-		fprintf(stderr, "Usage: %s input.velf output-eboot.bin\n", argv[0] ? argv[0] : "make_fself");
-		return 1;
+	if (argc != 3 && argc != 4)
+		usage(argv);
+
+	int safe = 0;
+	if (argc == 4) {
+		if (strcmp(argv[3], "-s") == 0)
+			safe = 1;
+		else
+			usage(argv);
 	}
 
 	FILE *fin = fopen(argv[1], "rb");
@@ -58,7 +70,10 @@ int main(int argc, char *argv[]) {
 	// SCE_header should be ok
 
 	SCE_appinfo appinfo = { 0 };
-	appinfo.authid = 0x2F00000000000001ULL;
+	if (safe)
+		appinfo.authid = 0x2F00000000000002ULL;
+	else
+		appinfo.authid = 0x2F00000000000001ULL;
 	appinfo.vendor_id = 0;
 	appinfo.self_type = 8;
 	appinfo.version = 0x1000000000000;
