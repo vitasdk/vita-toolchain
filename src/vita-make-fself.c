@@ -6,24 +6,32 @@
 #include "self.h"
 
 void usage(char *argv[]) {
-	fprintf(stderr, "Usage: %s input.velf output-eboot.bin [-s]\n", argv[0] ? argv[0] : "make_fself");
+	fprintf(stderr, "Usage: %s [-s] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "make_fself");
 	fprintf(stderr, "\t-s: Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
 	exit(1);
 }
 
 int main(int argc, char *argv[]) {
+	const char *input_path, *output_path;
+
 	if (argc != 3 && argc != 4)
 		usage(argv);
 
 	int safe = 0;
 	if (argc == 4) {
-		if (strcmp(argv[3], "-s") == 0)
+		if (strcmp(argv[1], "-s") == 0)
 			safe = 1;
 		else
 			usage(argv);
+
+		input_path = argv[2];
+		output_path = argv[3];
+	} else {
+		input_path = argv[1];
+		output_path = argv[2];
 	}
 
-	FILE *fin = fopen(argv[1], "rb");
+	FILE *fin = fopen(input_path, "rb");
 	if (!fin) {
 		perror("Failed to open input file");
 		goto error;
@@ -110,7 +118,7 @@ int main(int argc, char *argv[]) {
 	myhdr.e_phentsize = 0x20;
 	myhdr.e_phnum = ehdr->e_phnum;
 
-	FILE *fout = fopen(argv[2], "wb");
+	FILE *fout = fopen(output_path, "wb");
 	if (!fout) {
 		perror("Failed to open output file");
 		goto error;
