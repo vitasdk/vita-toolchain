@@ -48,7 +48,11 @@ int main(int argc, char *argv[]) {
 		goto error;
 	}
 	if (fread(input, sz, 1, fin) != 1) {
-		perror("Failed to read input file");
+		static const char s[] = "Failed to read input file";
+		if (feof(fin))
+			fprintf(stderr, "%s: unexpected end of file\n", s);
+		else
+			perror(s);
 		goto error;
 	}
 	fclose(fin);
