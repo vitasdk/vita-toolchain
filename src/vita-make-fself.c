@@ -13,6 +13,7 @@ void usage(char *argv[]) {
 
 int main(int argc, char *argv[]) {
 	const char *input_path, *output_path;
+	FILE *fout = NULL;
 
 	if (argc != 3 && argc != 4)
 		usage(argv);
@@ -118,7 +119,7 @@ int main(int argc, char *argv[]) {
 	myhdr.e_phentsize = 0x20;
 	myhdr.e_phnum = ehdr->e_phnum;
 
-	FILE *fout = fopen(output_path, "wb");
+	fout = fopen(output_path, "wb");
 	if (!fout) {
 		perror("Failed to open output file");
 		goto error;
