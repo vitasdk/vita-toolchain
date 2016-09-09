@@ -13,6 +13,8 @@ void usage(char *argv[]) {
 
 int main(int argc, char *argv[]) {
 	const char *input_path, *output_path;
+	FILE *fin = NULL;
+	FILE *fout = NULL;
 
 	if (argc != 3 && argc != 4)
 		usage(argv);
@@ -31,7 +33,7 @@ int main(int argc, char *argv[]) {
 		output_path = argv[2];
 	}
 
-	FILE *fin = fopen(input_path, "rb");
+	fin = fopen(input_path, "rb");
 	if (!fin) {
 		perror("Failed to open input file");
 		goto error;
@@ -46,10 +48,15 @@ int main(int argc, char *argv[]) {
 		goto error;
 	}
 	if (fread(input, sz, 1, fin) != 1) {
-		perror("Failed to read input file");
+		static const char s[] = "Failed to read input file";
+		if (feof(fin))
+			fprintf(stderr, "%s: unexpected end of file\n", s);
+		else
+			perror(s);
 		goto error;
 	}
 	fclose(fin);
+	fin = NULL;
 
 	ELF_header *ehdr = (ELF_header*)input;
 
@@ -118,7 +125,7 @@ int main(int argc, char *argv[]) {
 	myhdr.e_phentsize = 0x20;
 	myhdr.e_phnum = ehdr->e_phnum;
 
-	FILE *fout = fopen(output_path, "wb");
+	fout = fopen(output_path, "wb");
 	if (!fout) {
 		perror("Failed to open output file");
 		goto error;
@@ -177,6 +184,8 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 error:
+	if (fin)
+		fclose(fin);
 	if (fout)
 		fclose(fout);
 	return 1;
