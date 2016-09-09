@@ -207,6 +207,7 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	vita_elf_rela_table_t *rtable = NULL;
 	vita_elf_rela_t *currela = NULL;
 	uint32_t insn, target = 0;
+	uint32_t offset;
 
 	gelf_getshdr(scn, &shdr);
 
@@ -245,8 +246,17 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 			continue;
 		currela->offset = rel.r_offset;
 
+		if (rel.r_offset < text_shdr.sh_addr)
+			FAILX("Invalid relocation offset: section address is 0x%08X, but relocation offset is 0x%08X",
+					text_shdr.sh_addr, rel.r_offset);
+
+		offset = rel.r_offset - text_shdr.sh_addr;
+		if (offset >= text_shdr.sh_size || text_shdr.sh_offset - offset < sizeof(insn))
+			FAILX("Invalid relocation offset: section size is 0x%08X, but offset in section is 0x%08X",
+					text_shdr.sh_size, offset);
+
 		/* Use memcpy for unaligned relocation. */
-		memcpy(&insn, text_data->d_buf+(rel.r_offset - text_shdr.sh_addr), sizeof(insn));
+		memcpy(&insn, text_data->d_buf+offset, sizeof(insn));
 		insn = le32toh(insn);
 
 		handling = get_rel_handling(currela->type);
