@@ -13,6 +13,7 @@ void usage(char *argv[]) {
 
 int main(int argc, char *argv[]) {
 	const char *input_path, *output_path;
+	FILE *fin = NULL;
 	FILE *fout = NULL;
 
 	if (argc != 3 && argc != 4)
@@ -32,7 +33,7 @@ int main(int argc, char *argv[]) {
 		output_path = argv[2];
 	}
 
-	FILE *fin = fopen(input_path, "rb");
+	fin = fopen(input_path, "rb");
 	if (!fin) {
 		perror("Failed to open input file");
 		goto error;
@@ -51,6 +52,7 @@ int main(int argc, char *argv[]) {
 		goto error;
 	}
 	fclose(fin);
+	fin = NULL;
 
 	ELF_header *ehdr = (ELF_header*)input;
 
@@ -178,6 +180,8 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 error:
+	if (fin)
+		fclose(fin);
 	if (fout)
 		fclose(fout);
 	return 1;
