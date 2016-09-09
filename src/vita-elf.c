@@ -245,7 +245,9 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 			continue;
 		currela->offset = rel.r_offset;
 
-		insn = le32toh(*((uint32_t*)(text_data->d_buf+(rel.r_offset - text_shdr.sh_addr))));
+		/* Use memcpy for unaligned relocation. */
+		memcpy(&insn, text_data->d_buf+(rel.r_offset - text_shdr.sh_addr), sizeof(insn));
+		insn = le32toh(insn);
 
 		handling = get_rel_handling(currela->type);
 
