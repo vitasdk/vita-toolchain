@@ -205,6 +205,16 @@ failure:
 	return NULL;
 }
 
+void free_imports(vita_imports_t **imports, int count)
+{
+	int i;
+
+	for (i = 0; i < count; i++)
+		vita_imports_free(imports[i]);
+
+	free(imports);
+}
+
 int main(int argc, char *argv[])
 {
 	vita_elf_t *ve;
@@ -235,8 +245,10 @@ int main(int argc, char *argv[])
 	if ((ve = vita_elf_load(argv[1])) == NULL)
 		return EXIT_FAILURE;
 
-	if (!(imports = load_imports(argc, argv, &imports_count)))
+	if (!(imports = load_imports(argc, argv, &imports_count))) {
+		vita_elf_free(ve);
 		return EXIT_FAILURE;
+	}
 
 	if (!vita_elf_lookup_imports(ve, imports, imports_count))
 		status = EXIT_FAILURE;
@@ -282,30 +294,40 @@ int main(int argc, char *argv[])
 
 	FILE *outfile;
 	Elf *dest;
+	Elf_Scn *sce_rel = NULL;
+	int shstrtab_duplicated = 0;
 	ASSERT(dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfile));
 	ASSERT(elf_utils_duplicate_shstrtab(dest));
+	shstrtab_duplicated = 1;
 	ASSERT(sce_elf_discard_invalid_relocs(ve, ve->rela_tables));
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));
 	rtable.next = ve->rela_tables;
-	ASSERT(sce_elf_write_rela_sections(dest, ve, &rtable));
+	ASSERT(sce_rel = sce_elf_write_rela_sections(dest, ve, &rtable));
 	ASSERT(sce_elf_rewrite_stubs(dest, ve));
 	ELF_ASSERT(elf_update(dest, ELF_C_WRITE) >= 0);
-	elf_end(dest);
 	ASSERT(sce_elf_set_headers(outfile, ve));
-	fclose(outfile);
 
 
+end:
+	if (sce_rel != NULL)
+		elf_utils_free_scn_contents(sce_rel);
+
+	if (shstrtab_duplicated)
+		elf_utils_free_shstrtab(dest);
+
+	elf_end(dest);
+
+	if (outfile != NULL)
+		fclose(outfile);
+
+	free(rtable.relas);
+	free(encoded_modinfo);
 	sce_elf_module_info_free(module_info);
 	vita_elf_free(ve);
-
-	int i;
-	for (i = 0; i < imports_count; i++) {
-		vita_imports_free(imports[i]);
-	}
-
-	free(imports);
+	free_imports(imports, imports_count);
 
 	return status;
 failure:
-	return EXIT_FAILURE;
+	status = EXIT_FAILURE;
+	goto end;
 }

@@ -529,9 +529,11 @@ void vita_elf_free(vita_elf_t *ve)
 	}
 
 	/* free() is safe to call on NULL */
+	free_rela_table(ve->rela_tables);
 	free(ve->fstubs);
 	free(ve->vstubs);
 	free(ve->symtab);
+	free(ve->segments);
 	if (ve->elf != NULL)
 		elf_end(ve->elf);
 	if (ve->file != NULL)

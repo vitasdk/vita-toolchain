@@ -203,6 +203,7 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve)
 		set_module_import(ve, module_info->import_top + i, modlist.modules + i);
 	}
 
+	varray_destroy(&modlist.va);
 	return module_info;
 
 failure:
@@ -677,7 +678,7 @@ int sce_elf_discard_invalid_relocs(const vita_elf_t *ve, vita_elf_rela_table_t *
 	return 1;
 }
 
-int sce_elf_write_rela_sections(
+Elf_Scn *sce_elf_write_rela_sections(
 		Elf *dest, const vita_elf_t *ve, const vita_elf_rela_table_t *rtable)
 {
 	int total_relas = 0;
@@ -694,7 +695,7 @@ int sce_elf_write_rela_sections(
 
 	Elf_Scn *scn;
 	GElf_Shdr shdr;
-	GElf_Phdr *phdrs;
+	GElf_Phdr *phdrs = NULL;
 	size_t segment_count = 0;
 
 	for (curtable = rtable; curtable; curtable = curtable->next)
@@ -759,11 +760,13 @@ encode_relas:
 		ELF_ASSERT(gelf_update_phdr(dest, i, phdrs + i));
 	}
 
-	return 1;
+	free(phdrs);
+	return scn;
 
 failure:
+	free(phdrs);
 	free(encoded_relas);
-	return 0;
+	return NULL;
 }
 
 int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)

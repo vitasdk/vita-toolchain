@@ -171,5 +171,6 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 		}
 	}
 
+	json_decref(libs);
 	return imports;
 }

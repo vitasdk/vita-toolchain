@@ -85,13 +85,11 @@ failure:
 	return NULL;
 }
 
-int elf_utils_duplicate_scn_contents(Elf *e, int scndx)
+int elf_utils_duplicate_scn_contents(Elf_Scn *scn)
 {
-	Elf_Scn *scn;
 	Elf_Data *data;
 	void *new_data;
 
-	ELF_ASSERT(scn = elf_getscn(e, scndx));
 
 	data = NULL;
 	while ((data = elf_getdata(scn, data)) != NULL) {
@@ -105,12 +103,9 @@ failure:
 	return 0;
 }
 
-void elf_utils_free_scn_contents(Elf *e, int scndx)
+void elf_utils_free_scn_contents(Elf_Scn *scn)
 {
-	Elf_Scn *scn;
 	Elf_Data *data;
-
-	ELF_ASSERT(scn = elf_getscn(e, scndx));
 
 	data = NULL;
 	while ((data = elf_getdata(scn, data)) != NULL) {
@@ -125,12 +120,27 @@ failure:
 int elf_utils_duplicate_shstrtab(Elf *e)
 {
 	size_t shstrndx;
+	Elf_Scn *scn;
 
 	ELF_ASSERT(elf_getshdrstrndx(e, &shstrndx) == 0);
+	ELF_ASSERT(scn = elf_getscn(e, shstrndx));
 
-	return elf_utils_duplicate_scn_contents(e, shstrndx);
+	return elf_utils_duplicate_scn_contents(scn);
 failure:
 	return 0;
+}
+
+void elf_utils_free_shstrtab(Elf *e)
+{
+	size_t shstrndx;
+	Elf_Scn *scn;
+
+	ELF_ASSERT(elf_getshdrstrndx(e, &shstrndx) == 0);
+	ELF_ASSERT(scn = elf_getscn(e, shstrndx));
+
+	elf_utils_free_scn_contents(scn);
+failure:
+	return;
 }
 
 int elf_utils_shift_contents(Elf *e, int start_offset, int shift_amount)
