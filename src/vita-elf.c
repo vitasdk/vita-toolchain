@@ -9,20 +9,6 @@
  * functions.  This is because they have extra sanity checking baked in.
  */
 
-#ifndef MAP_ANONYMOUS
-#  define MAP_ANONYMOUS MAP_ANON
-#endif
-
-#ifndef __MINGW32__
-/* This may cause trouble with Windows portability, but there are Windows alternatives
- * to mmap() that we can explore later.  It'll probably work under Cygwin.
- */
-#include <sys/mman.h>
-#else
-#define mmap(ptr,size,c,d,e,f) malloc(size)
-#define munmap(ptr, size) free(ptr)
-#endif
-
 #include "vita-elf.h"
 #include "vita-import.h"
 #include "elf-defs.h"
@@ -491,13 +477,6 @@ vita_elf_t *vita_elf_load(const char *filename)
 		curseg->type = phdr.p_type;
 		curseg->vaddr = phdr.p_vaddr;
 		curseg->memsz = phdr.p_memsz;
-
-		if (curseg->memsz) {
-			curseg->vaddr_top = mmap(NULL, curseg->memsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-			if (curseg->vaddr_top == NULL)
-				FAIL("Could not allocate address space for segment %d", (int)segndx);
-			curseg->vaddr_bottom = curseg->vaddr_top + curseg->memsz;
-		}
 		
 		loaded_segments++;
 	}
@@ -522,11 +501,6 @@ static void free_rela_table(vita_elf_rela_table_t *rtable)
 void vita_elf_free(vita_elf_t *ve)
 {
 	int i;
-
-	for (i = 0; i < ve->num_segments; i++) {
-		if (ve->segments[i].vaddr_top != NULL)
-			munmap((void *)ve->segments[i].vaddr_top, ve->segments[i].memsz);
-	}
 
 	/* free() is safe to call on NULL */
 	free_rela_table(ve->rela_tables);
@@ -599,68 +573,57 @@ int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t **imports, int import
 	return found_all;
 }
 
-const void *vita_elf_vaddr_to_host(const vita_elf_t *ve, Elf32_Addr vaddr)
+int vita_elf_vaddr_to_host(const vita_elf_t *ve, Elf32_Addr vaddr, vita_elf_addr_t *host)
 {
 	vita_elf_segment_info_t *seg;
 	int i;
 
 	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
-		if (vaddr >= seg->vaddr && vaddr < seg->vaddr + seg->memsz)
-			return seg->vaddr_top + vaddr - seg->vaddr;
-	}
-
-	return NULL;
-}
-const void *vita_elf_segoffset_to_host(const vita_elf_t *ve, int segndx, uint32_t offset)
-{
-	vita_elf_segment_info_t *seg = ve->segments + segndx;
-
-	if (offset < seg->memsz)
-		return seg->vaddr_top + offset;
-
-	return NULL;
-}
-
-Elf32_Addr vita_elf_host_to_vaddr(const vita_elf_t *ve, const void *host_addr)
-{
-	vita_elf_segment_info_t *seg;
-	int i;
-
-	if (host_addr == NULL)
-		return 0;
-
-	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
-		if (host_addr >= seg->vaddr_top && host_addr < seg->vaddr_bottom)
-			return seg->vaddr + (uint32_t)(host_addr - seg->vaddr_top);
+		if (vaddr >= seg->vaddr && vaddr < seg->vaddr + seg->memsz) {
+			host->segndx = i;
+			host->offset = vaddr - seg->vaddr;
+			return 1;
+		}
 	}
 
 	return 0;
 }
 
-int vita_elf_host_to_segndx(const vita_elf_t *ve, const void *host_addr)
-{
-	vita_elf_segment_info_t *seg;
-	int i;
-
-	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
-		if (host_addr >= seg->vaddr_top && host_addr < seg->vaddr_bottom)
-			return i;
-	}
-
-	return -1;
-}
-
-int32_t vita_elf_host_to_segoffset(const vita_elf_t *ve, const void *host_addr, int segndx)
+int vita_elf_segoffset_to_host(const vita_elf_t *ve, int segndx, uint32_t offset, vita_elf_addr_t *host)
 {
 	vita_elf_segment_info_t *seg = ve->segments + segndx;
 
-	if (host_addr == NULL)
+	if (offset < seg->memsz) {
+		host->segndx = segndx;
+		host->offset = offset;
+		return 1;
+	}
+
+	return 0;
+}
+
+Elf32_Addr vita_elf_host_to_vaddr(const vita_elf_t *ve, const vita_elf_addr_t *host)
+{
+	if (host == NULL)
 		return 0;
 
-	if (host_addr >= seg->vaddr_top && host_addr < seg->vaddr_bottom)
-		return (uint32_t)(host_addr - seg->vaddr_top);
+	return ve->segments[host->segndx].vaddr + host->offset;
+}
 
-	return -1;
+int vita_elf_host_to_segndx(const vita_elf_t *ve, const vita_elf_addr_t *host)
+{
+	if (host == NULL)
+		return -1;
+
+	return host->segndx;
+}
+
+Elf32_Addr vita_elf_host_to_segoffset(const vita_elf_t *ve, const vita_elf_addr_t *host)
+{
+	if (host == NULL)
+		return 0;
+
+	return host->offset;
 }
 
 int vita_elf_vaddr_to_segndx(const vita_elf_t *ve, Elf32_Addr vaddr)
