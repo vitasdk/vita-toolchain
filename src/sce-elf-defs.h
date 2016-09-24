@@ -3,9 +3,11 @@
 #if defined(SCE_ELF_DEFS_HOST)
 # define SCE_TYPE(type) type ## _t
 # define SCE_PTR(type) type
+# define SCE_EXTERN_PTR vita_elf_addr_t
 #elif defined(SCE_ELF_DEFS_TARGET)
 # define SCE_TYPE(type) type ## _raw
 # define SCE_PTR(type) uint32_t
+#define SCE_EXTERN_PTR uint32_t
 #else
 # error "Do not include sce-elf-defs.h directly!  Include sce-elf.h!"
 #endif
@@ -33,12 +35,12 @@ typedef struct SCE_TYPE(sce_module_info) {
 	uint32_t field_38;
 	uint32_t field_3C;
 	uint32_t field_40;
-	SCE_PTR(const void *) module_start;	/* Offset to function to run when library is started, 0 to disable */
-	SCE_PTR(const void *) module_stop;	/* Offset to function to run when library is exiting, 0 to disable */
-	SCE_PTR(const void *) exidx_top;	/* Offset to start of ARM EXIDX (optional) */
-	SCE_PTR(const void *) exidx_end;	/* Offset to end of ARM EXIDX (optional) */
-	SCE_PTR(const void *) extab_top;	/* Offset to start of ARM EXTAB (optional) */
-	SCE_PTR(const void *) extab_end;	/* Offset to end of ARM EXTAB (optional */
+	SCE_EXTERN_PTR module_start;	/* Offset to function to run when library is started, 0 to disable */
+	SCE_EXTERN_PTR module_stop;	/* Offset to function to run when library is exiting, 0 to disable */
+	SCE_EXTERN_PTR exidx_top;	/* Offset to start of ARM EXIDX (optional) */
+	SCE_EXTERN_PTR exidx_end;	/* Offset to end of ARM EXIDX (optional) */
+	SCE_EXTERN_PTR extab_top;	/* Offset to start of ARM EXTAB (optional) */
+	SCE_EXTERN_PTR extab_end;	/* Offset to end of ARM EXTAB (optional */
 
 	// i decided to include process param into module_info (xyz)
 	uint32_t process_param_size;
@@ -56,7 +58,7 @@ typedef struct SCE_TYPE(sce_module_exports) {
 	uint32_t module_nid;			/* NID of this module */
 	SCE_PTR(const char *) module_name;	/* Pointer to name of this module */
 	SCE_PTR(uint32_t *) nid_table;		/* Pointer to array of 32-bit NIDs to export */
-	SCE_PTR(const void **) entry_table;	/* Pointer to array of data pointers for each NID */
+	SCE_PTR(SCE_EXTERN_PTR *) entry_table;	/* Pointer to array of data pointers for each NID */
 } SCE_TYPE(sce_module_exports);
 
 typedef struct SCE_TYPE(sce_module_imports) {
@@ -71,12 +73,13 @@ typedef struct SCE_TYPE(sce_module_imports) {
 	SCE_PTR(const char *) module_name;	/* Pointer to name of imported module, for debugging */
 	uint32_t reserved2;
 	SCE_PTR(uint32_t *) func_nid_table;	/* Pointer to array of function NIDs to import */
-	SCE_PTR(const void **) func_entry_table;/* Pointer to array of stub functions to fill */
+	SCE_PTR(SCE_EXTERN_PTR *) func_entry_table;/* Pointer to array of stub functions to fill */
 	SCE_PTR(uint32_t *) var_nid_table;	/* Pointer to array of variable NIDs to import */
-	SCE_PTR(const void **) var_entry_table;	/* Pointer to array of data pointers to write to */
+	SCE_PTR(SCE_EXTERN_PTR *) var_entry_table;	/* Pointer to array of data pointers to write to */
 	SCE_PTR(uint32_t *) unk_nid_table;
-	SCE_PTR(const void **) unk_entry_table;
+	SCE_PTR(SCE_EXTERN_PTR *) unk_entry_table;
 } SCE_TYPE(sce_module_imports);
 
 #undef SCE_TYPE
 #undef SCE_PTR
+#undef SCE_EXTERN_PTR

@@ -100,23 +100,73 @@ typedef union {
 	varray va;
 } import_module_list;
 
-static void set_main_module_export(sce_module_exports_t *export, const sce_module_info_t *module_info)
+#define MAIN_MODULE_EXPORT_NUM_SYMS_FUNCS 1
+#define MAIN_MODULE_EXPORT_NUM_SYMS_VARS 2
+#define MAIN_MODULE_EXPORT_NUM_SYMS_UNK 0
+#define MAIN_MODULE_EXPORT_NUM_SYMS_TOTAL \
+	(MAIN_MODULE_EXPORT_NUM_SYMS_FUNCS \
+	 + MAIN_MODULE_EXPORT_NUM_SYMS_VARS \
+	 + MAIN_MODULE_EXPORT_NUM_SYMS_UNK)
+
+#define ADDR(section) (void *)((char *)data + section_addrs->section)
+#define VADDR(section) (section_addrs->section + module_info_vaddr)
+#define INCR(section, size)  do { \
+	cur_sizes->section += (size); \
+	section_addrs->section += (size); \
+} while (0)
+#define SETLOCALPTR(variable, section) do { \
+	variable = htole32(VADDR(section)); \
+	ADDRELA(&variable); \
+} while(0)
+#define SETLOCALPTR_VADDR(variable, vaddr) do { \
+	variable = htole32(vaddr); \
+	ADDRELA(&variable); \
+} while(0)
+#define ADDRELA(localaddr) do { \
+	uint32_t addend = le32toh(*((uint32_t *)localaddr)); \
+	if (addend) { \
+		vita_elf_rela_t *rela = varray_push(relas, NULL); \
+		rela->type = R_ARM_ABS32; \
+		rela->offset = ((void*)(localaddr)) - data + module_info_vaddr; \
+		rela->addend = addend; \
+	} \
+} while(0)
+static void set_main_module_export(
+		void *data,
+		sce_section_sizes_t *cur_sizes, sce_section_sizes_t *section_addrs,
+		varray *relas, const vita_elf_t *ve,
+		const sce_module_info_t *module_info, uint32_t module_info_vaddr)
 {
+	sce_module_exports_raw *export;
+	uint32_t *nids, *entries;
+
+	export = ADDR(sceLib_ent);
+	INCR(sceLib_ent, sizeof(sce_module_exports_raw));
+
 	export->size = sizeof(sce_module_exports_raw);
-	export->version = 0;
-	export->flags = 0x8000;
-	export->num_syms_funcs = 1;
-	export->num_syms_vars = 2;
-	int total_exports = export->num_syms_funcs + export->num_syms_vars;
-	export->nid_table = calloc(total_exports, sizeof(uint32_t));
-	export->nid_table[0] = NID_MODULE_START;
-	export->nid_table[1] = NID_MODULE_INFO;
-	export->nid_table[2] = NID_PROCESS_PARAM;
-	export->entry_table = calloc(total_exports, sizeof(void*));
-	export->entry_table[0] = module_info->module_start;
-	export->entry_table[1] = module_info;
-	export->entry_table[2] = &module_info->process_param_size;
+	export->version = htole16(0);
+	export->flags = htole16(0x8000);
+	export->num_syms_funcs = htole32(MAIN_MODULE_EXPORT_NUM_SYMS_FUNCS);
+	export->num_syms_vars = htole32(MAIN_MODULE_EXPORT_NUM_SYMS_VARS);
+	export->num_syms_unk = htole32(MAIN_MODULE_EXPORT_NUM_SYMS_UNK);
+	SETLOCALPTR(export->nid_table, sceExport_rodata);
+	nids = (uint32_t *)ADDR(sceExport_rodata);
+	INCR(sceExport_rodata, MAIN_MODULE_EXPORT_NUM_SYMS_TOTAL * 4);
+	SETLOCALPTR(export->entry_table, sceExport_rodata);
+	entries = (uint32_t *)ADDR(sceExport_rodata);
+	INCR(sceExport_rodata, MAIN_MODULE_EXPORT_NUM_SYMS_TOTAL * 4);
+	nids[0] = htole32(NID_MODULE_START);
+	nids[1] = htole32(NID_MODULE_INFO);
+	nids[2] = NID_PROCESS_PARAM;
+	SETLOCALPTR_VADDR(entries[0], vita_elf_host_to_vaddr(ve, &module_info->module_start));
+	SETLOCALPTR_VADDR(entries[1], module_info_vaddr);
+	SETLOCALPTR_VADDR(entries[2], module_info_vaddr + offsetof(sce_module_info_raw, process_param_size));
 }
+#undef ADDR
+#undef VADDR
+#undef INCR
+#undef SETLOCALPTR
+#undef ADDRELA
 
 static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, const import_module *module)
 {
@@ -135,14 +185,14 @@ static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, cons
 	import->func_entry_table = calloc(module->functions_va.count, sizeof(void *));
 	for (i = 0; i < module->functions_va.count; i++) {
 		import->func_nid_table[i] = module->functions[i].target_nid;
-		import->func_entry_table[i] = vita_elf_vaddr_to_host(ve, module->functions[i].addr);
+		vita_elf_vaddr_to_host(ve, module->functions[i].addr, import->func_entry_table + i);
 	}
 
 	import->var_nid_table = calloc(module->variables_va.count, sizeof(uint32_t));
 	import->var_entry_table = calloc(module->variables_va.count, sizeof(void *));
 	for (i = 0; i < module->variables_va.count; i++) {
 		import->var_nid_table[i] = module->variables[i].target_nid;
-		import->var_entry_table[i] = vita_elf_vaddr_to_host(ve, module->variables[i].addr);
+		vita_elf_vaddr_to_host(ve, module->variables[i].addr, import->var_entry_table + i);
 	}
 }
 
@@ -159,13 +209,10 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve)
 
 	module_info->type = 6;
 	module_info->version = 0x0101;
-	module_info->module_start = vita_elf_vaddr_to_host(ve, elf32_getehdr(ve->elf)->e_entry);
+	vita_elf_vaddr_to_host(ve, elf32_getehdr(ve->elf)->e_entry, &module_info->module_start);
 
-	module_info->export_top = calloc(1, sizeof(sce_module_exports_t));
-	ASSERT(module_info->export_top != NULL);
-	module_info->export_end = module_info->export_top + 1;
-
-	set_main_module_export(module_info->export_top, module_info);
+	module_info->export_top = NULL;
+	module_info->export_end = NULL;
 
 	ASSERT(varray_init(&modlist.va, sizeof(import_module), 8));
 	modlist.va.init_func = _module_init;
@@ -203,6 +250,7 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve)
 		set_module_import(ve, module_info->import_top + i, modlist.modules + i);
 	}
 
+	varray_destroy(&modlist.va);
 	return module_info;
 
 failure:
@@ -224,6 +272,11 @@ int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_siz
 	memset(sizes, 0, sizeof(*sizes));
 
 	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
+
+	// main export
+	INCR(sceLib_ent, sizeof(sce_module_exports_raw));
+	INCR(sceExport_rodata, MAIN_MODULE_EXPORT_NUM_SYMS_TOTAL * 8);
+
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		INCR(sceLib_ent, sizeof(sce_module_exports_raw));
 		if (export->module_name != NULL) {
@@ -288,7 +341,7 @@ void sce_elf_module_info_free(sce_module_info_t *module_info)
 #define CONVERT(variable, member, conversion) variable ## _raw->member = conversion(variable->member)
 #define CONVERT16(variable, member) CONVERT(variable, member, htole16)
 #define CONVERT32(variable, member) CONVERT(variable, member, htole32)
-#define CONVERTOFFSET(variable, member) variable ## _raw->member = htole32(vita_elf_host_to_segoffset(ve,variable->member,segndx))
+#define CONVERTOFFSET(variable, member) variable ## _raw->member = htole32(vita_elf_host_to_segoffset(ve,&variable->member))
 #define SETLOCALPTR(variable, section) do { \
 	variable = htole32(VADDR(section)); \
 	ADDRELA(&variable); \
@@ -328,7 +381,7 @@ void *sce_elf_module_info_encode(
 		total_size += ((Elf32_Word *)sizes)[i];
 	}
 
-	segndx = vita_elf_host_to_segndx(ve, module_info->module_start);
+	segndx = vita_elf_host_to_segndx(ve, &module_info->module_start);
 
 	segment_base = ve->segments[segndx].vaddr;
 	start_offset = ve->segments[segndx].memsz;
@@ -368,6 +421,9 @@ void *sce_elf_module_info_encode(
 	module_info_raw->process_param_size = 0x34;
 	memcpy(&module_info_raw->process_param_magic, "PSP2", 4);
 
+	set_main_module_export(data, &cur_sizes, &section_addrs, &relas, ve, module_info,
+			       segment_base + start_offset);
+
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		int num_syms;
 		uint32_t *raw_nids, *raw_entries;
@@ -397,13 +453,7 @@ void *sce_elf_module_info_encode(
 		INCR(sceExport_rodata, num_syms * 4);
 		for (i = 0; i < num_syms; i++) {
 			raw_nids[i] = htole32(export->nid_table[i]);
-			if (export->entry_table[i] == module_info) { /* Special case */
-				raw_entries[i] = htole32(segment_base + start_offset);
-			} else if (export->entry_table[i] == &module_info->process_param_size) {
-				raw_entries[i] = htole32(segment_base + start_offset + offsetof(sce_module_info_raw, process_param_size));
-			} else {
-				raw_entries[i] = htole32(vita_elf_host_to_vaddr(ve, export->entry_table[i]));
-			}
+			raw_entries[i] = htole32(vita_elf_host_to_vaddr(ve, export->entry_table + i));
 			ADDRELA(raw_entries + i);
 		}
 	}
@@ -433,7 +483,7 @@ void *sce_elf_module_info_encode(
 			SETLOCALPTR(import_raw->func_entry_table, sceFStub_rodata);
 			for (i = 0; i < import->num_syms_funcs; i++) {
 				INTADDR(sceFNID_rodata) = htole32(import->func_nid_table[i]);
-				INTADDR(sceFStub_rodata) = htole32(vita_elf_host_to_vaddr(ve, import->func_entry_table[i]));
+				INTADDR(sceFStub_rodata) = htole32(vita_elf_host_to_vaddr(ve, import->func_entry_table + i));
 				ADDRELA(ADDR(sceFStub_rodata));
 				INCR(sceFNID_rodata, 4);
 				INCR(sceFStub_rodata, 4);
@@ -444,7 +494,7 @@ void *sce_elf_module_info_encode(
 			SETLOCALPTR(import_raw->var_entry_table, sceVStub_rodata);
 			for (i = 0; i < import->num_syms_vars; i++) {
 				INTADDR(sceVNID_rodata) = htole32(import->var_nid_table[i]);
-				INTADDR(sceVStub_rodata) = htole32(vita_elf_host_to_vaddr(ve, import->var_entry_table[i]));
+				INTADDR(sceVStub_rodata) = htole32(vita_elf_host_to_vaddr(ve, import->var_entry_table + i));
 				ADDRELA(ADDR(sceVStub_rodata));
 				INCR(sceVNID_rodata, 4);
 				INCR(sceVStub_rodata, 4);
@@ -458,7 +508,7 @@ void *sce_elf_module_info_encode(
 			}
 			SETLOCALPTR(import_raw->unk_entry_table, sceImport_rodata);
 			for (i = 0; i < import->num_syms_unk; i++) {
-				INTADDR(sceImport_rodata) = htole32(vita_elf_host_to_vaddr(ve, import->var_entry_table[i]));
+				INTADDR(sceImport_rodata) = htole32(vita_elf_host_to_vaddr(ve, import->var_entry_table + i));
 				ADDRELA(ADDR(sceImport_rodata));
 				INCR(sceImport_rodata, 4);
 			}
@@ -677,7 +727,7 @@ int sce_elf_discard_invalid_relocs(const vita_elf_t *ve, vita_elf_rela_table_t *
 	return 1;
 }
 
-int sce_elf_write_rela_sections(
+Elf_Scn *sce_elf_write_rela_sections(
 		Elf *dest, const vita_elf_t *ve, const vita_elf_rela_table_t *rtable)
 {
 	int total_relas = 0;
@@ -694,7 +744,7 @@ int sce_elf_write_rela_sections(
 
 	Elf_Scn *scn;
 	GElf_Shdr shdr;
-	GElf_Phdr *phdrs;
+	GElf_Phdr *phdrs = NULL;
 	size_t segment_count = 0;
 
 	for (curtable = rtable; curtable; curtable = curtable->next)
@@ -759,11 +809,13 @@ encode_relas:
 		ELF_ASSERT(gelf_update_phdr(dest, i, phdrs + i));
 	}
 
-	return 1;
+	free(phdrs);
+	return scn;
 
 failure:
+	free(phdrs);
 	free(encoded_relas);
-	return 0;
+	return NULL;
 }
 
 int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)

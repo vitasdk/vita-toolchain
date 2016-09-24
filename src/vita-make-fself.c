@@ -15,6 +15,7 @@ int main(int argc, char *argv[]) {
 	const char *input_path, *output_path;
 	FILE *fin = NULL;
 	FILE *fout = NULL;
+	char *input = NULL;
 
 	if (argc != 3 && argc != 4)
 		usage(argv);
@@ -42,7 +43,7 @@ int main(int argc, char *argv[]) {
 	size_t sz = ftell(fin);
 	fseek(fin, 0, SEEK_SET);
 
-	char *input = calloc(1, sz);
+	input = calloc(1, sz);
 	if (!input) {
 		perror("Failed to allocate buffer for input file");
 		goto error;
@@ -181,6 +182,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	fclose(fout);
+	free(input);
 
 	return 0;
 error:
@@ -188,5 +190,6 @@ error:
 		fclose(fin);
 	if (fout)
 		fclose(fout);
+	free(input);
 	return 1;
 }
