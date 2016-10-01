@@ -237,7 +237,7 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 					text_shdr.sh_addr, rel.r_offset);
 
 		offset = rel.r_offset - text_shdr.sh_addr;
-		if (offset >= text_shdr.sh_size || text_shdr.sh_offset - offset < sizeof(insn))
+		if (offset >= text_shdr.sh_size || text_shdr.sh_size - offset < sizeof(insn))
 			FAILX("Invalid relocation offset: section size is 0x%08X, but offset in section is 0x%08X",
 					text_shdr.sh_size, offset);
 
