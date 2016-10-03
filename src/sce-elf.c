@@ -182,14 +182,14 @@ static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, cons
 	}
 
 	import->func_nid_table = calloc(module->functions_va.count, sizeof(uint32_t));
-	import->func_entry_table = calloc(module->functions_va.count, sizeof(void *));
+	import->func_entry_table = calloc(module->functions_va.count, sizeof(vita_elf_addr_t));
 	for (i = 0; i < module->functions_va.count; i++) {
 		import->func_nid_table[i] = module->functions[i].target_nid;
 		vita_elf_vaddr_to_host(ve, module->functions[i].addr, import->func_entry_table + i);
 	}
 
 	import->var_nid_table = calloc(module->variables_va.count, sizeof(uint32_t));
-	import->var_entry_table = calloc(module->variables_va.count, sizeof(void *));
+	import->var_entry_table = calloc(module->variables_va.count, sizeof(vita_elf_addr_t));
 	for (i = 0; i < module->variables_va.count; i++) {
 		import->var_nid_table[i] = module->variables[i].target_nid;
 		vita_elf_vaddr_to_host(ve, module->variables[i].addr, import->var_entry_table + i);
