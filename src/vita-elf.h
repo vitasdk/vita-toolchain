@@ -49,6 +49,12 @@ typedef struct vita_elf_segment_info_t {
 	Elf32_Word type;	/* Segment type */
 	Elf32_Addr vaddr;	/* Top of segment space on TARGET */
 	Elf32_Word memsz;	/* Size of segment space */
+
+	/* vaddr_top/vaddr_bottom point to a reserved, unallocated memory space that
+	 * represents the segment space in the HOST.  This space can be used as
+	 * pointer targets for translated data structures. */
+	const void *vaddr_top;
+	const void *vaddr_bottom;
 } vita_elf_segment_info_t;
 
 typedef struct vita_elf_t {
@@ -74,22 +80,17 @@ typedef struct vita_elf_t {
 	int num_segments;
 } vita_elf_t;
 
-typedef struct vita_elf_addr_t {
-	int segndx;
-	Elf32_Addr offset;
-} vita_elf_addr_t;
-
 vita_elf_t *vita_elf_load(const char *filename);
 void vita_elf_free(vita_elf_t *ve);
 
 int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t **imports, int imports_count);
 
-int vita_elf_vaddr_to_host(const vita_elf_t *ve, Elf32_Addr vaddr, vita_elf_addr_t *host);
-int vita_elf_segoffset_to_host(const vita_elf_t *ve, int segndx, uint32_t offset, vita_elf_addr_t *host);
+const void *vita_elf_vaddr_to_host(const vita_elf_t *ve, Elf32_Addr vaddr);
+const void *vita_elf_segoffset_to_host(const vita_elf_t *ve, int segndx, uint32_t offset);
 
-Elf32_Addr vita_elf_host_to_vaddr(const vita_elf_t *ve, const vita_elf_addr_t *host);
-int vita_elf_host_to_segndx(const vita_elf_t *ve, const vita_elf_addr_t *host);
-Elf32_Addr vita_elf_host_to_segoffset(const vita_elf_t *ve, const vita_elf_addr_t *host);
+Elf32_Addr vita_elf_host_to_vaddr(const vita_elf_t *ve, const void *host_addr);
+int vita_elf_host_to_segndx(const vita_elf_t *ve, const void *host_addr);
+int32_t vita_elf_host_to_segoffset(const vita_elf_t *ve, const void *host_addr, int segndx);
 
 int vita_elf_vaddr_to_segndx(const vita_elf_t *ve, Elf32_Addr vaddr);
 uint32_t vita_elf_vaddr_to_segoffset(const vita_elf_t *ve, Elf32_Addr vaddr, int segndx);

@@ -22,7 +22,6 @@ void vita_imports_free(vita_imports_t *imp)
 		for (i = 0; i < imp->n_libs; i++) {
 			vita_imports_lib_free(imp->libs[i]);
 		}
-		free(imp->libs);
 		free(imp);
 	}
 }
@@ -72,8 +71,6 @@ void vita_imports_module_free(vita_imports_module_t *mod)
 		for (i = 0; i < mod->n_functions; i++) {
 			vita_imports_stub_free(mod->functions[i]);
 		}
-		free(mod->variables);
-		free(mod->functions);
 		free(mod->name);
 		free(mod);
 	}
@@ -87,7 +84,6 @@ void vita_imports_lib_free(vita_imports_lib_t *lib)
 		for (i = 0; i < lib->n_modules; i++) {
 			vita_imports_module_free(lib->modules[i]);
 		}
-		free(lib->modules);
 		free(lib->name);
 		free(lib);
 	}
