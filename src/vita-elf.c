@@ -9,6 +9,20 @@
  * functions.  This is because they have extra sanity checking baked in.
  */
 
+#ifndef MAP_ANONYMOUS
+#  define MAP_ANONYMOUS MAP_ANON
+#endif
+
+#ifndef __MINGW32__
+/* This may cause trouble with Windows portability, but there are Windows alternatives
+ * to mmap() that we can explore later.  It'll probably work under Cygwin.
+ */
+#include <sys/mman.h>
+#else
+#define mmap(ptr,size,c,d,e,f) malloc(size)
+#define munmap(ptr, size) free(ptr)
+#endif
+
 #include "vita-elf.h"
 #include "vita-import.h"
 #include "elf-defs.h"
@@ -193,7 +207,6 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	vita_elf_rela_table_t *rtable = NULL;
 	vita_elf_rela_t *currela = NULL;
 	uint32_t insn, target = 0;
-	uint32_t offset;
 
 	gelf_getshdr(scn, &shdr);
 
@@ -232,18 +245,7 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 			continue;
 		currela->offset = rel.r_offset;
 
-		if (rel.r_offset < text_shdr.sh_addr)
-			FAILX("Invalid relocation offset: section address is 0x%08X, but relocation offset is 0x%08X",
-					text_shdr.sh_addr, rel.r_offset);
-
-		offset = rel.r_offset - text_shdr.sh_addr;
-		if (offset >= text_shdr.sh_size || text_shdr.sh_offset - offset < sizeof(insn))
-			FAILX("Invalid relocation offset: section size is 0x%08X, but offset in section is 0x%08X",
-					text_shdr.sh_size, offset);
-
-		/* Use memcpy for unaligned relocation. */
-		memcpy(&insn, text_data->d_buf+offset, sizeof(insn));
-		insn = le32toh(insn);
+		insn = le32toh(*((uint32_t*)(text_data->d_buf+(rel.r_offset - text_shdr.sh_addr))));
 
 		handling = get_rel_handling(currela->type);
 
@@ -477,6 +479,13 @@ vita_elf_t *vita_elf_load(const char *filename)
 		curseg->type = phdr.p_type;
 		curseg->vaddr = phdr.p_vaddr;
 		curseg->memsz = phdr.p_memsz;
+
+		if (curseg->memsz) {
+			curseg->vaddr_top = mmap(NULL, curseg->memsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+			if (curseg->vaddr_top == NULL)
+				FAIL("Could not allocate address space for segment %d", (int)segndx);
+			curseg->vaddr_bottom = curseg->vaddr_top + curseg->memsz;
+		}
 		
 		loaded_segments++;
 	}
@@ -502,12 +511,15 @@ void vita_elf_free(vita_elf_t *ve)
 {
 	int i;
 
+	for (i = 0; i < ve->num_segments; i++) {
+		if (ve->segments[i].vaddr_top != NULL)
+			munmap((void *)ve->segments[i].vaddr_top, ve->segments[i].memsz);
+	}
+
 	/* free() is safe to call on NULL */
-	free_rela_table(ve->rela_tables);
 	free(ve->fstubs);
 	free(ve->vstubs);
 	free(ve->symtab);
-	free(ve->segments);
 	if (ve->elf != NULL)
 		elf_end(ve->elf);
 	if (ve->file != NULL)
@@ -573,57 +585,68 @@ int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t **imports, int import
 	return found_all;
 }
 
-int vita_elf_vaddr_to_host(const vita_elf_t *ve, Elf32_Addr vaddr, vita_elf_addr_t *host)
+const void *vita_elf_vaddr_to_host(const vita_elf_t *ve, Elf32_Addr vaddr)
 {
 	vita_elf_segment_info_t *seg;
 	int i;
 
 	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
-		if (vaddr >= seg->vaddr && vaddr < seg->vaddr + seg->memsz) {
-			host->segndx = i;
-			host->offset = vaddr - seg->vaddr;
-			return 1;
-		}
+		if (vaddr >= seg->vaddr && vaddr < seg->vaddr + seg->memsz)
+			return seg->vaddr_top + vaddr - seg->vaddr;
 	}
 
-	return 0;
+	return NULL;
 }
-
-int vita_elf_segoffset_to_host(const vita_elf_t *ve, int segndx, uint32_t offset, vita_elf_addr_t *host)
+const void *vita_elf_segoffset_to_host(const vita_elf_t *ve, int segndx, uint32_t offset)
 {
 	vita_elf_segment_info_t *seg = ve->segments + segndx;
 
-	if (offset < seg->memsz) {
-		host->segndx = segndx;
-		host->offset = offset;
-		return 1;
+	if (offset < seg->memsz)
+		return seg->vaddr_top + offset;
+
+	return NULL;
+}
+
+Elf32_Addr vita_elf_host_to_vaddr(const vita_elf_t *ve, const void *host_addr)
+{
+	vita_elf_segment_info_t *seg;
+	int i;
+
+	if (host_addr == NULL)
+		return 0;
+
+	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
+		if (host_addr >= seg->vaddr_top && host_addr < seg->vaddr_bottom)
+			return seg->vaddr + (uint32_t)(host_addr - seg->vaddr_top);
 	}
 
 	return 0;
 }
 
-Elf32_Addr vita_elf_host_to_vaddr(const vita_elf_t *ve, const vita_elf_addr_t *host)
+int vita_elf_host_to_segndx(const vita_elf_t *ve, const void *host_addr)
 {
-	if (host == NULL)
-		return 0;
+	vita_elf_segment_info_t *seg;
+	int i;
 
-	return ve->segments[host->segndx].vaddr + host->offset;
+	for (i = 0, seg = ve->segments; i < ve->num_segments; i++, seg++) {
+		if (host_addr >= seg->vaddr_top && host_addr < seg->vaddr_bottom)
+			return i;
+	}
+
+	return -1;
 }
 
-int vita_elf_host_to_segndx(const vita_elf_t *ve, const vita_elf_addr_t *host)
+int32_t vita_elf_host_to_segoffset(const vita_elf_t *ve, const void *host_addr, int segndx)
 {
-	if (host == NULL)
-		return -1;
+	vita_elf_segment_info_t *seg = ve->segments + segndx;
 
-	return host->segndx;
-}
-
-Elf32_Addr vita_elf_host_to_segoffset(const vita_elf_t *ve, const vita_elf_addr_t *host)
-{
-	if (host == NULL)
+	if (host_addr == NULL)
 		return 0;
 
-	return host->offset;
+	if (host_addr >= seg->vaddr_top && host_addr < seg->vaddr_bottom)
+		return (uint32_t)(host_addr - seg->vaddr_top);
+
+	return -1;
 }
 
 int vita_elf_vaddr_to_segndx(const vita_elf_t *ve, Elf32_Addr vaddr)

@@ -96,7 +96,7 @@ int sce_elf_write_module_info(
 
 int sce_elf_discard_invalid_relocs(const vita_elf_t *ve, vita_elf_rela_table_t *rtable);
 
-Elf_Scn *sce_elf_write_rela_sections(
+int sce_elf_write_rela_sections(
 		Elf *dest, const vita_elf_t *ve, const vita_elf_rela_table_t *rtable);
 
 int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve);
