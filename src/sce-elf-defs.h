@@ -7,7 +7,7 @@
 #elif defined(SCE_ELF_DEFS_TARGET)
 # define SCE_TYPE(type) type ## _raw
 # define SCE_PTR(type) uint32_t
-#define SCE_EXTERN_PTR uint32_t
+# define SCE_EXTERN_PTR uint32_t
 #else
 # error "Do not include sce-elf-defs.h directly!  Include sce-elf.h!"
 #endif
