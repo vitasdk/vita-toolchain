@@ -2,11 +2,13 @@ find_package(Jansson REQUIRED)
 find_package(libelf REQUIRED)
 find_package(zlib REQUIRED)
 find_package(libzip REQUIRED)
+find_package(libyaml REQUIRED)
 
 include_directories(${Jansson_INCLUDE_DIRS})
 include_directories(${libelf_INCLUDE_DIRS})
 include_directories(${zlib_INCLUDE_DIRS})
 include_directories(${libzip_INCLUDE_DIRS})
+include_directories(${libyaml_INCLUDE_DIRS})
 
 set(CMAKE_C_FLAGS "-std=gnu99")
 
