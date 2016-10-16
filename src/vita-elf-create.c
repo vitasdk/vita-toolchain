@@ -14,6 +14,7 @@
 #include "sce-elf.h"
 #include "elf-utils.h"
 #include "fail-utils.h"
+#include "elf-create-argp.h"
 
 // logging level
 int g_log = 0;
@@ -154,10 +155,10 @@ char default_json[] = DEFAULT_JSON;
 char default_json[] = "";
 #endif
 
-vita_imports_t **load_imports(int argc, char *argv[], int *imports_count)
+vita_imports_t **load_imports(elf_create_args *args, int *imports_count)
 {
 	vita_imports_t **imports = NULL;
-	int user_count = argc - 3;
+	int user_count = args->extra_imports_count;
 	int default_count = 0;
 	int loaded = 0;
 	char path[PATH_MAX] = { 0 };
@@ -193,7 +194,7 @@ vita_imports_t **load_imports(int argc, char *argv[], int *imports_count)
 
 	// Load imports specified by the user
 	for (i = 0; i < user_count; i++) {
-		if ((imports[loaded++] = vita_imports_load(argv[i + 3], g_log >= DEBUG)) == NULL)
+		if ((imports[loaded++] = vita_imports_load(args->extra_imports[i], g_log >= DEBUG)) == NULL)
 			goto failure;
 	}
 	*imports_count = count;
@@ -217,25 +218,15 @@ int main(int argc, char *argv[])
 
 	int status = EXIT_SUCCESS;
 
-	if (argc > 1 && argv[1][0] == '-' && argv[1][1] == 'v') {
-		g_log = 1;
-		for (int i = 2; argv[1][i] != '\0'; i++) {
-			switch (argv[1][i]) {
-				case 'v': g_log++; break;
-				default: argc = 0; break; // ensure error in next statement
-			}
-		}
-		argv++;
-		argc--;
-	}
+	elf_create_args args = {};
+	parse_arguments(argc, argv, &args);
 
-	if (argc < 3)
-		errx(EXIT_FAILURE,"Usage: vita-elf-create [-v|-vv] input-elf output-elf [extra.json ...]");
+	g_log = args.log_level;
 
-	if ((ve = vita_elf_load(argv[1])) == NULL)
+	if ((ve = vita_elf_load(args.input)) == NULL)
 		return EXIT_FAILURE;
 
-	if (!(imports = load_imports(argc, argv, &imports_count)))
+	if (!(imports = load_imports(&args, &imports_count)))
 		return EXIT_FAILURE;
 
 	if (!vita_elf_lookup_imports(ve, imports, imports_count))
@@ -272,7 +263,7 @@ int main(int argc, char *argv[])
 	PRINTSEC(sceVNID_rodata);
 	PRINTSEC(sceVStub_rodata);
 
-	strncpy(module_info->name, argv[1], sizeof(module_info->name) - 1);
+	strncpy(module_info->name, args.input, sizeof(module_info->name) - 1);
 
 	encoded_modinfo = sce_elf_module_info_encode(
 			module_info, ve, &section_sizes, &rtable);
@@ -282,7 +273,7 @@ int main(int argc, char *argv[])
 
 	FILE *outfile;
 	Elf *dest;
-	ASSERT(dest = elf_utils_copy_to_file(argv[2], ve->elf, &outfile));
+	ASSERT(dest = elf_utils_copy_to_file(args.output, ve->elf, &outfile));
 	ASSERT(elf_utils_duplicate_shstrtab(dest));
 	ASSERT(sce_elf_discard_invalid_relocs(ve, ve->rela_tables));
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));

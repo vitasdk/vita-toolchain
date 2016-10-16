@@ -10,7 +10,7 @@ include_directories(${zlib_INCLUDE_DIRS})
 include_directories(${libzip_INCLUDE_DIRS})
 include_directories(${libyaml_INCLUDE_DIRS})
 
-set(CMAKE_C_FLAGS "-std=gnu99")
+set(CMAKE_C_FLAGS "-g -std=gnu99")
 
 if(USE_BUNDLED_ENDIAN_H)
 	add_definitions(-DUSE_BUNDLED_ENDIAN_H)
@@ -25,7 +25,7 @@ if(DEFINED DEFAULT_JSON)
 endif()
 
 add_executable(vita-libs-gen vita-libs-gen.c vita-import.c vita-import-parse.c)
-add_executable(vita-elf-create vita-elf-create.c vita-elf.c vita-import.c vita-import-parse.c elf-defs.c sce-elf.c varray.c elf-utils.c)
+add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c vita-import.c vita-import-parse.c elf-defs.c sce-elf.c varray.c elf-utils.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
 add_executable(vita-make-fself vita-make-fself.c)
 add_executable(vita-pack-vpk vita-pack-vpk.c)
