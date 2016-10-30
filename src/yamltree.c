@@ -244,7 +244,7 @@ static yaml_node *process_node(parser_context *ctx)
 	{
 		case YAML_ALIAS_EVENT:
 			// TODO: we dont support aliases for now
-			ctx->error->problem = asprintf("yamltree: there is no support for aliases implemented.");
+			asprintf(&ctx->error->problem, "yamltree: there is no support for aliases implemented.");
 			return NULL;
 			
 		case YAML_SCALAR_EVENT:
@@ -271,7 +271,7 @@ static yaml_document *process_document(parser_context *ctx)
 	{
 		if (!is_error_set(ctx))
 		{
-			ctx->error->problem = asprintf("yamltree: expecting YAML_DOCUMENT_START_EVENT got '%s'.", event_to_string(ctx->event.type));
+			asprintf(&ctx->error->problem, "yamltree: expecting YAML_DOCUMENT_START_EVENT got '%s'.", event_to_string(ctx->event.type));
 		}
 		
 		return NULL;
@@ -288,7 +288,7 @@ static yaml_document *process_document(parser_context *ctx)
 	{
 		if (!is_error_set(ctx))
 		{
-			ctx->error->problem = asprintf("yamltree: expecting YAML_DOCUMENT_END_EVENT got '%s'.", event_to_string(ctx->event.type));
+			asprintf(&ctx->error->problem, "yamltree: expecting YAML_DOCUMENT_END_EVENT got '%s'.", event_to_string(ctx->event.type));
 		}
 		
 		return NULL;
@@ -309,7 +309,7 @@ yaml_tree *parse_yaml_stream(FILE *input, yaml_error *error)
 	
 	if (ctx.next_event.type != YAML_STREAM_START_EVENT)
 	{
-		ctx.error->problem = asprintf("yamltree: expecting YAML_STREAM_START_EVENT got '%s'.", event_to_string(ctx.next_event.type));
+		asprintf(&ctx.error->problem, "yamltree: expecting YAML_STREAM_START_EVENT got '%s'.", event_to_string(ctx.next_event.type));
 		goto error;
 	}
 	
