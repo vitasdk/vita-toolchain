@@ -10,6 +10,7 @@
 
 #include "vita-elf.h"
 #include "vita-import.h"
+#include "vita-export.h"
 #include "elf-defs.h"
 #include "sce-elf.h"
 #include "elf-utils.h"
@@ -215,7 +216,8 @@ int main(int argc, char *argv[])
 	void *encoded_modinfo;
 	vita_elf_rela_table_t rtable = {};
 	int imports_count;
-
+	vita_export_t *exports = NULL;
+	
 	int status = EXIT_SUCCESS;
 
 	elf_create_args args = {};
@@ -226,6 +228,17 @@ int main(int argc, char *argv[])
 	if ((ve = vita_elf_load(args.input)) == NULL)
 		return EXIT_FAILURE;
 
+	if (args.exports) {
+		exports = vita_exports_load(args.exports, args.input, 0);
+		
+		if (!exports)
+			return EXIT_FAILURE;
+	}
+	else {
+		// generate a default export list
+		exports = vita_export_generate_default(args.input);
+	}
+	
 	if (!(imports = load_imports(&args, &imports_count)))
 		return EXIT_FAILURE;
 
@@ -247,8 +260,11 @@ int main(int argc, char *argv[])
 	TRACEF(VERBOSE, "Segments:\n");
 	list_segments(ve);
 
-	module_info = sce_elf_module_info_create(ve);
+	module_info = sce_elf_module_info_create(ve, exports);
 
+	if (!module_info)
+		return EXIT_FAILURE;
+	
 	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes);
 	int curpos = 0;
 	TRACEF(VERBOSE, "Total SCE data size: %d / %x\n", total_size, total_size);
@@ -262,8 +278,6 @@ int main(int argc, char *argv[])
 	PRINTSEC(sceFStub_rodata);
 	PRINTSEC(sceVNID_rodata);
 	PRINTSEC(sceVStub_rodata);
-
-	strncpy(module_info->name, args.input, sizeof(module_info->name) - 1);
 
 	encoded_modinfo = sce_elf_module_info_encode(
 			module_info, ve, &section_sizes, &rtable);

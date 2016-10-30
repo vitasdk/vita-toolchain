@@ -25,13 +25,13 @@ if(DEFINED DEFAULT_JSON)
 endif()
 
 add_executable(vita-libs-gen vita-libs-gen.c vita-import.c vita-import-parse.c)
-add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c vita-import.c vita-import-parse.c elf-defs.c sce-elf.c varray.c elf-utils.c)
+add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c vita-import.c vita-import-parse.c vita-export-parse.c elf-defs.c sce-elf.c varray.c elf-utils.c sha256.c yamltree.c yamltreeutil.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
 add_executable(vita-make-fself vita-make-fself.c)
 add_executable(vita-pack-vpk vita-pack-vpk.c)
 
 target_link_libraries(vita-libs-gen ${Jansson_LIBRARIES})
-target_link_libraries(vita-elf-create ${Jansson_LIBRARIES} ${libelf_LIBRARIES})
+target_link_libraries(vita-elf-create ${Jansson_LIBRARIES} ${libelf_LIBRARIES} ${libyaml_LIBRARIES})
 target_link_libraries(vita-pack-vpk ${libzip_LIBRARIES} ${zlib_LIBRARIES})
 
 install(TARGETS vita-libs-gen DESTINATION bin)

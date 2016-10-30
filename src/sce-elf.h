@@ -81,7 +81,7 @@ typedef struct {
 	Elf32_Word sceVStub_rodata;		/* The imported function NID arrays */
 } sce_section_sizes_t;
 
-sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve);
+sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exports);
 
 int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes);
 
