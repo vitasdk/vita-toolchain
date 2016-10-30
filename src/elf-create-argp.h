@@ -8,10 +8,10 @@ typedef struct elf_create_args
 	const char *input;
 	const char *output;
 	int extra_imports_count;
-	const char **extra_imports;
+	char **extra_imports;
 } elf_create_args;
 
 
-void parse_arguments(int argc, char *argv[], elf_create_args *arguments);
+int parse_arguments(int argc, char *argv[], elf_create_args *arguments);
 
 #endif // ELF_CREATE_ARGP_H

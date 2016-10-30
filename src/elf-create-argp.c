@@ -1,74 +1,47 @@
 #include "elf-create-argp.h"
 
+#include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
-#include <argp.h>
+#include <unistd.h>
 
-// TODO: do we start versioning this?
-const char *argp_program_version = "vita-elf-create";
-const char *argp_program_bug_address = "https://github.com/vitasdk/vita-toolchain";
-
-// TODO: improve this shit
-static char doc[] = "Convert an executable ELF linked with libraries from vita-libs-gen and produce a SCE ELF.";
-
-// TODO: is this backward compatible?
-static char args_doc[] = "input-elf output-elf [extra.json]...";
-
-static struct argp_option options[] = {
-	{ NULL, 'v', "v", OPTION_ARG_OPTIONAL, "Enable verbose output."},
-	{ "exports", 'e', "exports yaml file", 0, "A YAML file describing the exports"},
-	{ 0 }
-};
-
-static error_t parse_opt(int key, char *arg, struct argp_state *state) {
-	struct elf_create_args *arguments = state->input;
-	switch (key) {
-	case 'v': {
-		int level = 1;
-
-		if (arg && arg[0] == 'v')
-			++level;
-
-		arguments->log_level = level;
-		break;
-	}
-
-	case 'e': {
-		arguments->exports = arg;
-		break;
-	}
-	case ARGP_KEY_ARG: {
-		if (state->arg_num == 0)
-			arguments->input = arg;
-		else if (state->arg_num == 1)
-			arguments->output = arg;
-		else if (state->arg_num == 2)
-		{
-			arguments->extra_imports = &state->argv[state->next-1];
-			arguments->extra_imports_count = state->argc-state->next+1;
-			state->next = state->argc;
-		}
-		else
-			return ARGP_ERR_UNKNOWN;
-
-		break;
-	}
-
-	case ARGP_KEY_END: {
-		if (state->arg_num < 2)
-			argp_usage(state);
-
-		break;
-	}
-
-	default: return ARGP_ERR_UNKNOWN;
-	}
-	return 0;
-}
-
-static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
-
-void parse_arguments(int argc, char *argv[], elf_create_args *arguments)
+int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 {
-	argp_parse(&argp, argc, argv, 0, 0, arguments);
+	int c;
+
+	arguments->log_level = 0;
+	
+	while ((c = getopt(argc, argv, "ve:")) != -1)
+	{
+		switch (c)
+		{
+		case 'v':
+			arguments->log_level++;
+			break;
+		case 'e':
+			arguments->exports = optarg;
+			break;
+		case '?':
+			fprintf(stderr, "unknown option -%c\n", optopt);
+			return -1;
+		default:
+			abort();
+		}
+	}
+
+	if (argc - optind < 2)
+	{
+		printf("too few arguments\n");
+		return -1;
+	}
+	
+	arguments->input = argv[optind];
+	arguments->output = argv[optind+1];
+	
+	if (argc - optind > 2)
+	{
+		arguments->extra_imports = &argv[optind+2];
+		arguments->extra_imports_count = argc-(optind+2);
+	}
+	
+	return 0;
 }

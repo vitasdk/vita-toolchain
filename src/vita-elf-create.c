@@ -221,7 +221,8 @@ int main(int argc, char *argv[])
 	int status = EXIT_SUCCESS;
 
 	elf_create_args args = {};
-	parse_arguments(argc, argv, &args);
+	if (parse_arguments(argc, argv, &args) < 0)
+		return EXIT_FAILURE;
 
 	g_log = args.log_level;
 
