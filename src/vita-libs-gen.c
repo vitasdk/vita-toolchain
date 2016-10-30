@@ -151,9 +151,8 @@ void write_symbol(const char *symbol, int is_kernel)
 		}
 		strcat(g_kernel_objs, symbol);
 		g_special_written += len;
-	} else {
-		fprintf(fp, "%s", symbol);
 	}
+	fprintf(fp, "%s", symbol); // write regardless if its kernel or not
 }
 
 int generate_makefile(vita_imports_t **imports, int imports_count)
