@@ -266,7 +266,7 @@ int sha256_file(const char *file, uint8_t *mac)
 	
 	sha256_init(&ctx);
 	
-	while ((read = fread(data, READ_BUFFER, 1, fp)) > 0) {
+	while ((read = fread(data, 1, READ_BUFFER, fp)) > 0) {
 		sha256_update(&ctx, data, read);
 	}
 	
