@@ -9,6 +9,42 @@
 #include "yamltreeutil.h"
 #include "sha256.h"
 
+static void print_module_tree(vita_export_t *export)
+{
+		printf(	"\nLOADED EXPORT CONFIGURATION.\n"
+			"MODULE: \"%s\"\n"
+			"ATTRIBUTES: 0x%04X\n"
+			"NID: 0x%08X\n"
+			"VERSION: %u.%u\n"
+			"ENTRY: %s\n"
+			"STOP: %s\n"
+			"EXIT: %s\n"
+			"MODULES: %zd\n"
+			, export->name, export->attributes, export->nid, export->ver_major, export->ver_minor, export->start, export->stop, export->exit, export->module_n);
+			
+	for (int i = 0; i < export->module_n; ++i) {
+		printf(	"\tLIBRARY: \"%s\"\n"
+				"\tNID: 0x%08X\n"
+				"\tSYSCALL: %s\n"
+				"\tFUNCTIONS: %zd\n"
+			, export->modules[i]->name, export->modules[i]->nid, export->modules[i]->syscall ? ("true") : ("false"), export->modules[i]->function_n);
+			
+		for (int j = 0; j < export->modules[i]->function_n; ++j) {
+			printf(	"\t\tEXPORT SYMBOL: \"%s\"\n"
+					"\t\tNID: 0x%08X\n"
+					, export->modules[i]->functions[j]->name, export->modules[i]->functions[j]->nid);
+		}
+		
+		printf("\tVARIABLES: %zd\n", export->modules[i]->variable_n);
+		
+		for (int j = 0; j < export->modules[i]->variable_n; ++j) {
+			printf(	"\t\tEXPORT SYMBOL: \"%s\"\n"
+					"\t\tNID: 0x%08X\n"
+					, export->modules[i]->variables[j]->name, export->modules[i]->variables[j]->nid);
+		}
+	}
+}
+
 int process_functions(yaml_node *entry, vita_library_export *export) {
 	if (!is_scalar(entry)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting function name to be scalar, got '%s'.\n"
@@ -331,39 +367,6 @@ vita_export_t *read_module_exports(yaml_document *doc, uint32_t default_nid) {
 	
 	if (yaml_iterate_mapping(root->pairs[0]->rhs, (mapping_functor)process_module_info, export) < 0)
 		return NULL;
-	
-	printf(	"\nLOADED EXPORT CONFIGURATION.\n"
-			"MODULE: \"%s\"\n"
-			"ATTRIBUTES: 0x%04X\n"
-			"NID: 0x%08X\n"
-			"VERSION: %u.%u\n"
-			"ENTRY: %s\n"
-			"STOP: %s\n"
-			"EXIT: %s\n"
-			"MODULES: %zd\n"
-			, export->name, export->attributes, export->nid, export->ver_major, export->ver_minor, export->start, export->stop, export->exit, export->module_n);
-			
-	for (int i = 0; i < export->module_n; ++i) {
-		printf(	"\tLIBRARY: \"%s\"\n"
-				"\tNID: 0x%08X\n"
-				"\SYSCALL: %s\n"
-				"\tFUNCTIONS: %zd\n"
-			, export->modules[i]->name, export->modules[i]->nid, export->modules[i]->syscall ? ("true") : ("false"), export->modules[i]->function_n);
-			
-		for (int j = 0; j < export->modules[i]->function_n; ++j) {
-			printf(	"\t\tEXPORT SYMBOL: \"%s\"\n"
-					"\t\tNID: 0x%08X\n"
-					, export->modules[i]->functions[j]->name, export->modules[i]->functions[j]->nid);
-		}
-		
-		printf("\tVARIABLES: %zd\n", export->modules[i]->variable_n);
-		
-		for (int j = 0; j < export->modules[i]->variable_n; ++j) {
-			printf(	"\t\tEXPORT SYMBOL: \"%s\"\n"
-					"\t\tNID: 0x%08X\n"
-					, export->modules[i]->variables[j]->name, export->modules[i]->variables[j]->nid);
-		}
-	}
 
 	return export;
 }
