@@ -537,6 +537,21 @@ static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, vita_imports_t **
 	for (i = 0; i < num_stubs; i++) {
 		stub = &(stubs[i]);
 
+		for (j = 0; j < imports_count; j++) {
+			stub->library = vita_imports_find_lib(imports[j], stub->library_nid);
+			if (stub->library != NULL) {
+				break;
+			}
+		}
+
+		if (stub->library == NULL) {
+			warnx("Unable to find library with NID %u for %s symbol %s",
+					stub->library_nid, stub_type_name,
+					stub->symbol ? stub->symbol->name : "(unreferenced stub)");
+			found_all = 0;
+			continue;
+		}
+
 		stub->module = vita_imports_find_module(stub->library, stub->module_nid);
 		if (stub->module == NULL) {
 			warnx("Unable to find module with NID %u for %s symbol %s",
