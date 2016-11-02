@@ -78,6 +78,6 @@ int main(int argc, char *argv[])
 	fwrite(json, strlen(json), 1, fp);
 	fclose(fp);
 	
-	// TODO: free exports
+	// TODO: free exports, free json
 	return 0;
 }
