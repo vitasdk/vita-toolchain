@@ -9,8 +9,9 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 	int c;
 
 	arguments->log_level = 0;
-	
-	while ((c = getopt(argc, argv, "ve:")) != -1)
+	arguments->check_stub_count = 1;
+
+	while ((c = getopt(argc, argv, "vne:")) != -1)
 	{
 		switch (c)
 		{
@@ -19,6 +20,9 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 			break;
 		case 'e':
 			arguments->exports = optarg;
+			break;
+		case 'n':
+			arguments->check_stub_count = 0;
 			break;
 		case '?':
 			fprintf(stderr, "unknown option -%c\n", optopt);

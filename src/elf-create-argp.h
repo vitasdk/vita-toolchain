@@ -9,6 +9,7 @@ typedef struct elf_create_args
 	const char *output;
 	int extra_imports_count;
 	char **extra_imports;
+	int check_stub_count;
 } elf_create_args;
 
 

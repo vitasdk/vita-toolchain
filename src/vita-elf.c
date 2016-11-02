@@ -369,7 +369,7 @@ failure:
 	return 0;
 }
 
-vita_elf_t *vita_elf_load(const char *filename)
+vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 {
 	vita_elf_t *ve = NULL;
 	GElf_Ehdr ehdr;
@@ -445,8 +445,8 @@ vita_elf_t *vita_elf_load(const char *filename)
 		}
 	}
 
-	if (ve->fstubs_ndx == 0 && ve->vstubs_ndx == 0)
-		FAILX("No .vitalink stub sections in binary, probably not a Vita binary");
+	if (ve->fstubs_ndx == 0 && ve->vstubs_ndx == 0 && check_stub_count)
+		FAILX("No .vitalink stub sections in binary, probably not a Vita binary. If this is a vita binary, pass '-n' to squash this error.");
 
 	if (ve->symtab == NULL)
 		FAILX("No symbol table in binary, perhaps stripped out");

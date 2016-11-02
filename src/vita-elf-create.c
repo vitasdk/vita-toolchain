@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
 
 	g_log = args.log_level;
 
-	if ((ve = vita_elf_load(args.input)) == NULL)
+	if ((ve = vita_elf_load(args.input, args.check_stub_count)) == NULL)
 		return EXIT_FAILURE;
 
 	if (args.exports) {
