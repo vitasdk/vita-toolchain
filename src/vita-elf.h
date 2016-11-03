@@ -80,7 +80,7 @@ typedef struct vita_elf_t {
 	int num_segments;
 } vita_elf_t;
 
-vita_elf_t *vita_elf_load(const char *filename);
+vita_elf_t *vita_elf_load(const char *filename, int check_stub_count);
 void vita_elf_free(vita_elf_t *ve);
 
 int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t **imports, int imports_count);
