@@ -180,6 +180,15 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 		vita_imports_t *imp = imports[h];
 		for (i = 0; i < imp->n_libs; i++) {
 			fprintf(fp, " lib%s_stub.a", imp->libs[i]->name);
+
+			for (j = 0; j < imp->libs[i]->n_modules; j++) {
+				vita_imports_module_t *module = imp->libs[i]->modules[j];
+
+				if (!module->is_kernel)
+					continue;
+
+				fprintf(fp, " lib%s_stub.a", module->name);
+			}
 		}
 	}
 
@@ -197,20 +206,49 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 			for (j = 0; j < library->n_modules; j++) {
 				vita_imports_module_t *module = library->modules[j];
+
+				if(module->is_kernel)
+					continue;
+
 				char buf[4096];
 				for (k = 0; k < module->n_functions; k++) {
 					vita_imports_stub_t *function = module->functions[k];
 					snprintf(buf, sizeof(buf), " %s_%s_%s.o", library->name, module->name, function->name);
-					write_symbol(buf, is_special || module->is_kernel);
+					write_symbol(buf, is_special);
 				}
 				for (k = 0; k < module->n_variables; k++) {
 					vita_imports_stub_t *variable = module->variables[k];
 					snprintf(buf, sizeof(buf), " %s_%s_%s.o", library->name, module->name, variable->name);
-					write_symbol(buf, is_special || module->is_kernel);
+					write_symbol(buf, is_special);
 				}
 			}
 
 			if (!is_special) {
+				fprintf(fp, "\n");
+			}
+
+			for (j = 0; j < library->n_modules; j++) {
+				vita_imports_module_t *module = library->modules[j];
+
+				if (!module->is_kernel)
+					continue;
+
+				char buf[4096];
+
+				fprintf(fp, "%s_OBJS =", module->name);
+
+				for (k = 0; k < module->n_functions; k++) {
+					vita_imports_stub_t *function = module->functions[k];
+					snprintf(buf, sizeof(buf), " %s_%s_%s.o", library->name, module->name, function->name);
+					write_symbol(buf, 1);
+				}
+
+				for (k = 0; k < module->n_variables; k++) {
+					vita_imports_stub_t *variable = module->variables[k];
+					snprintf(buf, sizeof(buf), " %s_%s_%s.o", library->name, module->name, variable->name);
+					write_symbol(buf, 1);
+				}
+
 				fprintf(fp, "\n");
 			}
 		}
