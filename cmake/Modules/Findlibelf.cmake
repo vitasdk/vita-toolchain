@@ -1,5 +1,5 @@
 find_package(PkgConfig)
-pkg_check_modules(PC_libelf libelf>=0.8)
+pkg_check_modules(PC_libelf libelf=0.8.13)
 
 find_path(libelf_INCLUDE_DIR libelf.h
           HINTS ${PC_libelf_INCLUDEDIR} ${PC_libelf_INCLUDE_DIRS})
