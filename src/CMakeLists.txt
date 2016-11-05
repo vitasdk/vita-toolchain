@@ -24,6 +24,10 @@ if(DEFINED DEFAULT_JSON)
 	add_definitions(-DDEFAULT_JSON="${DEFAULT_JSON}")
 endif()
 
+if (WIN32)
+	add_definitions(-DYAML_DECLARE_STATIC)
+endif()
+
 add_executable(vita-libs-gen vita-libs-gen.c vita-import.c vita-import-parse.c)
 add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c vita-import.c vita-import-parse.c vita-export-parse.c elf-defs.c sce-elf.c varray.c elf-utils.c sha256.c yamltree.c yamltreeutil.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
