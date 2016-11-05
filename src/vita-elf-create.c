@@ -229,6 +229,12 @@ int main(int argc, char *argv[])
 	if ((ve = vita_elf_load(args.input, args.check_stub_count)) == NULL)
 		return EXIT_FAILURE;
 
+	/* FIXME: save original segment sizes */
+	Elf32_Word *segment_sizes = malloc(ve->num_segments * sizeof(Elf32_Word));
+	int idx;
+	for(idx = 0; idx < ve->num_segments; idx++)
+		segment_sizes[idx] = ve->segments[idx].memsz;
+
 	if (args.exports) {
 		exports = vita_exports_load(args.exports, args.input, 0);
 		
@@ -300,6 +306,10 @@ int main(int argc, char *argv[])
 	ASSERT(sce_elf_set_headers(outfile, ve));
 	fclose(outfile);
 
+	/* FIXME: restore original segment sizes */
+	for(idx = 0; idx < ve->num_segments; idx++)
+		ve->segments[idx].memsz = segment_sizes[idx];
+	free(segment_sizes);
 
 	sce_elf_module_info_free(module_info);
 	vita_elf_free(ve);
