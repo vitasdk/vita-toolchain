@@ -485,6 +485,7 @@ void *sce_elf_module_info_encode(
 
 	segment_base = ve->segments[segndx].vaddr;
 	start_offset = ve->segments[segndx].memsz;
+	start_offset = (start_offset + 0xF) & ~0xF; // align to 16 bytes
 
 	for (i = 0; i < ve->num_segments; i++) {
 		if (i == segndx)
@@ -689,6 +690,7 @@ int sce_elf_write_module_info(
 
 	segment_base = ve->segments[segndx].vaddr;
 	start_segoffset = ve->segments[segndx].memsz;
+	start_segoffset = (start_segoffset + 0xF) & ~0xF; // align to 16 bytes, same with `sce_elf_module_info_encode`
 
 	start_vaddr = segment_base + start_segoffset;
 	start_foffset = phdr.p_offset + start_segoffset;
