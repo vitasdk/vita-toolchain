@@ -691,6 +691,7 @@ int sce_elf_write_module_info(
 	segment_base = ve->segments[segndx].vaddr;
 	start_segoffset = ve->segments[segndx].memsz;
 	start_segoffset = (start_segoffset + 0xF) & ~0xF; // align to 16 bytes, same with `sce_elf_module_info_encode`
+	total_size += (start_segoffset - ve->segments[segndx].memsz); // add the padding size
 
 	start_vaddr = segment_base + start_segoffset;
 	start_foffset = phdr.p_offset + start_segoffset;
