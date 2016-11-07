@@ -249,6 +249,11 @@ int main(int argc, char *argv[])
 	if (!(imports = load_imports(&args, &imports_count)))
 		return EXIT_FAILURE;
 
+	if (imports_count == 0){
+		TRACEF(VERBOSE, "Unable to load JSON database\n");
+		return EXIT_FAILURE;
+	}
+
 	if (!vita_elf_lookup_imports(ve, imports, imports_count))
 		status = EXIT_FAILURE;
 
