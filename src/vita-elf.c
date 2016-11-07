@@ -36,7 +36,7 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 	GElf_Shdr shdr;
 	Elf_Data *data;
 	uint32_t *stub_data;
-	int i, chunk_offset, total_bytes;
+	int chunk_offset, total_bytes;
 	vita_elf_stub_t *curstub;
 
 	gelf_getshdr(scn, &shdr);
@@ -52,12 +52,7 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 		*num_stubs = *num_stubs + (shdr.sh_size / 16);
 	}
 	
-	for(i=strlen(name)-1;i>=0;i--){
-		if(name[i]=='.'){
-			name=&name[i+1];
-			break;
-		}
-	}
+	name = strrchr(name,'.')+1;
 	
 	curstub = *stubs;
 	curstub = &curstub[*num_stubs - (shdr.sh_size / 16)];

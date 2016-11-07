@@ -928,7 +928,7 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 	size_t shstrndx;
 	void *shstrtab;
 	uint32_t *stubdata;
-	int i,j;
+	int j;
 	int *cur_ndx;
 	char *stub_name, *aux_name;
 
@@ -942,16 +942,8 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));
 		
-		stub_name = shstrtab + shdr.sh_name;
-		for(i=strlen(stub_name)-1;i>=0;i--){
-			if(stub_name[i]=='.'){
-				stub_name=&stub_name[i];
-				break;
-			}
-		}
-		
-		aux_name = calloc(strlen(stub_name),sizeof(char));
-		strcpy(aux_name,stub_name);
+		stub_name = strrchr(shstrtab + shdr.sh_name,'.');
+		aux_name = strdup(stub_name);
 		strcpy(shstrtab + shdr.sh_name, ".text.fstubs");
 		strcat(shstrtab + shdr.sh_name, aux_name);
 		free(aux_name);
@@ -979,16 +971,8 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));
 		
-		stub_name = shstrtab + shdr.sh_name;
-		for(i=strlen(stub_name)-1;i>=0;i--){
-			if(stub_name[i]=='.'){
-				stub_name=&stub_name[i];
-				break;
-			}
-		}
-		
-		aux_name = calloc(strlen(stub_name),sizeof(char));
-		strcpy(aux_name,stub_name);
+		stub_name = strrchr(shstrtab + shdr.sh_name,'.');
+		aux_name = strdup(stub_name);
 		strcpy(shstrtab + shdr.sh_name, ".data.vstubs");
 		strcat(shstrtab + shdr.sh_name, stub_name);
 		free(aux_name);
