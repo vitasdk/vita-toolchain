@@ -482,11 +482,6 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 		curseg->vaddr = phdr.p_vaddr;
 		curseg->memsz = phdr.p_memsz;
 
-		// align each segment to 0x10
-		if (curseg->memsz & 0xF) {
-			curseg->memsz = (curseg->memsz + 0x10) & ~0xF;
-		}
-
 		if (curseg->memsz) {
 			curseg->vaddr_top = mmap(NULL, curseg->memsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 			if (curseg->vaddr_top == NULL)
