@@ -121,101 +121,14 @@ void list_segments(vita_elf_t *ve)
 #include <sys/sysctl.h>
 #endif
 
-void get_binary_directory(char *out, size_t n)
-{
-	char *c;
-	char pathsep = '\0';
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	GetModuleFileName(NULL, out, n);
-	pathsep = '\\';
-#elif defined(__linux__) || defined(__CYGWIN__)
-	readlink("/proc/self/exe", out, n);
-	pathsep = '/';
-#elif defined(__APPLE__)
-	_NSGetExecutablePath(out, (uint32_t *)&n);
-	pathsep = '/';
-#elif defined(__FreeBSD__)
-	int mib[4];
-	mib[0] = CTL_KERN;
-	mib[1] = KERN_PROC;
-	mib[2] = KERN_PROC_PATHNAME;
-	mib[3] = -1;
-	sysctl(mib, 4, out, &n, NULL, 0);
-	pathsep = '/';
-#elif defined(DEFAULT_JSON)
-	#error "Sorry, your platform is not supported with -DDEFAULT_JSON."
-#endif
-	if (pathsep && (c = strrchr(out, pathsep)))
-		*++c = '\0';
-}
-
-// The format is path1:path2:path3 where all pathes are relative to the binary directory
-#ifdef DEFAULT_JSON
-char default_json[] = DEFAULT_JSON;
-#else
-char default_json[] = "";
-#endif
-
-vita_imports_t **load_imports(elf_create_args *args, int *imports_count)
-{
-	vita_imports_t **imports = NULL;
-	int user_count = args->extra_imports_count;
-	int default_count = 0;
-	int loaded = 0;
-	char path[PATH_MAX] = { 0 };
-	int i;
-	char *s;
-	char *saveptr;
-	int count;
-	int base_length;
-
-	for (s = default_json; *s; ++s)
-		if (*s == ':')
-			++default_count;
-	// Only way we get 0 is when default_json is empty
-	if (*default_json)
-		++default_count;
-
-	count = user_count + default_count;
-	imports = calloc(count, sizeof(*imports));
-	if (!imports)
-		goto failure;
-
-	// First, load default imports
-	get_binary_directory(path, sizeof(path));
-	base_length = strlen(path);
-
-	s = strtok_r(default_json, ":", &saveptr);
-	while (s) {
-		strncpy(path + base_length, s, sizeof(path) - base_length - 1);
-		if ((imports[loaded++] = vita_imports_load(path, g_log >= DEBUG)) == NULL)
-			goto failure;
-		s = strtok_r(NULL, ":", &saveptr);
-	}
-
-	// Load imports specified by the user
-	for (i = 0; i < user_count; i++) {
-		if ((imports[loaded++] = vita_imports_load(args->extra_imports[i], g_log >= DEBUG)) == NULL)
-			goto failure;
-	}
-	*imports_count = count;
-	return imports;
-failure:
-	for (i = 0; i < count; ++i)
-		vita_imports_free(imports[i]);
-	free(imports);
-	return NULL;
-}
 
 int main(int argc, char *argv[])
 {
 	vita_elf_t *ve;
-	vita_imports_t **imports;
 	sce_module_info_t *module_info;
 	sce_section_sizes_t section_sizes;
 	void *encoded_modinfo;
 	vita_elf_rela_table_t rtable = {};
-	int imports_count;
 	vita_export_t *exports = NULL;
 	
 	int status = EXIT_SUCCESS;
@@ -245,19 +158,16 @@ int main(int argc, char *argv[])
 		// generate a default export list
 		exports = vita_export_generate_default(args.input);
 	}
-	
-	if (!(imports = load_imports(&args, &imports_count)))
-		return EXIT_FAILURE;
 
-	if (!vita_elf_lookup_imports(ve, imports, imports_count))
+	if (!vita_elf_lookup_imports(ve))
 		status = EXIT_FAILURE;
 
-	if (ve->fstubs_ndx) {
-		TRACEF(VERBOSE, "Function stubs in section %d:\n", ve->fstubs_ndx);
+	if (ve->fstubs_va.count) {
+		TRACEF(VERBOSE, "Function stubs in sections \n");
 		print_stubs(ve->fstubs, ve->num_fstubs);
 	}
-	if (ve->vstubs_ndx) {
-		TRACEF(VERBOSE, "Variable stubs in section %d:\n", ve->vstubs_ndx);
+	if (ve->vstubs_va.count) {
+		TRACEF(VERBOSE, "Variable stubs in sections \n");
 		print_stubs(ve->vstubs, ve->num_vstubs);
 	}
 
@@ -313,13 +223,6 @@ int main(int argc, char *argv[])
 
 	sce_elf_module_info_free(module_info);
 	vita_elf_free(ve);
-
-	int i;
-	for (i = 0; i < imports_count; i++) {
-		vita_imports_free(imports[i]);
-	}
-
-	free(imports);
 
 	return status;
 failure:

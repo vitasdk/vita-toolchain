@@ -31,20 +31,27 @@
 
 static void free_rela_table(vita_elf_rela_table_t *rtable);
 
-static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs)
+static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, char *name)
 {
 	GElf_Shdr shdr;
 	Elf_Data *data;
 	uint32_t *stub_data;
 	int chunk_offset, total_bytes;
 	vita_elf_stub_t *curstub;
+	int old_num;
 
 	gelf_getshdr(scn, &shdr);
 
-	*num_stubs = shdr.sh_size / 16;
-	*stubs = calloc(*num_stubs, sizeof(vita_elf_stub_t));
-
+	old_num = *num_stubs;
+	*num_stubs = old_num + shdr.sh_size / 16;
+	*stubs = realloc(*stubs, *num_stubs * sizeof(vita_elf_stub_t));
+	memset(&(*stubs)[old_num], 0, sizeof(vita_elf_stub_t) * shdr.sh_size / 16);
+	
+	name = strrchr(name,'.')+1;
+	
 	curstub = *stubs;
+	curstub = &curstub[*num_stubs - (shdr.sh_size / 16)];
+	
 	data = NULL; total_bytes = 0;
 	while (total_bytes < shdr.sh_size &&
 			(data = elf_getdata(scn, data)) != NULL) {
@@ -54,6 +61,7 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs)
 				stub_data += 4, chunk_offset += 16) {
 			curstub->addr = shdr.sh_addr + data->d_off + chunk_offset;
 			curstub->library_nid = le32toh(stub_data[0]);
+			curstub->module = vita_imports_module_new(name,false,0,0,0);
 			curstub->module_nid = le32toh(stub_data[1]);
 			curstub->target_nid = le32toh(stub_data[2]);
 			curstub++;
@@ -292,11 +300,11 @@ static int load_rela_table(vita_elf_t *ve, Elf_Scn *scn)
 	return 0;
 }
 
-static int lookup_stub_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *stubs, int stubs_ndx, int sym_type)
+static int lookup_stub_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *stubs, varray *stubs_va, int sym_type)
 {
 	int symndx;
 	vita_elf_symbol_t *cursym;
-	int stub;
+	int stub, stubs_ndx, i, *cur_ndx;
 
 	for (symndx = 0; symndx < ve->num_symbols; symndx++) {
 		cursym = ve->symtab + symndx;
@@ -305,13 +313,23 @@ static int lookup_stub_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *s
 			continue;
 		if (cursym->type != STT_FUNC && cursym->type != STT_OBJECT)
 			continue;
-		if (cursym->shndx != stubs_ndx)
-			continue;
-
+		stubs_ndx = -1;
+		
+		for(i=0;i<stubs_va->count;i++){
+			cur_ndx = VARRAY_ELEMENT(stubs_va,i);
+			if (cursym->shndx == *cur_ndx){
+				stubs_ndx = cursym->shndx;
+				break;
+			}
+		}
+		
+		if(stubs_ndx == -1)
+			continue;	
+			
 		if (cursym->type != sym_type)
 			FAILX("Global symbol %s in section %d expected to have type %s; instead has type %s",
 					cursym->name, stubs_ndx, elf_decode_st_type(sym_type), elf_decode_st_type(cursym->type));
-
+		
 		for (stub = 0; stub < num_stubs; stub++) {
 			if (stubs[stub].addr != cursym->value)
 				continue;
@@ -391,6 +409,9 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 
 	ve = calloc(1, sizeof(vita_elf_t));
 	ASSERT(ve != NULL);
+	
+	ASSERT(varray_init(&ve->fstubs_va, sizeof(int), 8));
+	ASSERT(varray_init(&ve->vstubs_va, sizeof(int), 4));
 
 	if ((ve->file = fopen(filename, "rb")) == NULL)
 		FAIL("open %s failed", filename);
@@ -417,17 +438,15 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 
 		ELF_ASSERT(name = elf_strptr(ve->elf, shstrndx, shdr.sh_name));
 
-		if (shdr.sh_type == SHT_PROGBITS && strcmp(name, ".vitalink.fstubs") == 0) {
-			if (ve->fstubs_ndx != 0)
-				FAILX("Multiple .vitalink.fstubs sections in binary");
-			ve->fstubs_ndx = elf_ndxscn(scn);
-			if (!load_stubs(scn, &ve->num_fstubs, &ve->fstubs))
+		if (shdr.sh_type == SHT_PROGBITS && strncmp(name, ".vitalink.fstubs", strlen(".vitalink.fstubs")) == 0) {
+			int ndxscn = elf_ndxscn(scn);
+			varray_push(&ve->fstubs_va,&ndxscn);
+			if (!load_stubs(scn, &ve->num_fstubs, &ve->fstubs, name))
 				goto failure;
-		} else if (shdr.sh_type == SHT_PROGBITS && strcmp(name, ".vitalink.vstubs") == 0) {
-			if (ve->vstubs_ndx != 0)
-				FAILX("Multiple .vitalink.vstubs sections in binary");
-			ve->vstubs_ndx = elf_ndxscn(scn);
-			if (!load_stubs(scn, &ve->num_vstubs, &ve->vstubs))
+		} else if (shdr.sh_type == SHT_PROGBITS && strncmp(name, ".vitalink.vstubs", strlen(".vitalink.vstubs")) == 0) {
+			int ndxscn = elf_ndxscn(scn);
+			varray_push(&ve->vstubs_va,&ndxscn);
+			if (!load_stubs(scn, &ve->num_vstubs, &ve->vstubs, name))
 				goto failure;
 		}
 
@@ -447,7 +466,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 		}
 	}
 
-	if (ve->fstubs_ndx == 0 && ve->vstubs_ndx == 0 && check_stub_count)
+	if (ve->fstubs_va.count == 0 && ve->vstubs_va.count == 0 && check_stub_count)
 		FAILX("No .vitalink stub sections in binary, probably not a Vita binary. If this is a vita binary, pass '-n' to squash this error.");
 
 	if (ve->symtab == NULL)
@@ -456,12 +475,12 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 	if (ve->rela_tables == NULL)
 		FAILX("No relocation sections in binary; use -Wl,-q while compiling");
 
-	if (ve->fstubs_ndx != 0) {
-		if (!lookup_stub_symbols(ve, ve->num_fstubs, ve->fstubs, ve->fstubs_ndx, STT_FUNC)) goto failure;
+	if (ve->fstubs_va.count != 0) {
+		if (!lookup_stub_symbols(ve, ve->num_fstubs, ve->fstubs, &ve->fstubs_va, STT_FUNC)) goto failure;
 	}
 
-	if (ve->vstubs_ndx != 0) {
-		if (!lookup_stub_symbols(ve, ve->num_vstubs, ve->vstubs, ve->vstubs_ndx, STT_OBJECT)) goto failure;
+	if (ve->vstubs_va.count != 0) {
+		if (!lookup_stub_symbols(ve, ve->num_vstubs, ve->vstubs, &ve->vstubs_va, STT_OBJECT)) goto failure;
 	}
 
 	ELF_ASSERT(elf_getphdrnum(ve->elf, &segment_count) == 0);
@@ -530,7 +549,7 @@ void vita_elf_free(vita_elf_t *ve)
 }
 
 typedef vita_imports_stub_t *(*find_stub_func_ptr)(vita_imports_module_t *, uint32_t);
-static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, vita_imports_t **imports, int imports_count, find_stub_func_ptr find_stub, const char *stub_type_name)
+static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, find_stub_func_ptr find_stub, const char *stub_type_name)
 {
 	int found_all = 1;
 	int i, j;
@@ -538,50 +557,18 @@ static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, vita_imports_t **
 
 	for (i = 0; i < num_stubs; i++) {
 		stub = &(stubs[i]);
-
-		for (j = 0; j < imports_count; j++) {
-			stub->library = vita_imports_find_lib(imports[j], stub->library_nid);
-			if (stub->library != NULL) {
-				break;
-			}
-		}
-
-		if (stub->library == NULL) {
-			warnx("Unable to find library with NID %u for %s symbol %s",
-					stub->library_nid, stub_type_name,
-					stub->symbol ? stub->symbol->name : "(unreferenced stub)");
-			found_all = 0;
-			continue;
-		}
-
-		stub->module = vita_imports_find_module(stub->library, stub->module_nid);
-		if (stub->module == NULL) {
-			warnx("Unable to find module with NID %u for %s symbol %s",
-					stub->module_nid, stub_type_name,
-					stub->symbol ? stub->symbol->name : "(unreferenced stub)");
-			found_all = 0;
-			continue;
-		}
-
-		stub->target = find_stub(stub->module, stub->target_nid);
-		if (stub->target == NULL) {
-			warnx("Unable to find %s with NID %u for symbol %s",
-					stub_type_name, stub->module_nid,
-					stub->symbol ? stub->symbol->name : "(unreferenced stub)");
-			found_all = 0;
-		}
+		stub->target = vita_imports_stub_new(stub->symbol ? stub->symbol->name : "(unreferenced stub)", 0);
 	}
 
 	return found_all;
 }
 
-int vita_elf_lookup_imports(vita_elf_t *ve, vita_imports_t **imports, int imports_count)
+int vita_elf_lookup_imports(vita_elf_t *ve)
 {
 	int found_all = 1;
-
-	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, imports, imports_count, &vita_imports_find_function, "function"))
+	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, &vita_imports_find_function, "function"))
 		found_all = 0;
-	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, imports, imports_count, &vita_imports_find_variable, "variable"))
+	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, &vita_imports_find_variable, "variable"))
 		found_all = 0;
 
 	return found_all;

@@ -89,7 +89,7 @@ int generate_assembly(vita_imports_t **imports, int imports_count)
 					if ((fp = fopen(filename, "w")) == NULL)
 						return 0;
 					fprintf(fp, ".arch armv7a\n\n");
-					fprintf(fp, ".section .vitalink.fstubs,\"ax\",%%progbits\n\n");
+					fprintf(fp, ".section .vitalink.fstubs.%s,\"ax\",%%progbits\n\n", module->name);
 					fprintf(fp,
 						"\t.align 4\n"
 						"\t.global %s\n"
@@ -114,7 +114,7 @@ int generate_assembly(vita_imports_t **imports, int imports_count)
 					if ((fp = fopen(filename, "w")) == NULL)
 						return 0;
 					fprintf(fp, ".arch armv7a\n\n");
-					fprintf(fp, ".section .vitalink.vstubs,\"aw\",%%progbits\n\n");
+					fprintf(fp, ".section .vitalink.vstubs.%s,\"aw\",%%progbits\n\n",module->name);
 					fprintf(fp,
 						"\t.align 4\n"
 						"\t.global %s\n"

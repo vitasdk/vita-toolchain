@@ -711,7 +711,6 @@ int sce_elf_write_module_info(
 	ehdr.e_entry = ((segndx & 0x3) << 30) | start_segoffset;
 	ELF_ASSERT(gelf_update_ehdr(dest, &ehdr));
 
-
 	for (i = 0; i < sizeof(sce_section_sizes_t) / sizeof(Elf32_Word); i++) {
 		int scn_size = ((Elf32_Word *)sizes)[i];
 		if (scn_size == 0)
@@ -929,41 +928,61 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 	size_t shstrndx;
 	void *shstrtab;
 	uint32_t *stubdata;
+	int j;
+	int *cur_ndx;
+	char *stub_name, *aux_name;
 
 	ELF_ASSERT(elf_getshdrstrndx(dest, &shstrndx) == 0);
 	ELF_ASSERT(scn = elf_getscn(dest, shstrndx));
 	ELF_ASSERT(data = elf_getdata(scn, NULL));
 	shstrtab = data->d_buf;
 
-	ELF_ASSERT(scn = elf_getscn(dest, ve->fstubs_ndx));
-	ELF_ASSERT(gelf_getshdr(scn, &shdr));
-	strcpy(shstrtab + shdr.sh_name, ".text.fstubs");
-	data = NULL;
-	while ((data = elf_getdata(scn, data)) != NULL) {
-		for (stubdata = (uint32_t *)data->d_buf;
-				(void *)stubdata < data->d_buf + data->d_size - 11; stubdata += 4) {
-			stubdata[0] = htole32(sce_elf_stub_func[0]);
-			stubdata[1] = htole32(sce_elf_stub_func[1]);
-			stubdata[2] = htole32(sce_elf_stub_func[2]);
-			stubdata[3] = 0;
+	for(j=0;j<ve->fstubs_va.count;j++){
+		cur_ndx = VARRAY_ELEMENT(&ve->fstubs_va,j);
+		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
+		ELF_ASSERT(gelf_getshdr(scn, &shdr));
+		
+		stub_name = strrchr(shstrtab + shdr.sh_name,'.');
+		aux_name = strdup(stub_name);
+		strcpy(shstrtab + shdr.sh_name, ".text.fstubs");
+		strcat(shstrtab + shdr.sh_name, aux_name);
+		free(aux_name);
+		
+		data = NULL;
+		while ((data = elf_getdata(scn, data)) != NULL) {
+			for (stubdata = (uint32_t *)data->d_buf;
+					(void *)stubdata < data->d_buf + data->d_size - 11; stubdata += 4) {
+				stubdata[0] = htole32(sce_elf_stub_func[0]);
+				stubdata[1] = htole32(sce_elf_stub_func[1]);
+				stubdata[2] = htole32(sce_elf_stub_func[2]);
+				stubdata[3] = 0;
+			}
 		}
 	}
 
-	ELF_ASSERT(scn = elf_getscn(dest, ve->vstubs_ndx));
 
 	/* If the section index is zero, it means that it's nonexistent */
-	if (ve->vstubs_ndx == 0) {
+	if (ve->vstubs_va.count == 0) {
 		return 1;
 	}
-
-	ELF_ASSERT(gelf_getshdr(scn, &shdr));
-	strcpy(shstrtab + shdr.sh_name, ".data.vstubs");
-
-	data = NULL;
-	while ((data = elf_getdata(scn, data)) != NULL) {
-		for (stubdata = (uint32_t *)data->d_buf;
-				(void *)stubdata < data->d_buf + data->d_size - 11; stubdata += 4) {
-			memset(stubdata, 0, 16);
+	
+	for(j=0;j<ve->vstubs_va.count;j++){
+		cur_ndx = VARRAY_ELEMENT(&ve->vstubs_va,j);
+		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
+		ELF_ASSERT(gelf_getshdr(scn, &shdr));
+		
+		stub_name = strrchr(shstrtab + shdr.sh_name,'.');
+		aux_name = strdup(stub_name);
+		strcpy(shstrtab + shdr.sh_name, ".data.vstubs");
+		strcat(shstrtab + shdr.sh_name, stub_name);
+		free(aux_name);
+		
+		data = NULL;
+		while ((data = elf_getdata(scn, data)) != NULL) {
+			for (stubdata = (uint32_t *)data->d_buf;
+					(void *)stubdata < data->d_buf + data->d_size - 11; stubdata += 4) {
+				memset(stubdata, 0, 16);
+			}
 		}
 	}
 
