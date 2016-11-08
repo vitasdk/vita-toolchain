@@ -38,19 +38,14 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 	uint32_t *stub_data;
 	int chunk_offset, total_bytes;
 	vita_elf_stub_t *curstub;
+	int old_num;
 
 	gelf_getshdr(scn, &shdr);
-  
-	if(*num_stubs==0){
-		*num_stubs = shdr.sh_size / 16;
-		*stubs = calloc(*num_stubs, sizeof(vita_elf_stub_t));
-	}else{
-		curstub = *stubs;
-		*stubs = calloc(*num_stubs + (shdr.sh_size / 16),sizeof(vita_elf_stub_t));
-		memcpy(*stubs,curstub,*num_stubs * sizeof(vita_elf_stub_t));
-		free(curstub);
-		*num_stubs = *num_stubs + (shdr.sh_size / 16);
-	}
+
+	old_num = *num_stubs;
+	*num_stubs = old_num + shdr.sh_size / 16;
+	*stubs = realloc(*stubs, *num_stubs * sizeof(vita_elf_stub_t));
+	memset(&(*stubs)[old_num], 0, sizeof(vita_elf_stub_t) * shdr.sh_size / 16);
 	
 	name = strrchr(name,'.')+1;
 	
