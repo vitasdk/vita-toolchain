@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 	{
 		vita_imports_free(imports[i]);
 	}
-	
+
 	free(imports);
 
 	return EXIT_SUCCESS;
@@ -266,6 +266,8 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 		"endef\n\n"
 		"$(foreach library,$(TARGETS),$(eval $(call LIBRARY_template,$(library))))\n\n"
 		"all: $(TARGETS)\n\n"
+		"install: $(TARGETS)\n"
+		"\tcp $(TARGETS) $(VITASDK)/arm-vita-eabi/lib\n\n"
 		"clean:\n\n"
 		"\trm -f $(TARGETS) $(ALL_OBJS)\n\n"
 		"$(TARGETS):\n"
