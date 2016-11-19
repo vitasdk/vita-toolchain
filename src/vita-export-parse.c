@@ -65,6 +65,8 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 	// append to list
 	export->functions = realloc(export->functions, (export->function_n+1)*sizeof(const char*));
 	export->functions[export->function_n++] = symbol;
+	
+	return 0;
 }
 
 int process_variables(yaml_node *entry, vita_library_export *export) {
@@ -83,6 +85,8 @@ int process_variables(yaml_node *entry, vita_library_export *export) {
 	// add to list
 	export->variables = realloc(export->variables, (export->variable_n+1)*sizeof(const char*));
 	export->variables[export->variable_n++] = symbol;
+	
+	return 0;
 }
 
 int process_module_version(yaml_node *parent, yaml_node *child, vita_export_t *info) {
