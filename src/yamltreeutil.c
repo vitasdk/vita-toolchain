@@ -25,6 +25,7 @@ DEALINGS IN THE SOFTWARE.
 #include "yamltreeutil.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <limits.h>
 
@@ -97,6 +98,31 @@ int process_boolean(yaml_node *node, uint32_t *boolean)
 	else if (strcmp(scalar->value, "false") == 0)
 	{
 		*boolean = 0;
+	}
+	else
+	{
+		// invalid input
+		return -2;
+	}
+	
+	return 0;
+}
+
+int process_bool(yaml_node *node, bool *boolean) 
+{	
+	// check we have a scalar
+	if (node->type != NODE_SCALAR)
+		return -1;
+	
+	yaml_scalar *scalar = &node->data.scalar;
+	
+	if (strcmp(scalar->value, "true") == 0)
+	{
+		*boolean = true;
+	}
+	else if (strcmp(scalar->value, "false") == 0)
+	{
+		*boolean = false;
 	}
 	else
 	{
