@@ -24,6 +24,7 @@ typedef struct {
 	vita_imports_stub_t **variables;
 	int n_functions;
 	int n_variables;
+	uint32_t flags;
 } vita_imports_module_t;
 
 typedef struct {
