@@ -60,8 +60,8 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 				chunk_offset < data->d_size;
 				stub_data += 4, chunk_offset += 16) {
 			curstub->addr = shdr.sh_addr + data->d_off + chunk_offset;
-			curstub->library_nid = le32toh(stub_data[0]);
 			curstub->module = vita_imports_module_new(name,false,0,0,0);
+			curstub->module->flags = le32toh(stub_data[0]);
 			curstub->module_nid = le32toh(stub_data[1]);
 			curstub->target_nid = le32toh(stub_data[2]);
 			curstub++;

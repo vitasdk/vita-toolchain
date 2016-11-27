@@ -263,6 +263,8 @@ static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, cons
 	import->num_syms_funcs = module->functions_va.count;
 	import->num_syms_vars = module->variables_va.count;
 	import->module_nid = module->nid;
+	import->flags = module->module->flags;
+
 	if (module->module) {
 		import->module_name = module->module->name;
 	}
