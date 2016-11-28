@@ -50,13 +50,13 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 		}
 
 		nid = json_object_get(lib_data, "nid");
-		if (!json_is_integer(nid)) {
-			fprintf(stderr, "error: library %s: nid is not an integer\n", lib_name);
+		if (!json_is_string(nid)) {
+			fprintf(stderr, "error: library %s: nid is not a string\n", lib_name);
 			json_decref(libs);
 			return NULL;
 		}
 
-		modules = json_object_get(lib_data, "modules");
+		modules = json_object_get(lib_data, "libraries");
 		if (!json_is_object(modules)) {
 			fprintf(stderr, "error: library %s: module is not an object\n", lib_name);
 			json_decref(libs);
@@ -65,7 +65,7 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 
 		imports->libs[i] = vita_imports_lib_new(
 				lib_name,
-				json_integer_value(nid),
+				(int)strtol(json_string_value(nid), NULL, 0),
 				json_object_size(modules));
 
 		if (verbose)
@@ -85,8 +85,8 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 			}
 
 			nid = json_object_get(mod_data, "nid");
-			if (!json_is_integer(nid)) {
-				fprintf(stderr, "error: module %s: nid is not an integer\n", mod_name);
+			if (!json_is_string(nid)) {
+				fprintf(stderr, "error: module %s: nid is not a string\n", mod_name);
 				json_decref(libs);
 				return NULL;
 			}
@@ -122,7 +122,7 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 			imports->libs[i]->modules[j] = vita_imports_module_new(
 					mod_name,
 					json_boolean_value(kernel),
-					json_integer_value(nid),
+					(int)strtol(json_string_value(nid), NULL, 0),
 					json_object_size(functions),
 					json_object_size(variables));
 
@@ -130,8 +130,8 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 			json_object_foreach(functions, target_name, target_nid) {
 				k++;
 
-				if (!json_is_integer(target_nid)) {
-					fprintf(stderr, "error: function %s: nid is not an integer\n", target_name);
+				if (!json_is_string(target_nid)) {
+					fprintf(stderr, "error: function %s: nid is not a string\n", target_name);
 					json_decref(libs);
 					return NULL;
 				}
@@ -141,8 +141,7 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 
 				imports->libs[i]->modules[j]->functions[k] = vita_imports_stub_new(
 						target_name,
-						json_integer_value(target_nid));
-
+						(int)strtol(json_string_value(target_nid), NULL, 0));
 			}
 
 			if (!has_variables) {
@@ -153,8 +152,8 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 			json_object_foreach(variables, target_name, target_nid) {
 				k++;
 
-				if (!json_is_integer(target_nid)) {
-					fprintf(stderr, "error: variable %s: nid is not an integer\n", target_name);
+				if (!json_is_string(target_nid)) {
+					fprintf(stderr, "error: variable %s: nid is not a string\n", target_name);
 					json_decref(libs);
 					return NULL;
 				}
@@ -164,7 +163,7 @@ vita_imports_t *vita_imports_loads(FILE *text, int verbose)
 
 				imports->libs[i]->modules[j]->variables[k] = vita_imports_stub_new(
 						target_name,
-						json_integer_value(target_nid));
+						(int)strtol(json_string_value(target_nid), NULL, 0));
 
 			}
 
