@@ -943,6 +943,8 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));
 		
 		sh_name = shstrtab + shdr.sh_name;
+		if (strstr(sh_name, ".vitalink.fstubs.") != sh_name)
+			errx(EXIT_FAILURE, "Your ELF file contains a malformed .vitalink.fstubs section. Please make sure all your stub libraries are up-to-date.");
 		stub_name = strrchr(sh_name, '.');
 		snprintf(sh_name, strlen(sh_name) + 1, ".text.fstubs%s", stub_name);
 		
@@ -970,6 +972,8 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));
 		
 		sh_name = shstrtab + shdr.sh_name;
+		if (strstr(sh_name, ".vitalink.vstubs.") != sh_name)
+			errx(EXIT_FAILURE, "Your ELF file contains a malformed .vitalink.vstubs section. Please make sure all your stub libraries are up-to-date.");
 		stub_name = strrchr(sh_name, '.');
 		snprintf(sh_name, strlen(sh_name) + 1, ".data.vstubs%s", stub_name);
 		
