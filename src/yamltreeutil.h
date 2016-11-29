@@ -27,6 +27,7 @@ DEALINGS IN THE SOFTWARE.
 
 #include "yamltree.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef int (* mapping_functor)(yaml_node *parent, yaml_node *child, void *userdata);
 typedef int (* sequence_functor)(yaml_node *entry, void *userdata);
@@ -36,6 +37,7 @@ int yaml_iterate_sequence(yaml_node *node, sequence_functor functor, void *userd
 
 int process_32bit_integer(yaml_node *node, uint32_t *nid);
 int process_boolean(yaml_node *node, uint32_t *boolean);
+int process_bool(yaml_node *node, bool *boolean);
 int process_string(yaml_node *node, const char **str);
 
 int is_scalar(yaml_node *node);

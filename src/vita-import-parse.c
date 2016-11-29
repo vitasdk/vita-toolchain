@@ -1,6 +1,236 @@
 #include <string.h>
-#include <jansson.h>
 #include "vita-import.h"
+#include "yamltree.h"
+#include "yamltreeutil.h"
+#include "sha256.h"
+
+int process_import_functions(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+	if (!is_scalar(parent)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting function to be scalar, got '%s'.\n"
+			, parent->position.line
+			, parent->position.column
+			, node_type_str(parent));
+		
+		return -1;
+	}
+	
+	yaml_scalar *key = &parent->data.scalar;
+		
+	// create an export symbol for this function
+	vita_imports_stub_t *symbol = vita_imports_stub_new(key->value,0);
+		
+	if (!is_scalar(child)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting function value to be scalar, got '%s'.\n"
+			, child->position.line
+			, child->position.column
+			, node_type_str(child));
+		
+		return -1;
+	}
+	
+	if (process_32bit_integer(child, &symbol->NID) < 0) {
+		fprintf(stderr, "error: line: %zd, column: %zd, could not convert function nid '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
+		return -1;
+	}
+	// append to list
+	library->functions = realloc(library->functions, (library->n_functions+1)*sizeof(vita_imports_stub_t*));
+	library->functions[library->n_functions++] = symbol;
+	
+	return 0;
+}
+
+int process_import_variables(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+	if (!is_scalar(parent)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting variable to be scalar, got '%s'.\n"
+			, parent->position.line
+			, parent->position.column
+			, node_type_str(parent));
+		
+		return -1;
+	}
+	
+	yaml_scalar *key = &parent->data.scalar;
+		
+	// create an export symbol for this variable
+	vita_imports_stub_t *symbol = vita_imports_stub_new(key->value,0);
+			
+	if (!is_scalar(child)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting variable value to be scalar, got '%s'.\n"
+			, child->position.line
+			, child->position.column
+			, node_type_str(child));
+		
+		return -1;
+	}
+	
+	if (process_32bit_integer(child, &symbol->NID) < 0) {
+		fprintf(stderr, "error: line: %zd, column: %zd, could not convert variable nid '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
+		return -1;
+	}
+	// append to list
+	library->variables = realloc(library->variables, (library->n_variables+1)*sizeof(vita_imports_stub_t*));
+	library->variables[library->n_variables++] = symbol;
+	
+	return 0;
+}
+
+int process_library(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+	if (!is_scalar(parent)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting library key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
+		return -1;
+	}
+	
+	yaml_scalar *key = &parent->data.scalar;
+	
+	if (strcmp(key->value, "kernel") == 0) {
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting library syscall flag to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+		
+		if (process_bool(child, &library->is_kernel) < 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert library flag to boolean, got '%s'. expected 'true' or 'false'.\n", child->position.line, child->position.column, child->data.scalar.value);
+			return -1;
+		}
+	}
+	else if (strcmp(key->value, "functions") == 0) {
+		if (yaml_iterate_mapping(child, (mapping_functor)process_import_functions, library) < 0)
+			return -1;
+	}
+	else if (strcmp(key->value, "variables") == 0) {
+		if (yaml_iterate_mapping(child, (mapping_functor)process_import_variables, library) < 0)
+			return -1;
+	}
+	else if (strcmp(key->value, "nid") == 0) {
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting library nid to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+		
+		if (process_32bit_integer(child, &library->NID) < 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert library nid '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
+			return -1;
+		}
+	}
+	else {
+		fprintf(stderr, "error: line: %zd, column: %zd, unrecognised library key '%s'.\n", child->position.line, child->position.column, key->value);
+		return -1;
+	}
+	
+	return 0;
+}
+
+int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+	if (!is_scalar(parent)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting library key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
+		return -1;
+	}
+	
+	yaml_scalar *key = &parent->data.scalar;
+	
+	// default values
+	library->name = strdup(key->value);
+
+	if (yaml_iterate_mapping(child, (mapping_functor)process_library, library) < 0)
+		return -1;
+		
+		
+	return 0;
+}
+
+int process_import(yaml_node *parent, yaml_node *child, vita_imports_lib_t *import) {
+	if (!is_scalar(parent)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting module key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
+		return -1;
+	}
+	
+	yaml_scalar *key = &parent->data.scalar;
+
+	if (strcmp(key->value, "nid") == 0) {
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting module nid to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+		
+		if (process_32bit_integer(child, &import->NID) < 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert module nid '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
+			return -1;
+		}
+	}
+	else if (strcmp(key->value, "libraries") == 0) {
+			
+		vita_imports_module_t *library = vita_imports_module_new("",false,0,0,0);
+		
+		// default values
+		library->name = strdup(key->value);
+
+		if (yaml_iterate_mapping(child, (mapping_functor)process_libraries, library) < 0)
+			return -1;
+
+		import->modules = realloc(import->modules, (import->n_modules+1)*sizeof(vita_imports_module_t*));
+		import->modules[import->n_modules++] = library;
+	}
+	else {
+		fprintf(stderr, "error: line: %zd, column: %zd, unrecognised module key '%s'.\n", child->position.line, child->position.column, key->value);
+		return -1;
+	}
+	
+	return 0;
+}
+
+int process_import_list(yaml_node *parent, yaml_node *child, vita_imports_t *imports) {
+	if (!is_scalar(parent)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting modules key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
+		return -1;
+	}
+	
+	yaml_scalar *key = &parent->data.scalar;
+	
+	vita_imports_lib_t *import = vita_imports_lib_new(key->value,0,0);
+	
+	if (yaml_iterate_mapping(child, (mapping_functor)process_import, import) < 0)
+		return -1;
+	
+	imports->libs = realloc(imports->libs, (imports->n_libs+1)*sizeof(vita_imports_lib_t*));
+	imports->libs[imports->n_libs++] = import;
+	return 0;
+}
+
+vita_imports_t *read_vita_imports(yaml_document *doc) {
+	if (!is_mapping(doc)) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting root node to be a mapping, got '%s'.\n", doc->position.line, doc->position.column, node_type_str(doc));
+		return NULL;
+	}
+	
+	yaml_mapping *root = &doc->data.mapping;
+	
+	// check we only have one entry
+	if (root->count < 1) {
+		fprintf(stderr, "error: line: %zd, column: %zd, expecting at least one entry within root mapping, got %zd.\n", doc->position.line, doc->position.column, root->count);
+		return NULL;
+	}
+	
+	vita_imports_t *imports  = vita_imports_new(0);
+
+	for(int n = 0; n < root->count; n++){
+		// check lhs is a scalar
+		if (is_scalar(root->pairs[n]->lhs)) {
+		
+			if (strcmp(root->pairs[n]->lhs->data.scalar.value, "modules")==0) {
+				if (yaml_iterate_mapping(root->pairs[n]->rhs, (mapping_functor)process_import_list, imports) < 0)
+					return NULL;
+				continue;
+			}
+			
+			fprintf(stderr, "warning: line: %zd, column: %zd, unknow tag '%s'.\n", root->pairs[n]->lhs->position.line, root->pairs[n]->lhs->position.column, root->pairs[n]->lhs->data.scalar.value);
+
+		}
+
+	}
+	
+	return imports;
+	
+}
 
 vita_imports_t *vita_imports_load(const char *filename, int verbose)
 {
@@ -16,160 +246,25 @@ vita_imports_t *vita_imports_load(const char *filename, int verbose)
 	return imports;
 }
 
-vita_imports_t *vita_imports_loads(FILE *text, int verbose)
-{
-	json_t *libs, *lib_data;
-	json_error_t error;
-	const char *lib_name, *mod_name, *target_name;
-
-	libs = json_loadf(text, 0, &error);
-	if (libs == NULL) {
-		fprintf(stderr, "error: on line %d: %s\n", error.line, error.text);
+vita_imports_t *vita_imports_loads(FILE *text, int verbose){
+	uint32_t nid = 0;
+	yaml_error error = {0};
+	
+	yaml_tree *tree = parse_yaml_stream(text, &error);
+	
+	if (!tree)
+	{
+		fprintf(stderr, "error: %s\n", error.problem);
+		free(error.problem);
 		return NULL;
 	}
-
-	if (!json_is_object(libs)) {
-		fprintf(stderr, "error: modules is not an object\n");
-		json_decref(libs);
+	
+	if (tree->count != 1)
+	{
+		fprintf(stderr, "error: expecting a single yaml document, got: %zd\n", tree->count);
+		// TODO: cleanup tree
 		return NULL;
 	}
-
-	vita_imports_t *imports = vita_imports_new(json_object_size(libs));
-	int i, j, k;
-
-	i = -1;
-	json_object_foreach(libs, lib_name, lib_data) {
-		json_t *nid, *modules, *mod_data;
-
-		i++;
-
-		if (!json_is_object(lib_data)) {
-			fprintf(stderr, "error: library %s is not an object\n", lib_name);
-			json_decref(libs);
-			return NULL;
-		}
-
-		nid = json_object_get(lib_data, "nid");
-		if (!json_is_integer(nid)) {
-			fprintf(stderr, "error: library %s: nid is not an integer\n", lib_name);
-			json_decref(libs);
-			return NULL;
-		}
-
-		modules = json_object_get(lib_data, "modules");
-		if (!json_is_object(modules)) {
-			fprintf(stderr, "error: library %s: module is not an object\n", lib_name);
-			json_decref(libs);
-			return NULL;
-		}
-
-		imports->libs[i] = vita_imports_lib_new(
-				lib_name,
-				json_integer_value(nid),
-				json_object_size(modules));
-
-		if (verbose)
-			printf("Lib: %s\n", lib_name);
-
-		j = -1;
-		json_object_foreach(modules, mod_name, mod_data) {
-			json_t *nid, *kernel, *functions, *variables, *target_nid;
-			int has_variables = 1;
-
-			j++;
-
-			if (!json_is_object(mod_data)) {
-				fprintf(stderr, "error: module %s is not an object\n", mod_name);
-				json_decref(libs);
-				return NULL;
-			}
-
-			nid = json_object_get(mod_data, "nid");
-			if (!json_is_integer(nid)) {
-				fprintf(stderr, "error: module %s: nid is not an integer\n", mod_name);
-				json_decref(libs);
-				return NULL;
-			}
-
-			kernel = json_object_get(mod_data, "kernel");
-			if (!json_is_boolean(kernel)) {
-				fprintf(stderr, "error: module %s: kernel is not a boolean\n", mod_name);
-				json_decref(libs);
-				return NULL;
-			}
-
-			functions = json_object_get(mod_data, "functions");
-			if (!json_is_object(functions)) {
-				fprintf(stderr, "error: module %s: functions is not an array\n", mod_name);
-				json_decref(libs);
-				return NULL;
-			}
-
-			variables = json_object_get(mod_data, "variables");
-			if (variables == NULL) {
-				has_variables = 0;
-			}
-
-			if (has_variables && !json_is_object(variables)) {
-				fprintf(stderr, "error: module %s: variables is not an array\n", mod_name);
-				json_decref(libs);
-				return NULL;
-			}
-
-			if (verbose)
-				printf("\tModule: %s\n", mod_name);
-
-			imports->libs[i]->modules[j] = vita_imports_module_new(
-					mod_name,
-					json_boolean_value(kernel),
-					json_integer_value(nid),
-					json_object_size(functions),
-					json_object_size(variables));
-
-			k = -1;
-			json_object_foreach(functions, target_name, target_nid) {
-				k++;
-
-				if (!json_is_integer(target_nid)) {
-					fprintf(stderr, "error: function %s: nid is not an integer\n", target_name);
-					json_decref(libs);
-					return NULL;
-				}
-
-				if (verbose)
-					printf("\t\tFunction: %s\n", target_name);
-
-				imports->libs[i]->modules[j]->functions[k] = vita_imports_stub_new(
-						target_name,
-						json_integer_value(target_nid));
-
-			}
-
-			if (!has_variables) {
-				continue;
-			}
-
-			k = -1;
-			json_object_foreach(variables, target_name, target_nid) {
-				k++;
-
-				if (!json_is_integer(target_nid)) {
-					fprintf(stderr, "error: variable %s: nid is not an integer\n", target_name);
-					json_decref(libs);
-					return NULL;
-				}
-
-				if (verbose)
-					printf("\t\tVariable: %s\n", target_name);
-
-				imports->libs[i]->modules[j]->variables[k] = vita_imports_stub_new(
-						target_name,
-						json_integer_value(target_nid));
-
-			}
-
-		}
-	}
-
-	return imports;
+	
+	return read_vita_imports(tree->docs[0]);
 }

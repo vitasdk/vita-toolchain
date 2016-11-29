@@ -25,6 +25,7 @@ DEALINGS IN THE SOFTWARE.
 #include "yamltreeutil.h"
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <limits.h>
 
@@ -105,6 +106,18 @@ int process_boolean(yaml_node *node, uint32_t *boolean)
 	}
 	
 	return 0;
+}
+
+int process_bool(yaml_node *node, bool *boolean) 
+{	
+	uint32_t cast = 0;
+	int res = process_boolean(node,&cast);
+	
+	if(!res){
+		*boolean = cast == 1;
+	}
+	
+	return res;
 }
 
 int process_string(yaml_node *node, const char **str) 
