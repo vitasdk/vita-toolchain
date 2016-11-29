@@ -110,27 +110,14 @@ int process_boolean(yaml_node *node, uint32_t *boolean)
 
 int process_bool(yaml_node *node, bool *boolean) 
 {	
-	// check we have a scalar
-	if (node->type != NODE_SCALAR)
-		return -1;
+	uint32_t cast = 0;
+	int res = process_boolean(node,&cast);
 	
-	yaml_scalar *scalar = &node->data.scalar;
-	
-	if (strcmp(scalar->value, "true") == 0)
-	{
-		*boolean = true;
-	}
-	else if (strcmp(scalar->value, "false") == 0)
-	{
-		*boolean = false;
-	}
-	else
-	{
-		// invalid input
-		return -2;
+	if(!res){
+		*boolean = cast == 1;
 	}
 	
-	return 0;
+	return res;
 }
 
 int process_string(yaml_node *node, const char **str) 

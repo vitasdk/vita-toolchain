@@ -1,5 +1,4 @@
 #include <string.h>
-#include <jansson.h>
 #include "vita-import.h"
 #include "yamltree.h"
 #include "yamltreeutil.h"

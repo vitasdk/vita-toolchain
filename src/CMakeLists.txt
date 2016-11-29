@@ -1,4 +1,3 @@
-find_package(Jansson REQUIRED)
 find_package(libelf REQUIRED)
 find_package(zlib REQUIRED)
 find_package(libzip REQUIRED)
@@ -35,10 +34,10 @@ add_executable(vita-make-fself vita-make-fself.c)
 add_executable(vita-pack-vpk vita-pack-vpk.c)
 add_executable(vita-elf-export vita-elf-export.c yamltree.c yamltreeutil.c sha256.c yamlemitter.c vita-export-parse.c)
 
-target_link_libraries(vita-libs-gen ${Jansson_LIBRARIES} ${libyaml_LIBRARIES})
-target_link_libraries(vita-elf-create ${Jansson_LIBRARIES} ${libelf_LIBRARIES} ${libyaml_LIBRARIES})
+target_link_libraries(vita-libs-gen ${libyaml_LIBRARIES})
+target_link_libraries(vita-elf-create ${libelf_LIBRARIES} ${libyaml_LIBRARIES})
 target_link_libraries(vita-pack-vpk ${libzip_LIBRARIES} ${zlib_LIBRARIES})
-target_link_libraries(vita-elf-export ${Jansson_LIBRARIES} ${libyaml_LIBRARIES})
+target_link_libraries(vita-elf-export ${libyaml_LIBRARIES})
 
 install(TARGETS vita-libs-gen DESTINATION bin)
 install(TARGETS vita-elf-create DESTINATION bin)
