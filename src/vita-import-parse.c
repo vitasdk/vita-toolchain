@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "vita-import.h"
 #include "yamltree.h"
 #include "yamltreeutil.h"
@@ -120,7 +121,7 @@ int process_library(yaml_node *parent, yaml_node *child, vita_imports_module_t *
 	return 0;
 }
 
-int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_lib_t *import) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting library key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
 		return -1;
@@ -128,12 +129,16 @@ int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_module_t
 	
 	yaml_scalar *key = &parent->data.scalar;
 	
+	vita_imports_module_t *library = vita_imports_module_new("",false,0,0,0);
+	
 	// default values
 	library->name = strdup(key->value);
 
 	if (yaml_iterate_mapping(child, (mapping_functor)process_library, library) < 0)
 		return -1;
-		
+
+	import->modules = realloc(import->modules, (import->n_modules+1)*sizeof(vita_imports_module_t*));
+	import->modules[import->n_modules++] = library;
 		
 	return 0;
 }
@@ -159,16 +164,9 @@ int process_import(yaml_node *parent, yaml_node *child, vita_imports_lib_t *impo
 	}
 	else if (strcmp(key->value, "libraries") == 0) {
 			
-		vita_imports_module_t *library = vita_imports_module_new("",false,0,0,0);
-		
-		// default values
-		library->name = strdup(key->value);
-
-		if (yaml_iterate_mapping(child, (mapping_functor)process_libraries, library) < 0)
+		if (yaml_iterate_mapping(child, (mapping_functor)process_libraries, import) < 0)
 			return -1;
 
-		import->modules = realloc(import->modules, (import->n_modules+1)*sizeof(vita_imports_module_t*));
-		import->modules[import->n_modules++] = library;
 	}
 	else {
 		fprintf(stderr, "error: line: %zd, column: %zd, unrecognised module key '%s'.\n", child->position.line, child->position.column, key->value);
