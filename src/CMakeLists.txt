@@ -19,10 +19,6 @@ if(DEFINED ZIP_STATIC)
 	add_definitions(-DZIP_STATIC)
 endif()
 
-if(DEFINED DEFAULT_JSON)
-	add_definitions(-DDEFAULT_JSON="${DEFAULT_JSON}")
-endif()
-
 if (WIN32)
 	add_definitions(-DYAML_DECLARE_STATIC)
 endif()
