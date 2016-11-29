@@ -44,7 +44,7 @@ int pack_export_symbols(yaml_emitter_t * emitter, yaml_event_t *event, vita_expo
 	for (int i = 0; i < symbol_n; ++i)
 	{		
 
-		if( !yamlemitter_key_value(emitter, event, symbols[i]->name, strdup(hextostr(buffer,symbols[i]->nid))))
+		if( !yamlemitter_key_value(emitter, event, symbols[i]->name, hextostr(buffer,symbols[i]->nid)))
 			return 0;
 			
 	}
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 	if( !yamlemitter_mapping_start(&emitter, &event))
 		goto error;
 	
-	if( !yamlemitter_key_value(&emitter, &event,"nid",strdup(hextostr(buffer,exports->nid))))
+	if( !yamlemitter_key_value(&emitter, &event,"nid",hextostr(buffer,exports->nid)))
 		goto error;
 		
 	if( !yamlemitter_key(&emitter, &event,"libraries"))
@@ -168,10 +168,10 @@ int main(int argc, char *argv[])
 		if( !yamlemitter_mapping_start(&emitter, &event))
 			goto error;
 			
-		if( !yamlemitter_key_value(&emitter, &event,"nid",strdup(hextostr(buffer,lib->nid))))
+		if( !yamlemitter_key_value(&emitter, &event,"nid",hextostr(buffer,lib->nid)))
 			goto error;
 		
-		if( !yamlemitter_key_value(&emitter, &event,"kernel",strdup(booltostr(buffer,kernel_lib))))
+		if( !yamlemitter_key_value(&emitter, &event,"kernel",booltostr(buffer,kernel_lib)))
 			goto error;
 		
 		
