@@ -20,31 +20,31 @@ static void show_usage(void)
 }
 
 char* hextostr(char *buf, int x){
-		sprintf(buf,"0x%x",x);
-		return buf;
+	sprintf(buf,"0x%x",x);
+	return buf;
 }
 
 char* booltostr(char *buf, int x){
-		if(x){
-			sprintf(buf,"true");
-		}else{
-			sprintf(buf,"false");
-		}
-		
-		return buf;
+	if(x){
+		sprintf(buf,"true");
+	}else{
+		sprintf(buf,"false");
+	}
+	
+	return buf;
 }
 
 int pack_export_symbols(yaml_emitter_t * emitter, yaml_event_t *event, vita_export_symbol **symbols, size_t symbol_n)
 {
 	char buffer[100];
 
-	if( !yamlemitter_mapping_start(emitter, event))
+	if(!yamlemitter_mapping_start(emitter, event))
 		return 0;
 		
 	for (int i = 0; i < symbol_n; ++i)
 	{		
 
-		if( !yamlemitter_key_value(emitter, event, symbols[i]->name, hextostr(buffer,symbols[i]->nid)))
+		if(!yamlemitter_key_value(emitter, event, symbols[i]->name, hextostr(buffer,symbols[i]->nid)))
 			return 0;
 			
 	}
@@ -113,34 +113,34 @@ int main(int argc, char *argv[])
 	yaml_emitter_set_output_file(&emitter, fp);
 
 	/* Create and emit the STREAM-START event. */
-	if( !yamlemitter_stream_start(&emitter, &event))
+	if(!yamlemitter_stream_start(&emitter, &event))
 		goto error;
 		
-	if( !yamlemitter_document_start(&emitter, &event))
+	if(!yamlemitter_document_start(&emitter, &event))
 		goto error;
 		
-	if( !yamlemitter_mapping_start(&emitter, &event))
+	if(!yamlemitter_mapping_start(&emitter, &event))
 		goto error;
 		
-	if( !yamlemitter_key(&emitter, &event,"modules"))
+	if(!yamlemitter_key(&emitter, &event,"modules"))
 		goto error;
 		
-	if( !yamlemitter_mapping_start(&emitter, &event))
+	if(!yamlemitter_mapping_start(&emitter, &event))
 		goto error;
 			
-	if( !yamlemitter_key(&emitter, &event,exports->name))
+	if(!yamlemitter_key(&emitter, &event,exports->name))
 		goto error;
 
-	if( !yamlemitter_mapping_start(&emitter, &event))
+	if(!yamlemitter_mapping_start(&emitter, &event))
 		goto error;
 	
-	if( !yamlemitter_key_value(&emitter, &event,"nid",hextostr(buffer,exports->nid)))
+	if(!yamlemitter_key_value(&emitter, &event,"nid",hextostr(buffer,exports->nid)))
 		goto error;
 		
-	if( !yamlemitter_key(&emitter, &event,"libraries"))
+	if(!yamlemitter_key(&emitter, &event,"libraries"))
 		goto error;
 					
-	if( !yamlemitter_mapping_start(&emitter, &event))
+	if(!yamlemitter_mapping_start(&emitter, &event))
 		goto error;
 	
 	for (int i = 0; i < exports->module_n; ++i)
@@ -162,22 +162,22 @@ int main(int argc, char *argv[])
 			}
 		}
 		
-		if( !yamlemitter_key(&emitter, &event, lib->name))
+		if(!yamlemitter_key(&emitter, &event, lib->name))
 			goto error;
 		
-		if( !yamlemitter_mapping_start(&emitter, &event))
+		if(!yamlemitter_mapping_start(&emitter, &event))
 			goto error;
 			
-		if( !yamlemitter_key_value(&emitter, &event,"nid",hextostr(buffer,lib->nid)))
+		if(!yamlemitter_key_value(&emitter, &event,"nid",hextostr(buffer,lib->nid)))
 			goto error;
 		
-		if( !yamlemitter_key_value(&emitter, &event,"kernel",booltostr(buffer,kernel_lib)))
+		if(!yamlemitter_key_value(&emitter, &event,"kernel",booltostr(buffer,kernel_lib)))
 			goto error;
 		
 		
 		if(lib->function_n){
 			
-			if( !yamlemitter_key(&emitter, &event, "functions"))
+			if(!yamlemitter_key(&emitter, &event, "functions"))
 				goto error;
 					
 			if(!pack_export_symbols(&emitter, &event, lib->functions, lib->function_n))
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
 		
 		if(lib->variable_n){
 			
-			if( !yamlemitter_key(&emitter, &event, "variables"))
+			if(!yamlemitter_key(&emitter, &event, "variables"))
 				goto error;
 				
 			if(!pack_export_symbols(&emitter, &event, lib->variables, lib->variable_n))
@@ -199,22 +199,22 @@ int main(int argc, char *argv[])
 			
 	}
 	
-	if( !yamlemitter_mapping_end(&emitter, &event))
+	if(!yamlemitter_mapping_end(&emitter, &event))
 		goto error;
 	
-	if( !yamlemitter_mapping_end(&emitter, &event))
+	if(!yamlemitter_mapping_end(&emitter, &event))
 		goto error;
 
-	if( !yamlemitter_mapping_end(&emitter, &event))
+	if(!yamlemitter_mapping_end(&emitter, &event))
 		goto error;
 	
-	if( !yamlemitter_mapping_end(&emitter, &event))
+	if(!yamlemitter_mapping_end(&emitter, &event))
 		goto error;
 
-	if( !yamlemitter_document_end(&emitter, &event))
+	if(!yamlemitter_document_end(&emitter, &event))
 		goto error;
 		
-	if( !yamlemitter_stream_end(&emitter, &event))
+	if(!yamlemitter_stream_end(&emitter, &event))
 		goto error;
 
 	/* On error. */
