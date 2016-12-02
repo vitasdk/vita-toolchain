@@ -12,8 +12,16 @@ int generate_assembly(vita_imports_t **imports, int imports_count);
 int generate_makefile(vita_imports_t **imports, int imports_count);
 int generate_cmake(vita_imports_t **imports, int imports_count);
 
-int main(int argc, char *argv[])
+int main(int argc, const char **argv)
 {
+	int cmake = 0;
+
+	if (argc > 1 && strcmp(argv[1], "-c") == 0) {
+		cmake = 1;
+		argc--;
+		argv++;
+	}
+
 	if (argc < 3) {
 		usage();
 		goto exit_failure;
@@ -51,9 +59,16 @@ int main(int argc, char *argv[])
 		goto exit_failure;
 	}
 
-	if (!generate_cmake(imports, imports_count)) {
-		fprintf(stderr, "Error generating the assembly makefile\n");
-		goto exit_failure;
+	if (cmake) {
+		if (!generate_cmake(imports, imports_count)) {
+			fprintf(stderr, "Error generating the assembly makefile\n");
+			goto exit_failure;
+		}
+	} else {
+		if (!generate_makefile(imports, imports_count)) {
+			fprintf(stderr, "Error generating the assembly makefile\n");
+			goto exit_failure;
+		}
 	}
 
 	for (i = 0; i < imports_count; i++)
@@ -333,9 +348,10 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 	fputs(
 		"ARCH ?= arm-vita-eabi\n"
-		"AS = $(ARCH)-as\n"
+		"CC = $(ARCH)-gcc\n"
 		"AR = $(ARCH)-ar\n"
-		"RANLIB = $(ARCH)-ranlib\n\n"
+		"RANLIB = $(ARCH)-ranlib\n"
+		"CFLAGS = -c\n\n"
 		"TARGETS =", fp);
 
 	for (h = 0; h < imports_count; h++) {
@@ -354,6 +370,14 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 		}
 	}
 
+	fprintf(fp, "\nTARGETS_WEAK =");
+	for (h = 0; h < imports_count; h++) {
+		vita_imports_t *imp = imports[h];
+		for (i = 0; i < imp->n_libs; i++) {
+			fprintf(fp, " lib%s_stub_weak.a", imp->libs[i]->name);
+		}
+	}
+
 	fprintf(fp, "\n\n");
 
 	for (h = 0; h < imports_count; h++) {
@@ -362,31 +386,33 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 			vita_imports_lib_t *library = imp->libs[i];
 			is_special = (strcmp(KERNEL_LIBS_STUB, library->name) == 0);
 
-			if (!is_special) {
-				fprintf(fp, "%s_OBJS =", library->name);
-			}
-
-			for (j = 0; j < library->n_modules; j++) {
-				vita_imports_module_t *module = library->modules[j];
-
-				if(module->is_kernel)
-					continue;
-
-				char buf[4096];
-				for (k = 0; k < module->n_functions; k++) {
-					vita_imports_stub_t *function = module->functions[k];
-					snprintf(buf, sizeof(buf), " %s_%s_%s.o", library->name, module->name, function->name);
-					write_symbol(buf, is_special);
+			for (int weak = 0; weak < 2; weak++) {
+				if (!is_special) {
+					fprintf(fp, "%s%s =", library->name, weak ? "_weak_OBJS" : "_OBJS");
 				}
-				for (k = 0; k < module->n_variables; k++) {
-					vita_imports_stub_t *variable = module->variables[k];
-					snprintf(buf, sizeof(buf), " %s_%s_%s.o", library->name, module->name, variable->name);
-					write_symbol(buf, is_special);
-				}
-			}
 
-			if (!is_special) {
-				fprintf(fp, "\n");
+				for (j = 0; j < library->n_modules; j++) {
+					vita_imports_module_t *module = library->modules[j];
+
+					if(module->is_kernel)
+						continue;
+
+					char buf[4096];
+					for (k = 0; k < module->n_functions; k++) {
+						vita_imports_stub_t *function = module->functions[k];
+						snprintf(buf, sizeof(buf), " %s_%s_%s.%s", library->name, module->name, function->name, weak ? "wo" : "o");
+						write_symbol(buf, is_special);
+					}
+					for (k = 0; k < module->n_variables; k++) {
+						vita_imports_stub_t *variable = module->variables[k];
+						snprintf(buf, sizeof(buf), " %s_%s_%s.%s", library->name, module->name, variable->name, weak ? "wo" : "o");
+						write_symbol(buf, is_special);
+					}
+				}
+
+				if (!is_special) {
+					fprintf(fp, "\n");
+				}
 			}
 
 			for (j = 0; j < library->n_modules; j++) {
@@ -421,22 +447,29 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 	fputs(
 		"ALL_OBJS=\n\n"
-		"all: $(TARGETS)\n\n"
+		"all: $(TARGETS) $(TARGETS_WEAK)\n\n"
 		"define LIBRARY_template\n"
 		" $(1): $$($(1:lib%_stub.a=%)_OBJS)\n"
 		" ALL_OBJS += $$($(1:lib%_stub.a=%)_OBJS)\n"
+		"endef\n"
+		"define LIBRARY_WEAK_template\n"
+		" $(1): $$($(1:lib%_stub_weak.a=%)_weak_OBJS)\n"
+		" ALL_OBJS += $$($(1:lib%_stub_weak.a=%)_weak_OBJS)\n"
 		"endef\n\n"
-		"$(foreach library,$(TARGETS),$(eval $(call LIBRARY_template,$(library))))\n\n"
-		"all: $(TARGETS)\n\n"
-		"install: $(TARGETS)\n"
-		"\tcp $(TARGETS) $(VITASDK)/arm-vita-eabi/lib\n\n"
-		"clean:\n\n"
-		"\trm -f $(TARGETS) $(ALL_OBJS)\n\n"
-		"$(TARGETS):\n"
+		"$(foreach library,$(TARGETS),$(eval $(call LIBRARY_template,$(library))))\n"
+		"$(foreach library,$(TARGETS_WEAK),$(eval $(call LIBRARY_WEAK_template,$(library))))\n\n"
+		"install: $(TARGETS) $(TARGETS_WEAK)\n"
+		"\tcp $(TARGETS) $(VITASDK)/arm-vita-eabi/lib\n"
+		"\tcp $(TARGETS_WEAK) $(VITASDK)/arm-vita-eabi/lib\n\n"
+		"clean:\n"
+		"\trm -f $(TARGETS) $(TARGETS_WEAK) $(ALL_OBJS)\n\n"
+		"$(TARGETS) $(TARGETS_WEAK):\n"
 		"\t$(AR) cru $@ $?\n"
 		"\t$(RANLIB) $@\n\n"
 		"%.o: %.S\n"
-		"\t$(AS) $< -o $@\n"
+		"\t$(CC) $(CFLAGS) $< -o $@\n\n"
+		"%.wo: %.S\n"
+		"\t$(CC) $(CFLAGS) -DGEN_WEAK_EXPORTS $< -o $@\n"
 		, fp);
 
 	fclose(fp);
@@ -449,6 +482,7 @@ void usage()
 {
 	fprintf(stderr,
 		"vita-libs-gen by xerpi\n"
-		"usage:\n\tvita-libs-gen nids.json [extra.json ...] output-dir\n"
+		"usage:\n\tvita-libs-gen [-c] nids.json [extra.json ...] output-dir\n"
+		"\t-c: Generate CMakeLists.txt instead of a Makefile"
 	);
 }
