@@ -2,36 +2,43 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <zlib.h>
 
 #include "self.h"
 
-void usage(char *argv[]) {
-	fprintf(stderr, "Usage: %s [-s] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "make_fself");
-	fprintf(stderr, "\t-s: Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
+void usage(const char **argv) {
+	fprintf(stderr, "Usage: %s [-s|-ss] [-c] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "make_fself");
+	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
+	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
+	fprintf(stderr, "\t-c : Enable compression.\n");
 	exit(1);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char **argv) {
 	const char *input_path, *output_path;
 	FILE *fin = NULL;
 	FILE *fout = NULL;
 
-	if (argc != 3 && argc != 4)
+	argc--;
+	argv++; // strip first argument
+	if (argc < 2)
 		usage(argv);
 
 	int safe = 0;
-	if (argc == 4) {
-		if (strcmp(argv[1], "-s") == 0)
-			safe = 1;
-		else
-			usage(argv);
-
-		input_path = argv[2];
-		output_path = argv[3];
-	} else {
-		input_path = argv[1];
-		output_path = argv[2];
+	int compressed = 0;
+	while (argc > 2) {
+		if (strcmp(*argv, "-s") == 0) {
+			safe = 2;
+		} else if (strcmp(*argv, "-ss") == 0) {
+			safe = 3;
+		} else if (strcmp(*argv, "-c") == 0) {
+			compressed = 1;
+		}
+		argc--;
+		argv++;
 	}
+	input_path = argv[0];
+	output_path = argv[1];
 
 	fin = fopen(input_path, "rb");
 	if (!fin) {
@@ -86,7 +93,7 @@ int main(int argc, char *argv[]) {
 
 	SCE_appinfo appinfo = { 0 };
 	if (safe)
-		appinfo.authid = 0x2F00000000000002ULL;
+		appinfo.authid = 0x2F00000000000000ULL | safe;
 	else
 		appinfo.authid = 0x2F00000000000001ULL;
 	appinfo.vendor_id = 0;
@@ -152,6 +159,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// convert elf phdr info to segment info that sony loader expects
+	// first round we assume no compression
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
 		e_phdr *phdr = (e_phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 		segment_info sinfo = { 0 };
@@ -175,9 +183,38 @@ int main(int argc, char *argv[]) {
 
 	fseek(fout, HEADER_LEN, SEEK_SET);
 
-	if (fwrite(input, sz, 1, fout) != 1) {
-		perror("Failed to write a copy of input ELF");
-		goto error;
+	if (!compressed) {
+		if (fwrite(input, sz, 1, fout) != 1) {
+			perror("Failed to write a copy of input ELF");
+			goto error;
+		}
+	} else {
+		for (int i = 0; i < ehdr->e_phnum; ++i) {
+			e_phdr *phdr = (e_phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
+			segment_info sinfo = { 0 };
+			unsigned char *buf = malloc(2 * phdr->p_filesz + 12);
+			sinfo.length = 2 * phdr->p_filesz + 12;
+			if (compress2(buf, (uLongf *)&sinfo.length, (unsigned char *)input + offset_to_real_elf + phdr->p_offset, phdr->p_filesz, Z_BEST_COMPRESSION) != Z_OK) {
+				free(buf);
+				perror("compress failed");
+				goto error;
+			}
+			sinfo.offset = ftell(fout);
+			sinfo.compression = 2;
+			sinfo.encryption = 2;
+			fseek(fout, hdr.section_info_offset + i * sizeof(segment_info), SEEK_SET);
+			if (fwrite(&sinfo, sizeof(sinfo), 1, fout) != 1) {
+				perror("Failed to write segment info");
+				free(buf);
+				goto error;
+			}
+			fseek(fout, sinfo.offset, SEEK_SET);
+			if (fwrite(buf, sinfo.length, 1, fout) != 1) {
+				perror("Failed to write segment to fself");
+				goto error;
+			}
+			free(buf);
+		}
 	}
 
 	fclose(fout);
