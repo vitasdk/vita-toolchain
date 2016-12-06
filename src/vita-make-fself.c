@@ -7,10 +7,10 @@
 #include "self.h"
 
 void usage(const char **argv) {
-	fprintf(stderr, "Usage: %s [-s|-ss] [-d] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "make_fself");
+	fprintf(stderr, "Usage: %s [-s|-ss] [-c] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "make_fself");
 	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
-	fprintf(stderr, "\t-d : Disable compression.\n");
+	fprintf(stderr, "\t-c : Enable compression.\n");
 	exit(1);
 }
 
@@ -25,14 +25,14 @@ int main(int argc, const char **argv) {
 		usage(argv);
 
 	int safe = 0;
-	int compressed = 1;
+	int compressed = 0;
 	while (argc > 2) {
 		if (strcmp(*argv, "-s") == 0) {
 			safe = 2;
 		} else if (strcmp(*argv, "-ss") == 0) {
 			safe = 3;
-		} else if (strcmp(*argv, "-d") == 0) {
-			compressed = 0;
+		} else if (strcmp(*argv, "-c") == 0) {
+			compressed = 1;
 		}
 		argc--;
 		argv++;
