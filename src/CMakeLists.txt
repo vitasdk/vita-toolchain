@@ -33,6 +33,7 @@ target_link_libraries(vita-libs-gen ${libyaml_LIBRARIES})
 target_link_libraries(vita-elf-create ${libelf_LIBRARIES} ${libyaml_LIBRARIES})
 target_link_libraries(vita-pack-vpk ${libzip_LIBRARIES} ${zlib_LIBRARIES})
 target_link_libraries(vita-elf-export ${libyaml_LIBRARIES})
+target_link_libraries(vita-make-fself ${zlib_LIBRARIES})
 
 install(TARGETS vita-libs-gen DESTINATION bin)
 install(TARGETS vita-elf-create DESTINATION bin)
