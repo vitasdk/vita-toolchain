@@ -3,7 +3,6 @@ find_package(zlib REQUIRED)
 find_package(libzip REQUIRED)
 find_package(libyaml REQUIRED)
 
-include_directories(${Jansson_INCLUDE_DIRS})
 include_directories(${libelf_INCLUDE_DIRS})
 include_directories(${zlib_INCLUDE_DIRS})
 include_directories(${libzip_INCLUDE_DIRS})
