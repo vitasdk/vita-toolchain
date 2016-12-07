@@ -194,10 +194,15 @@ int main(int argc, const char **argv) {
 			segment_info sinfo = { 0 };
 			unsigned char *buf = malloc(2 * phdr->p_filesz + 12);
 			sinfo.length = 2 * phdr->p_filesz + 12;
-			if (compress2(buf, (uLongf *)&sinfo.length, (unsigned char *)input + offset_to_real_elf + phdr->p_offset, phdr->p_filesz, Z_BEST_COMPRESSION) != Z_OK) {
+			if (compress2(buf, (uLongf *)&sinfo.length, (unsigned char *)input + phdr->p_offset, phdr->p_filesz, Z_BEST_COMPRESSION) != Z_OK) {
 				free(buf);
 				perror("compress failed");
 				goto error;
+			}
+			// padding
+			uint64_t pad = ((sinfo.length + 3) & ~3) - sinfo.length;
+			for (int i = 0; i < pad; i++) {
+				buf[pad+sinfo.length] = 0;
 			}
 			sinfo.offset = ftell(fout);
 			sinfo.compression = 2;
