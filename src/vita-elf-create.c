@@ -33,8 +33,8 @@ void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 
 	for (i = 0; i < num_stubs; i++) {
 		TRACEF(VERBOSE, "  0x%06x (%s):\n", stubs[i].addr, stubs[i].symbol ? stubs[i].symbol->name : "unreferenced stub");
-		TRACEF(VERBOSE, "    Library: %u (%s)\n", stubs[i].library_nid, stubs[i].library ? stubs[i].library->name : "not found");
-		TRACEF(VERBOSE, "    Module : %u (%s)\n", stubs[i].module_nid, stubs[i].module ? stubs[i].module->name : "not found");
+		TRACEF(VERBOSE, "    Flags  : %u\n", stubs[i].module ? stubs[i].module->flags : 0);
+		TRACEF(VERBOSE, "    Library: %u (%s)\n", stubs[i].module_nid, stubs[i].module ? stubs[i].module->name : "not found");
 		TRACEF(VERBOSE, "    NID    : %u (%s)\n", stubs[i].target_nid, stubs[i].target ? stubs[i].target->name : "not found");
 	}
 }
@@ -121,6 +121,16 @@ void list_segments(vita_elf_t *ve)
 #include <sys/sysctl.h>
 #endif
 
+static int usage(int argc, char *argv[])
+{
+	fprintf(stderr, "usage: %s [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf\n"
+					"\t-v,-vv,-vvv:    logging verbosity (more v is more verbose)\n"
+					"\t-n         :    allow empty imports\n"
+					"\t-e yml     :    optional config options\n"
+					"\tinput.elf  :    input ARM ET_EXEC type ELF\n"
+					"\toutput.velf:    output ET_SCE_RELEXEC type ELF\n", argc > 0 ? argv[0] : "vita-elf-create");
+	return 0;
+}
 
 int main(int argc, char *argv[])
 {
@@ -134,8 +144,10 @@ int main(int argc, char *argv[])
 	int status = EXIT_SUCCESS;
 
 	elf_create_args args = {};
-	if (parse_arguments(argc, argv, &args) < 0)
+	if (parse_arguments(argc, argv, &args) < 0) {
+		usage(argc, argv);
 		return EXIT_FAILURE;
+	}
 
 	g_log = args.log_level;
 

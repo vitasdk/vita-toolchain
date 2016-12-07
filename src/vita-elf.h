@@ -35,13 +35,11 @@ typedef struct vita_elf_rela_table_t {
 
 typedef struct vita_elf_stub_t {
 	Elf32_Addr addr;
-	uint32_t library_nid;
 	uint32_t module_nid;
 	uint32_t target_nid;
 
 	vita_elf_symbol_t *symbol;
 
-	vita_imports_lib_t *library;
 	vita_imports_module_t *module;
 	vita_imports_stub_t *target;
 } vita_elf_stub_t;

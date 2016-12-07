@@ -7,7 +7,7 @@
 #include "self.h"
 
 void usage(const char **argv) {
-	fprintf(stderr, "Usage: %s [-s|-ss] [-c] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "make_fself");
+	fprintf(stderr, "usage: %s [-s|-ss] [-c] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
 	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
 	fprintf(stderr, "\t-c : Enable compression.\n");

@@ -270,10 +270,9 @@ int main(int argc, char **argv)
 	
 	if(!process_args(argc, argv)) 
 	{
-		fprintf(stderr, "Usage: mksfoex [options] TITLE output.sfo\n");
-		fprintf(stderr, "Options:\n");
-		fprintf(stderr, "-d NAME=VALUE - Add a new DWORD value\n");
-		fprintf(stderr, "-s NAME=STR   - Add a new string value\n");
+		fprintf(stderr, "usage: mksfoex [options] TITLE output.sfo\n");
+		fprintf(stderr, "\t-d NAME=VALUE   Add a new DWORD value\n");
+		fprintf(stderr, "\t-s NAME=STR     Add a new string value\n");
 
 		return 1;
 	}
