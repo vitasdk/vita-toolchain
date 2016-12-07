@@ -25,7 +25,7 @@ endif()
 add_executable(vita-libs-gen vita-libs-gen.c vita-import.c vita-import-parse.c yamltree.c yamltreeutil.c)
 add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c vita-import.c vita-import-parse.c vita-export-parse.c elf-defs.c sce-elf.c varray.c elf-utils.c sha256.c yamltree.c yamltreeutil.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
-add_executable(vita-make-fself vita-make-fself.c)
+add_executable(vita-make-fself vita-make-fself.c sha256.c)
 add_executable(vita-pack-vpk vita-pack-vpk.c)
 add_executable(vita-elf-export vita-elf-export.c yamltree.c yamltreeutil.c sha256.c yamlemitter.c vita-export-parse.c)
 

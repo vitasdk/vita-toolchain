@@ -375,23 +375,6 @@ vita_export_t *read_module_exports(yaml_document *doc, uint32_t default_nid) {
 	return export;
 }
 
-static int sha256_32_file(const char *file, uint32_t *nid)
-{
-	uint8_t hash[32];
-	uint8_t *hash_ptr = hash;
-	
-	if (sha256_file(file, hash) < 0)
-	{
-		fprintf(stderr, "error: could not calculate SHA256 of '%s'\n", file);
-		// TODO: handle better, cleanup tree
-		return -1;
-	}
-	
-	size_t len = 32;
-	*nid = sha256_32_vector(1, &hash_ptr, &len);
-	return 0;
-}
-
 vita_export_t *vita_exports_load(const char *filename, const char *elf, int verbose)
 {
 	FILE *fp = fopen(filename, "r");

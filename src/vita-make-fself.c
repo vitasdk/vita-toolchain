@@ -4,7 +4,11 @@
 #include <inttypes.h>
 #include <zlib.h>
 
+typedef struct {} vita_export_t;
+#include "sce-elf.h"
+#include "endian-utils.h"
 #include "self.h"
+#include "sha256.h"
 
 void usage(const char **argv) {
 	fprintf(stderr, "Usage: %s [-s|-ss] [-c] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "make_fself");
@@ -18,6 +22,7 @@ int main(int argc, const char **argv) {
 	const char *input_path, *output_path;
 	FILE *fin = NULL;
 	FILE *fout = NULL;
+	uint32_t mod_nid;
 
 	argc--;
 	argv++; // strip first argument
@@ -39,6 +44,11 @@ int main(int argc, const char **argv) {
 	}
 	input_path = argv[0];
 	output_path = argv[1];
+
+	if (sha256_32_file(input_path, &mod_nid) != 0) {
+		perror("Cannot generate module NID");
+		goto error;
+	}
 
 	fin = fopen(input_path, "rb");
 	if (!fin) {
@@ -65,7 +75,20 @@ int main(int argc, const char **argv) {
 	fclose(fin);
 	fin = NULL;
 
-	ELF_header *ehdr = (ELF_header*)input;
+	Elf32_Ehdr *ehdr = (Elf32_Ehdr*)input;
+
+	// write module nid
+	if (ehdr->e_type == ET_SCE_EXEC) {
+		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff);
+		sce_module_info_raw *info = (sce_module_info_raw *)(input + phdr->p_offset + phdr->p_paddr);
+		info->library_nid = htole32(mod_nid);
+	} else if (ehdr->e_type == ET_SCE_RELEXEC) {
+		int seg = ehdr->e_entry >> 30;
+		int off = ehdr->e_entry & 0x3fffffff;
+		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + seg * ehdr->e_phentsize);
+		sce_module_info_raw *info = (sce_module_info_raw *)(input + phdr->p_offset + off);
+		info->library_nid = htole32(mod_nid);
+	}
 
 	SCE_header hdr = { 0 };
 	hdr.magic = 0x454353; // "SCE\0"
@@ -79,9 +102,9 @@ int main(int argc, const char **argv) {
 	hdr.self_offset = 4;
 	hdr.appinfo_offset = 0x80;
 	hdr.elf_offset = sizeof(SCE_header) + sizeof(SCE_appinfo);
-	hdr.phdr_offset = hdr.elf_offset + sizeof(ELF_header);
+	hdr.phdr_offset = hdr.elf_offset + sizeof(Elf32_Ehdr);
 	// hdr.shdr_offset = ;
-	hdr.section_info_offset = hdr.phdr_offset + sizeof(e_phdr) * ehdr->e_phnum;
+	hdr.section_info_offset = hdr.phdr_offset + sizeof(Elf32_Phdr) * ehdr->e_phnum;
 	hdr.sceversion_offset = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum;
 	hdr.controlinfo_offset = hdr.sceversion_offset + sizeof(SCE_version);
 	hdr.controlinfo_size = sizeof(SCE_controlinfo_5) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7);
@@ -120,7 +143,7 @@ int main(int argc, const char **argv) {
 	control_7.common.type = 7;
 	control_7.common.size = sizeof(control_7);
 
-	ELF_header myhdr = { 0 };
+	Elf32_Ehdr myhdr = { 0 };
 	memcpy(myhdr.e_ident, "\177ELF\1\1\1", 8);
 	myhdr.e_type = ehdr->e_type;
 	myhdr.e_machine = 0x28;
@@ -148,7 +171,7 @@ int main(int argc, const char **argv) {
 	fwrite(&myhdr, sizeof(myhdr), 1, fout);
 	// copy elf phdr in same format
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
-		e_phdr *phdr = (e_phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i);
+		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i);
 		// but fixup alignment, TODO: fix in toolchain
 		if (phdr->p_align > 0x1000)
 			phdr->p_align = 0x1000;
@@ -161,7 +184,7 @@ int main(int argc, const char **argv) {
 	// convert elf phdr info to segment info that sony loader expects
 	// first round we assume no compression
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
-		e_phdr *phdr = (e_phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
+		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 		segment_info sinfo = { 0 };
 		sinfo.offset = offset_to_real_elf + phdr->p_offset;
 		sinfo.length = phdr->p_filesz;
@@ -190,7 +213,7 @@ int main(int argc, const char **argv) {
 		}
 	} else {
 		for (int i = 0; i < ehdr->e_phnum; ++i) {
-			e_phdr *phdr = (e_phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
+			Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 			segment_info sinfo = { 0 };
 			unsigned char *buf = malloc(2 * phdr->p_filesz + 12);
 			sinfo.length = 2 * phdr->p_filesz + 12;

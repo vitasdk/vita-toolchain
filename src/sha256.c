@@ -1,6 +1,7 @@
 #include "sha256.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define READ_BUFFER	(1*1024*1024)
 
@@ -274,4 +275,21 @@ int sha256_file(const char *file, uint8_t *mac)
 	free(data);
 	fclose(fp);
 	return 0;
+}
+
+int sha256_32_file(const char *file, uint32_t *nid)
+{
+  uint8_t hash[32];
+  uint8_t *hash_ptr = hash;
+  
+  if (sha256_file(file, hash) < 0)
+  {
+    fprintf(stderr, "error: could not calculate SHA256 of '%s'\n", file);
+    // TODO: handle better, cleanup tree
+    return -1;
+  }
+  
+  size_t len = 32;
+  *nid = sha256_32_vector(1, &hash_ptr, &len);
+  return 0;
 }
