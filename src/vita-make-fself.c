@@ -4,7 +4,7 @@
 #include <inttypes.h>
 #include <zlib.h>
 
-typedef struct {} vita_export_t;
+#include "vita-export.h"
 #include "sce-elf.h"
 #include "endian-utils.h"
 #include "self.h"
