@@ -111,11 +111,11 @@ int generate_assembly(vita_imports_t **imports, int imports_count)
 						"\t.global %s\n"
 						"\t.type %s, %%function\n"
 						"%s:\n"
-						"#ifdef GEN_WEAK_EXPORTS\n"
+						".if GEN_WEAK_EXPORTS\n"
 						"\t.word 0x00000008\n"
-						"#else\n"
+						".else\n"
 						"\t.word 0x00000000\n"
-						"#endif //GEN_WEAK_EXPORTS\n"
+						".endif //GEN_WEAK_EXPORTS\n"
 						"\t.word 0x%08X\n"
 						"\t.word 0x%08X\n"
 						"\t.align 4\n\n",
@@ -139,11 +139,11 @@ int generate_assembly(vita_imports_t **imports, int imports_count)
 						"\t.global %s\n"
 						"\t.type %s, %%object\n"
 						"%s:\n"
-						"#ifdef GEN_WEAK_EXPORTS\n"
+						".if GEN_WEAK_EXPORTS\n"
 						"\t.word 0x00000008\n"
-						"#else\n"
+						".else\n"
 						"\t.word 0x00000000\n"
-						"#endif //GEN_WEAK_EXPORTS\n"
+						".endif //GEN_WEAK_EXPORTS\n"
 						"\t.word 0x%08X\n"
 						"\t.word 0x%08X\n"
 						"\t.align 4\n\n",
@@ -315,8 +315,9 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 		fputs(
 			"foreach(library ${USER_LIBRARIES})\n"
 			"\tadd_library(${library}_stub STATIC ${${library}_ASM})\n"
+			"\ttarget_compile_definitions(${library}_stub PRIVATE -DGEN_WEAK_EXPORTS=0)\n"
 			"\tadd_library(${library}_stub_weak STATIC ${${library}_ASM})\n"
-			"\ttarget_compile_definitions(${library}_stub_weak PRIVATE -DGEN_WEAK_EXPORTS)\n"
+			"\ttarget_compile_definitions(${library}_stub_weak PRIVATE -DGEN_WEAK_EXPORTS=1)\n"
 			"endforeach(library)\n\n", fp);
 	}
 
@@ -325,6 +326,7 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 		fputs(
 			"foreach(library ${KERNEL_LIBRARIES})\n"
 			"\tadd_library(${library}_stub STATIC ${${library}_ASM})\n"
+			"\ttarget_compile_definitions(${library}_stub PRIVATE -DGEN_WEAK_EXPORTS=0)\n"
 			"endforeach(library)\n\n", fp);
 	}
 
@@ -348,10 +350,9 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 	fputs(
 		"ARCH ?= arm-vita-eabi\n"
-		"CC = $(ARCH)-gcc\n"
+		"AS = $(ARCH)-as\n"
 		"AR = $(ARCH)-ar\n"
-		"RANLIB = $(ARCH)-ranlib\n"
-		"CFLAGS = -c\n\n"
+		"RANLIB = $(ARCH)-ranlib\n\n"
 		"TARGETS =", fp);
 
 	for (h = 0; h < imports_count; h++) {
@@ -467,9 +468,9 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 		"\t$(AR) cru $@ $?\n"
 		"\t$(RANLIB) $@\n\n"
 		"%.o: %.S\n"
-		"\t$(CC) $(CFLAGS) $< -o $@\n\n"
+		"\t$(AS) --defsym GEN_WEAK_EXPORTS=0 $< -o $@\n\n"
 		"%.wo: %.S\n"
-		"\t$(CC) $(CFLAGS) -DGEN_WEAK_EXPORTS $< -o $@\n"
+		"\t$(AS) --defsym GEN_WEAK_EXPORTS=1 $< -o $@\n"
 		, fp);
 
 	fclose(fp);
@@ -483,6 +484,6 @@ void usage()
 	fprintf(stderr,
 		"vita-libs-gen by xerpi\n"
 		"usage:\n\tvita-libs-gen [-c] nids.json [extra.json ...] output-dir\n"
-		"\t-c: Generate CMakeLists.txt instead of a Makefile"
+		"\t-c: Generate CMakeLists.txt instead of a Makefile\n"
 	);
 }
