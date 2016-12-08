@@ -1,0 +1,13 @@
+os:
+  - linux
+dist: trusty
+sudo: false
+language: c
+
+script:
+  - chmod +x build.sh
+  - ./build.sh
+
+notifications:
+  irc:
+    - "chat.freenode.net#vitasdk"
