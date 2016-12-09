@@ -250,10 +250,13 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 
 	fputs(
 		"cmake_minimum_required(VERSION 2.8)\n\n"
-		"# TODO: replace with toolchain\n"
-		"set(CMAKE_SYSTEM_NAME \"Generic\")\n"
-		"set(CMAKE_C_COMPILER \"arm-vita-eabi-gcc\")\n"
-		"set(CMAKE_CXX_COMPILER \"arm-vita-eabi-g++\")\n\n"
+		"if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)\n"
+		"\tif(DEFINED ENV{VITASDK})\n"
+		"\t\tset(CMAKE_TOOLCHAIN_FILE \"$ENV{VITASDK}/share/vita.toolchain.cmake\" CACHE PATH \"toolchain file\")\n"
+		"\telse()\n"
+		"\t\tmessage(FATAL_ERROR \"Please define VITASDK to point to your SDK path!\")\n"
+		"\tendif()\n"
+		"endif()\n"
 		"project(vitalibs)\n"
 		"enable_language(ASM)\n\n", fp);
 
@@ -349,7 +352,10 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 	g_kernel_objs[0] = '\0';
 
 	fputs(
-		"ARCH ?= arm-vita-eabi\n"
+		"ifndef VITASDK\n"
+		"$(error VITASDK is not defined)\n"
+		"endif\n\n"
+		"ARCH ?= $(VITASDK)/bin/arm-vita-eabi\n"
 		"AS = $(ARCH)-as\n"
 		"AR = $(ARCH)-ar\n"
 		"RANLIB = $(ARCH)-ranlib\n\n"
