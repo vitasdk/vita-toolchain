@@ -98,6 +98,7 @@ set( CMAKE_EXE_LINKER_FLAGS    "-Wl,-z,nocopyreloc"      CACHE STRING "executabl
 
 # we require the relocation table
 set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,-q" )
+set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-q" )
 
 # set these global flags for cmake client scripts to change behavior
 set( VITA True )
