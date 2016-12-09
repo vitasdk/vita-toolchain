@@ -11,6 +11,8 @@
 ##   - VITA_MKSFOEX_FLAGS
 ##   - VITA_PACK_VPK_FLAGS
 
+include(CMakeParseArguments)
+
 ##################################################
 ## MACRO: vita_create_self
 ## 
