@@ -352,10 +352,10 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 	g_kernel_objs[0] = '\0';
 
 	fputs(
-		"ifndef VITASDK\n"
-		"$(error VITASDK is not defined)\n"
+		"ifdef VITASDK\n"
+		"PREFIX = $(VITASDK)/bin/\n"
 		"endif\n\n"
-		"ARCH ?= $(VITASDK)/bin/arm-vita-eabi\n"
+		"ARCH ?= $(PREFIX)arm-vita-eabi\n"
 		"AS = $(ARCH)-as\n"
 		"AR = $(ARCH)-ar\n"
 		"RANLIB = $(ARCH)-ranlib\n\n"
