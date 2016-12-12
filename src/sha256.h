@@ -43,5 +43,6 @@ void sha256_vector(size_t num_elem,  uint8_t *addr[],  size_t *len,
 
 uint32_t sha256_32_vector(size_t num_elem, uint8_t *addr[],  size_t *len);
 int sha256_file(const char *file, uint8_t *mac);
+int sha256_32_file(const char *file, uint32_t *nid);
 
 #endif
