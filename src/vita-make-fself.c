@@ -103,12 +103,13 @@ int main(int argc, const char **argv) {
 	hdr.appinfo_offset = 0x80;
 	hdr.elf_offset = sizeof(SCE_header) + sizeof(SCE_appinfo);
 	hdr.phdr_offset = hdr.elf_offset + sizeof(Elf32_Ehdr);
+	hdr.phdr_offset = (hdr.phdr_offset + 0xf) & ~0xf; // align
 	// hdr.shdr_offset = ;
 	hdr.section_info_offset = hdr.phdr_offset + sizeof(Elf32_Phdr) * ehdr->e_phnum;
 	hdr.sceversion_offset = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum;
 	hdr.controlinfo_offset = hdr.sceversion_offset + sizeof(SCE_version);
 	hdr.controlinfo_size = sizeof(SCE_controlinfo_5) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7);
-	hdr.self_filesize = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum + sz;
+	hdr.self_filesize = 0;
 
 	uint32_t offset_to_real_elf = HEADER_LEN;
 
@@ -160,16 +161,18 @@ int main(int argc, const char **argv) {
 		perror("Failed to open output file");
 		goto error;
 	}
-	if (fwrite(&hdr, sizeof(hdr), 1, fout) != 1) {
-		perror("Failed to write SCE header");
-		goto error;
-	}
+
+	fseek(fout, hdr.appinfo_offset, SEEK_SET);
 	if (fwrite(&appinfo, sizeof(appinfo), 1, fout) != 1) {
 		perror("Failed to write appinfo");
 		goto error;
 	}
+
+	fseek(fout, hdr.elf_offset, SEEK_SET);
 	fwrite(&myhdr, sizeof(myhdr), 1, fout);
+
 	// copy elf phdr in same format
+	fseek(fout, hdr.phdr_offset, SEEK_SET);
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
 		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i);
 		// but fixup alignment, TODO: fix in toolchain
@@ -183,6 +186,7 @@ int main(int argc, const char **argv) {
 
 	// convert elf phdr info to segment info that sony loader expects
 	// first round we assume no compression
+	fseek(fout, hdr.section_info_offset, SEEK_SET);
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
 		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 		segment_info sinfo = { 0 };
@@ -196,17 +200,19 @@ int main(int argc, const char **argv) {
 		}
 	}
 
+	fseek(fout, hdr.sceversion_offset, SEEK_SET);
 	if (fwrite(&ver, sizeof(ver), 1, fout) != 1) {
 		perror("Failed to write SCE_version");
 		goto error;
 	}
+
+	fseek(fout, hdr.controlinfo_offset, SEEK_SET);
 	fwrite(&control_5, sizeof(control_5), 1, fout);
 	fwrite(&control_6, sizeof(control_6), 1, fout);
 	fwrite(&control_7, sizeof(control_7), 1, fout);
 
-	fseek(fout, HEADER_LEN, SEEK_SET);
-
 	if (!compressed) {
+		fseek(fout, HEADER_LEN, SEEK_SET);
 		if (fwrite(input, sz, 1, fout) != 1) {
 			perror("Failed to write a copy of input ELF");
 			goto error;
@@ -244,6 +250,14 @@ int main(int argc, const char **argv) {
 			free(buf);
 		}
 	}
+
+	hdr.self_filesize = ftell(fout);
+	fseek(fout, 0, SEEK_SET);
+	if (fwrite(&hdr, sizeof(hdr), 1, fout) != 1) {
+		perror("Failed to write SCE header");
+		goto error;
+	}
+
 
 	fclose(fout);
 
