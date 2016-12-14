@@ -19,14 +19,14 @@ include(CMakeParseArguments)
 ## Generate a SELF from an ARM EABI ELF
 ##   vita_create_self(target source
 ##                    [CONFIG file]
-##                    [NONCOMPRESSED]
+##                    [UNCOMPRESSED]
 ##                    [UNSAFE])
 ## 
 ## @param target
 ##   A CMake custom target of this given name
 ## @param source
 ##   The ARM EABI ELF target (from add_executable for example)
-## @param[opt] NONCOMPRESSED
+## @param[opt] UNCOMPRESSED
 ##   Do NOT compress the result SELF (compression is default)
 ## @param[opt] UNSAFE
 ##   The homebrew uses private/system APIs and requires extended permissions
@@ -37,14 +37,14 @@ macro(vita_create_self target source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
-  set(options NONCOMPRESSED UNSAFE)
+  set(options UNCOMPRESSED UNSAFE)
   set(oneValueArgs CONFIG)
   cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
 
   if(vita_create_self_CONFIG)
     set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -e ${vita_create_self_CONFIG}")
   endif()
-  if(NOT vita_create_self_NONCOMPRESSED)
+  if(NOT vita_create_self_UNCOMPRESSED)
     set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -c")
   endif()
   if(NOT vita_create_self_UNSAFE)
