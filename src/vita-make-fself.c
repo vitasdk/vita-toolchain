@@ -251,6 +251,7 @@ int main(int argc, const char **argv) {
 		}
 	}
 
+	fseek(fout, 0, SEEK_END);
 	hdr.self_filesize = ftell(fout);
 	fseek(fout, 0, SEEK_SET);
 	if (fwrite(&hdr, sizeof(hdr), 1, fout) != 1) {
