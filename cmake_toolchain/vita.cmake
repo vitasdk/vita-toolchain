@@ -42,7 +42,8 @@ macro(vita_create_self target source)
   cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
 
   if(vita_create_self_CONFIG)
-    set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -e ${vita_create_self_CONFIG}")
+    get_filename_component(fconfig ${vita_create_self_CONFIG} ABSOLUTE)
+    set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -e ${fconfig}")
   endif()
   if(NOT vita_create_self_UNCOMPRESSED)
     set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -c")
@@ -96,9 +97,10 @@ macro(vita_create_stubs target-dir source config)
     set(kind user)
   endif()
   separate_arguments(VITA_ELF_EXPORT_FLAGS)
+  get_filename_component(fconfig ${config} ABSOLUTE)
   add_custom_command(OUTPUT ${target-dir}.yml
-    COMMAND ${VITA_ELF_EXPORT} ${kind} ${VITA_ELF_EXPORT_FLAGS} ${source} ${config} ${target-dir}.yml
-    DEPENDS ${source} ${config}
+    COMMAND ${VITA_ELF_EXPORT} ${kind} ${VITA_ELF_EXPORT_FLAGS} ${source} ${fconfig} ${target-dir}.yml
+    DEPENDS ${source} ${fconfig}
     COMMENT "Generating imports YAML for ${source}"
   )
   separate_arguments(VITA_LIBS_GEN_FLAGS)
