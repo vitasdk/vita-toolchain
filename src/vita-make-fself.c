@@ -11,10 +11,11 @@
 #include "sha256.h"
 
 void usage(const char **argv) {
-	fprintf(stderr, "usage: %s [-s|-ss] [-c] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
+	fprintf(stderr, "usage: %s [-s|-ss] [-c] [-a 0x2XXXXXXXXXXXXXXX] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
 	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
 	fprintf(stderr, "\t-c : Enable compression.\n");
+	fprintf(stderr, "\t-a : Authid for more permissions (SceShell: 0x2800000000000001).\n");
 	exit(1);
 }
 
@@ -31,6 +32,7 @@ int main(int argc, const char **argv) {
 
 	int safe = 0;
 	int compressed = 0;
+	uint64_t authid = 0;
 	while (argc > 2) {
 		if (strcmp(*argv, "-s") == 0) {
 			safe = 2;
@@ -38,6 +40,12 @@ int main(int argc, const char **argv) {
 			safe = 3;
 		} else if (strcmp(*argv, "-c") == 0) {
 			compressed = 1;
+		} else if (strcmp(*argv, "-a") == 0) {
+			argc--;
+			argv++;
+			
+			if (argc > 2)
+				authid = strtoull(*argv, NULL, 0);
 		}
 		argc--;
 		argv++;
@@ -116,10 +124,14 @@ int main(int argc, const char **argv) {
 	// SCE_header should be ok
 
 	SCE_appinfo appinfo = { 0 };
-	if (safe)
-		appinfo.authid = 0x2F00000000000000ULL | safe;
-	else
-		appinfo.authid = 0x2F00000000000001ULL;
+	if (authid) {
+		appinfo.authid = authid;
+	} else {
+		if (safe)
+			appinfo.authid = 0x2F00000000000000ULL | safe;
+		else
+			appinfo.authid = 0x2F00000000000001ULL;
+	}
 	appinfo.vendor_id = 0;
 	appinfo.self_type = 8;
 	appinfo.version = 0x1000000000000;
