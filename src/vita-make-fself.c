@@ -44,7 +44,7 @@ int main(int argc, const char **argv) {
 			argc--;
 			argv++;
 			
-			if (argc > 2)
+			if (argc > 3)
 				authid = strtoull(*argv, NULL, 0);
 		}
 		argc--;
