@@ -1,361 +1,153 @@
-/*
-# _____	 ___ ____	 ___ ____
-#  ____|   |	____|   |		| |____|
-# |	 ___|   |	 ___|	____| |	\	PSPDEV Open Source Project.
-#-----------------------------------------------------------------------
-# Review pspsdk README & LICENSE files for further details.
-#
-# New and improved mksfo
-# $Id$
-*/
 #include <stdio.h>
-#include <stdint.h>
-#include <string.h>
 #include <stdlib.h>
-#include "getopt.h"
-#include "types.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
 
-#define PSF_MAGIC	0x46535000
-#define PSF_VERSION  0x00000101
+#define EXPECT(EXPR, FMT, ...) if(!(EXPR))return fprintf(stderr,FMT"\n",##__VA_ARGS__),-1;
 
-struct SfoHeader 
-{
+#define PSF_MAGIC   0x46535000
+#define PSF_VERSION 0x00000101
+#define MAX_ENTRY (256)
+
+#define SW(VAL) (VAL)
+#define SH(VAL) (VAL)
+#define ALIGN32(VAL) ((VAL + 3) & ~3)
+
+typedef struct{
 	uint32_t magic;
 	uint32_t version;
 	uint32_t keyofs;
 	uint32_t valofs;
 	uint32_t count;
-};
+}sfo_header_t;
 
-struct SfoEntry
-{
+typedef struct{
 	uint16_t nameofs;
 	uint8_t  alignment;
 	uint8_t  type;
 	uint32_t valsize;
 	uint32_t totalsize;
 	uint32_t dataofs;
-};
+}sfo_entry_t;
 
-#define PSF_TYPE_BIN  0
-#define PSF_TYPE_STR  2
-#define PSF_TYPE_VAL  4
-
-struct EntryContainer
-{
+typedef struct{
 	const char *name;
-	int type;
 	uint32_t value;
 	const char *data;
-};
+}entry_t;
 
-struct EntryContainer g_defaults[] = {
-	{ "APP_VER", PSF_TYPE_STR, 0, "00.00" },
-	{ "ATTRIBUTE", PSF_TYPE_VAL, 0x8000, NULL },
-	{ "ATTRIBUTE2", PSF_TYPE_VAL, 0, NULL },
-	{ "ATTRIBUTE_MINOR", PSF_TYPE_VAL, 0x10, NULL },
-	{ "BOOT_FILE", PSF_TYPE_STR, 32, "" },
-	{ "CATEGORY", PSF_TYPE_STR, 0, "gd" },
-	{ "CONTENT_ID", PSF_TYPE_STR, 48, "" },
-	{ "EBOOT_APP_MEMSIZE", PSF_TYPE_VAL, 0, NULL },
-	{ "EBOOT_ATTRIBUTE", PSF_TYPE_VAL, 0, NULL },
-	{ "EBOOT_PHY_MEMSIZE", PSF_TYPE_VAL, 0, NULL },
-	{ "LAREA_TYPE", PSF_TYPE_VAL, 0, NULL },
-	{ "NP_COMMUNICATION_ID", PSF_TYPE_STR, 16, "" },
-	{ "PARENTAL_LEVEL", PSF_TYPE_VAL, 0, NULL },
-	{ "PSP2_DISP_VER", PSF_TYPE_STR, 0, "00.000" },
-	{ "PSP2_SYSTEM_VER", PSF_TYPE_VAL, 0, NULL },
-	{ "STITLE", PSF_TYPE_STR, 52, "Homebrew" },
-	{ "TITLE", PSF_TYPE_STR, 0x80, "Homebrew" },
-	{ "TITLE_ID", PSF_TYPE_STR, 0, "ABCD99999" },
-	{ "VERSION", PSF_TYPE_STR, 0, "00.00" },
-};
-
-#define MAX_OPTIONS (256)
-
-static const char *g_title = NULL;
-static const char *g_filename = NULL;
-static int g_empty = 0;
-static struct EntryContainer g_vals[MAX_OPTIONS];
-
-static struct option arg_opts[] = 
+entry_t *entry_find(entry_t*entries, const char *name)
 {
-	{"dword", required_argument, NULL, 'd'},
-	{"string", required_argument, NULL, 's'},
-	{"empty", no_argument, NULL, 'e'},
-	{ NULL, 0, NULL, 0 }
-};
-
-struct EntryContainer *find_free()
-{
-	int i;
-
-	for(i = 0; i < MAX_OPTIONS; i++)
-	{
-		if(g_vals[i].name == NULL)
-		{
-			return &g_vals[i];
-		}
-	}
-
+	//fprintf(stderr,"%s : %s\n",__FUNCTION__, name);
+	for(int i = 0; i < MAX_ENTRY; i++)
+		if((!name && !entries[i].name)
+		 ||( name &&  entries[i].name && !strcmp(entries[i].name, name)))
+			return &entries[i];
 	return NULL;
-}
-
-struct EntryContainer *find_name(const char *name)
-{
-	int i;
-
-	for(i = 0; i < MAX_OPTIONS; i++)
-	{
-		if((g_vals[i].name != NULL) && (strcmp(g_vals[i].name, name) == 0))
-		{
-			return &g_vals[i];
-		}
-	}
-
-	return NULL;
-}
-
-int add_string(char *str)
-{
-	char *equals = NULL;
-	struct EntryContainer *entry;
-
-	equals = strchr(str, '=');
-	if(equals == NULL)
-	{
-		fprintf(stderr, "Invalid option (no =)\n");
-		return 0;
-	}
-
-	*equals++ = 0;
-	
-	if ((entry = find_name(str)))
-	{
-		entry->data = equals;
-	}
-	else
-	{
-		entry = find_free();
-		if(entry == NULL)
-		{
-			fprintf(stderr, "Maximum options reached\n");
-			return 0;
-		}
-
-		memset(entry, 0, sizeof(struct EntryContainer));
-		entry->name = str;
-		entry->type = PSF_TYPE_STR;
-		entry->data = equals;
-	}
-	
-	return 1;
-}
-
-int add_dword(char *str)
-{
-	char *equals = NULL;
-	struct EntryContainer *entry;
-
-	equals = strchr(str, '=');
-	if(equals == NULL)
-	{
-		fprintf(stderr, "Invalid option (no =)\n");
-		return 0;
-	}
-
-	*equals++ = 0;
-
-	if ((entry = find_name(str)))
-	{
-		entry->value = strtoul(equals, NULL, 0);
-	}
-	else
-	{
-		entry = find_free();
-		if(entry == NULL)
-		{
-			fprintf(stderr, "Maximum options reached\n");
-			return 0;
-		}
-
-		memset(entry, 0, sizeof(struct EntryContainer));
-		entry->name = str;
-		entry->type = PSF_TYPE_VAL;
-		entry->value = strtoul(equals, NULL, 0);		
-	}
-
-	return 1;
-}
-
-/* Process the arguments */
-int process_args(int argc, char **argv)
-{
-	int ch;
-
-	g_title = NULL;
-	g_filename = NULL;
-	g_empty = 0;
-
-	ch = getopt_long(argc, argv, "ed:s:", arg_opts, NULL);
-	while(ch != -1)
-	{
-		switch(ch)
-		{
-			case 'd' : if(!add_dword(optarg))
-					   {
-						   return 0;
-					   }
-				break;
-			case 's' : if(!add_string(optarg))
-					   {
-					   }
-				break;
-			default  : break;
-		};
-
-		ch = getopt_long(argc, argv, "ed:s:", arg_opts, NULL);
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	if(argc < 1)
-	{
-		return 0;
-	}
-
-	if(!g_empty)
-	{
-		g_title = argv[0];
-		argc--;
-		argv++;
-	}
-
-	if(argc < 1)
-	{
-		return 0;
-	}
-
-	g_filename = argv[0];
-
-	return 1;
 }
 
 int main(int argc, char **argv)
 {
-	FILE *fp;
-	int i;
-	char head[8192];
-	char keys[8192];
-	char data[8192];
-	struct SfoHeader *h;
-	struct SfoEntry  *e;
-	char *k;
-	char *d;
-	unsigned int align;
-	unsigned int keyofs;
-	unsigned int count;
+	if(argc <= 1)
+		return fprintf(stderr, "Usage: %s param.sfo [NAME=STR]... [NAME=+INT]...\n", argv[0]),-1;
 	
-	for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
-	{
-		struct EntryContainer *entry = find_free();
-		if(entry == NULL)
-		{
-			fprintf(stderr, "Maximum options reached\n");
-			return 0;
-		}
-		*entry = g_defaults[i];
-	}
-	
-	if(!process_args(argc, argv)) 
-	{
-		fprintf(stderr, "usage: mksfoex [options] TITLE output.sfo\n");
-		fprintf(stderr, "\t-d NAME=VALUE   Add a new DWORD value\n");
-		fprintf(stderr, "\t-s NAME=STR     Add a new string value\n");
+	/* Initial entries */
+	entry_t entries[MAX_ENTRY] = {
+		{"APP_VER", 0, "00.00" },
+		{"ATTRIBUTE", 0x8000, NULL },
+		{"ATTRIBUTE2", 0, NULL },
+		{"ATTRIBUTE_MINOR", 0x10, NULL },
+		{"BOOT_FILE", 32, "" },
+		{"CATEGORY", 0, "gd" },
+		{"CONTENT_ID", 48, "" },
+		{"EBOOT_APP_MEMSIZE", 0, NULL },
+		{"EBOOT_ATTRIBUTE", 0, NULL },
+		{"EBOOT_PHY_MEMSIZE", 0, NULL },
+		{"LAREA_TYPE", 0, NULL },
+		{"NP_COMMUNICATION_ID", 16, "" },
+		{"PARENTAL_LEVEL", 0, NULL },
+		{"PSP2_DISP_VER", 0, "00.000" },
+		{"PSP2_SYSTEM_VER", 0, NULL },
+		{"STITLE", 52, "Homebrew" },
+		{"TITLE", 0x80, "Homebrew" },
+		{"TITLE_ID", 0, "ABCD99999" },
+		{"VERSION", 0, "00.00" },
+	};
 
-		return 1;
+	entry_t *last_entry = entry_find(entries,NULL)-1;
+	for(int i = 2 ; i < argc ; i++){
+		char*val=strchr(argv[i],'=');
+		if(!val){
+			fprintf(stderr, "No given value for \"%s\"\n",argv[i]);
+			continue;
+		}
+		*val++='\0';
+		/* locate this entry, or locate a free (NULL) slot for it */
+		(last_entry = entry_find(entries,argv[i])) || (last_entry = entry_find(entries,NULL));
+		EXPECT(last_entry, "No more space for \"%s\"",argv[i])
+		bool has_sign = (val[0]=='+'||val[0]=='-');
+		*last_entry = (entry_t){
+			name :argv[i],
+			value:has_sign?strtoul(val,NULL,0):0,
+			data :has_sign?NULL:val
+		};
 	}
-	
-	if (g_title)
-	{
-		struct EntryContainer *entry = find_name("TITLE");
-		entry->data = g_title;
+
+	FILE *fp = fopen(argv[1], "wb");
+	EXPECT(fp != NULL, "Unable to open \"%s\"",argv[1])
+	/* compute each SFO sections offset */
+	size_t entries_off = sizeof(sfo_header_t);
+	size_t keys_off = entries_off+((last_entry-entries+1)*sizeof(sfo_entry_t));
+	size_t data_off = keys_off;
+
+	sfo_entry_t sfo_entries[MAX_ENTRY] = {};
+
+	/* write keys */
+	for(int i=0;i < MAX_ENTRY && entries[i].name; i++){
+		sfo_entries[i].nameofs=SH(data_off-keys_off);
+		fseek(fp,data_off ,SEEK_SET);
+		data_off += fwrite(entries[i].name, sizeof(char), strlen(entries[i].name)+1, fp);
+	}
+	data_off=ALIGN32(data_off);
+
+	/* write header + update sfo_entries */
+	fseek(fp,0,SEEK_SET);
+	fwrite(&(sfo_header_t){
+		.magic=SW(PSF_MAGIC),
+		.version=SW(PSF_VERSION),
+		.count=SW(last_entry-entries+1),
+		.keyofs=SW(keys_off),
+		.valofs=SW(data_off),
+		},1,sizeof(sfo_header_t),fp);
+
+	/* write data + update sfo_entries */
+	size_t data_len = 0;
+	for(int i=0;i < MAX_ENTRY && entries[i].name; i++){
+		entry_t*entry = &entries[i];
+		sfo_entry_t*sfo_entry = &sfo_entries[i];
+		sfo_entries[i].alignment=4;
+		sfo_entries[i].type=entries[i].data ? 2 : 4;
+		uint32_t valsize = entries[i].data ? strlen(entries[i].data)+1 : 0;
+		uint32_t totsize = entries[i].value ? entries[i].value : ALIGN32(valsize);
+		sfo_entries[i].valsize = SW(valsize);
+		sfo_entries[i].totalsize = SW(totsize);
+		sfo_entries[i].dataofs = data_len;
 		
-		entry = find_name("STITLE");
-		entry->data = g_title;
-	}
-
-	memset(head, 0, sizeof(head));
-	memset(keys, 0, sizeof(keys));
-	memset(data, 0, sizeof(data));
-	h = (struct SfoHeader*) head;
-	e = (struct SfoEntry*)  (head+sizeof(struct SfoHeader));
-	k = keys;
-	d = data;
-	SW(&h->magic, PSF_MAGIC);
-	SW(&h->version, PSF_VERSION);
-	count = 0;
-
-	for(i = 0; g_vals[i].name; i++)
-	{
-		SW(&h->count, ++count);
-		SW(&e->nameofs, k-keys);
-		SW(&e->dataofs, d-data);
-		SW(&e->alignment, 4);
-		SW(&e->type, g_vals[i].type);
-
-		strcpy(k, g_vals[i].name);
-		k += strlen(k)+1;
-		if(e->type == PSF_TYPE_VAL)
-		{
-			SW(&e->valsize, 4);
-			SW(&e->totalsize, 4);
-			SW((uint32_t*) d, g_vals[i].value);
-			d += 4;
+		fseek(fp,data_off+data_len ,SEEK_SET);
+		if(entries[i].data){
+			fwrite( entries[i].data, sizeof(char), valsize, fp);
+			data_len += totsize;
+		}else{
+			fwrite(&entries[i].value, sizeof(uint32_t), 1, fp);
+			data_len += 4;
 		}
-		else
-		{
-			int totalsize;
-			int valsize = 0;
-
-			if (g_vals[i].data)
-				valsize = strlen(g_vals[i].data)+1;
-			totalsize = (g_vals[i].value) ? (g_vals[i].value) : ((valsize + 3) & ~3);
-			SW(&e->valsize, valsize);
-			SW(&e->totalsize, totalsize);
-			memset(d, 0, totalsize);
-			
-			if (g_vals[i].data)
-				memcpy(d, g_vals[i].data, valsize);
-			d += totalsize;
-		}
-		e++;
+		fwrite("\0\0\0\0", sizeof(char), 4, fp);//padding (TODO: align instead)
 	}
+	/* write filled entries */
+	fseek(fp,entries_off ,SEEK_SET);
+	fwrite(sfo_entries,sizeof(*sfo_entries),last_entry-entries+1, fp);
 
-
-	keyofs = (char*)e - head;
-	SW(&h->keyofs, keyofs);
-	align = 3 - ((unsigned int) (k-keys) & 3);
-	while(align < 3)
-	{
-		k++;
-		align--;
-	}
-	
-	SW(&h->valofs, keyofs + (k-keys));
-
-	fp = fopen(g_filename, "wb");
-	if(fp == NULL)
-	{
-		fprintf(stderr, "Cannot open filename %s\n", g_filename);
-		return 0;
-	}
-
-	fwrite(head, 1, (char*)e-head, fp);
-	fwrite(keys, 1, k-keys, fp);
-	fwrite(data, 1, d-data, fp);
 	fclose(fp);
-
 	return 0;
 }
