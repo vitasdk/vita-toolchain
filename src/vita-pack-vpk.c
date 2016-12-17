@@ -2,218 +2,85 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <getopt.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include <zip.h>
 
-#define DEFAULT_OUTPUT_FILE "output.vpk"
+#define EXPECT(EXPR, FMT, ...) if(!(EXPR))return fprintf(stderr,FMT"\n",##__VA_ARGS__),-1;
 
-static void usage(const char *arg);
+#define EBOOT_FILE "eboot.bin"
+#define PARAM_FILE "param.sfo"
+#define EBOOT_PATH "eboot.bin"
+#define PARAM_PATH "sce_sys/param.sfo"
 
-static const struct option long_options[] = {
-	{"sfo", required_argument, NULL, 's'},
-	{"eboot", required_argument, NULL, 'b'},
-	{"add", required_argument, NULL, 'a'},
-	{"help", no_argument, NULL, 'h'},
-	{NULL, 0, NULL, 0}
-};
-
-static int add_file_zip(zip_t *zip, const char *src, const char *dst)
+/* recursively import files/directories into zip */
+int file_add_req(zip_t *zip, char* outer_path, char* inner_path)
 {
-	int ret;
-	zip_source_t *zip_src;
-
-	zip_src = zip_source_file(zip, src, 0, 0);
-	if (!zip_src) {
-		printf("Error adding \'%s\': %s\n", src,
-			zip_strerror(zip));
-		return 0;
+	struct stat s;
+	EXPECT(stat(outer_path,&s) == 0 , "can't access %s",outer_path)
+	if(s.st_mode & S_IFDIR){
+		DIR *dir = opendir(outer_path);
+		struct dirent *entry;
+		while((entry = readdir(dir))){
+			if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+				continue;
+			char outer[4096];
+			char inner[4096];
+			int len_o = snprintf(outer, sizeof(outer)-1, "%s/%s", outer_path, entry->d_name);
+			int len_i = snprintf(inner, sizeof(inner)-1, "%s/%s", inner_path, entry->d_name);
+			outer[len_i] = 0;
+			inner[len_o] = 0;
+			file_add_req(zip,outer,inner);
+		}
+		closedir(dir);
+	}else if(s.st_mode & S_IFREG){
+		/*fprintf(stderr, "Packing \"%s\" as \"%s\"\n", outer_path, inner_path);*/
+		zip_file_add(zip, inner_path, zip_source_file(zip, outer_path, 0, 0), 0);
 	}
-
-	ret = zip_file_add(zip, dst, zip_src, 0);
-	if (ret == -1) {
-		printf("Error adding \'%s\': %s\n", src,
-			zip_strerror(zip));
-		return 0;
-	}
-
-	return 1;
-}
-
-static struct {
-	char **src;
-	char **dst;
-	int num;
-} additional_list;
-
-static void additional_list_add(char *src, char *dst)
-{
-	additional_list.src = realloc(additional_list.src,
-		sizeof(*additional_list.src) * (additional_list.num + 1));
-	additional_list.dst = realloc(additional_list.dst,
-		sizeof(*additional_list.dst) * (additional_list.num + 1));
-
-	additional_list.src[additional_list.num] = src;
-	additional_list.dst[additional_list.num] = dst;
-
-	additional_list.num++;
-}
-
-static void additional_list_init()
-{
-	additional_list.src = NULL;
-	additional_list.dst = NULL;
-	additional_list.num = 0;
-}
-
-static void additional_list_free()
-{
-	int i;
-
-	for (i = 0; i < additional_list.num; i++) {
-		free(additional_list.src[i]);
-		free(additional_list.dst[i]);
-	}
-
-	free(additional_list.src);
-	free(additional_list.dst);
-}
-
-static void parse_add_subopt(char *optarg)
-{
-	char *src;
-	char *dst;
-	const char *equals;
-	size_t src_len;
-	size_t dst_len;
-	size_t len = strlen(optarg);
-
-	equals = strchr(optarg, '=');
-	if (!equals || (equals == optarg + len - 1))
-		return;
-
-	src_len = equals - optarg;
-	dst_len = len - (equals - optarg + 1);
-
-	src = malloc(sizeof(char) * (src_len + 1));
-	dst = malloc(sizeof(char) * (dst_len + 1));
-
-	strncpy(src, optarg, src_len);
-	src[src_len] = '\0';
-
-	strncpy(dst, optarg + src_len + 1, dst_len);
-	dst[dst_len] = '\0';
-
-	additional_list_add(src, dst);
+	return 0;
 }
 
 int main(int argc, char *argv[])
 {
-	int i;
-	int err;
-	zip_t *zip;
-	int opt;
-	char *output = NULL;
-	char *sfo = NULL;
-	char *eboot = NULL;
+	if(argc<=1)
+		return fprintf(stderr, "Usage:%s output.vpk [DIR/FILE[=vpk_path]]\n", argv[0]),-1;
+	/* auto-complete missing argument with common mandatory files*/
+	if(argc==2)
+		argv[argc++] = EBOOT_FILE;
+	if(argc==3)
+		argv[argc++] = PARAM_FILE;
 
-	if (argc < 2) {
-		usage(argv[0]);
-		return -1;
-	}
+	int ret=0;
+	zip_t *zip = zip_open(argv[1], ZIP_CREATE | ZIP_TRUNCATE, &ret);
+	EXPECT(zip != NULL, "zip_open() failed (%i)", ret);
 
-	additional_list_init();
-
-	while ((opt = getopt_long(argc, argv, "hs:b:a:", long_options, NULL)) != -1) {
-		switch (opt) {
-		case 's':
-			sfo = strdup(optarg);
-			break;
-		case 'b':
-			eboot = strdup(optarg);
-			break;
-		case 'a':
-			parse_add_subopt(optarg);
-			break;
-		case 'h':
-			usage(argv[0]);
-			goto error_wrong_args;
+	for (int i = 2; i < argc; i++) {
+		char*equal_pos=strchr(argv[i],'=');
+		char*outer_path=argv[i];
+		char*inner_path=argv[i];
+		if(equal_pos){
+			*equal_pos='\0';
+			inner_path=equal_pos+1;
 		}
+		/* generate vpk_path for mandatory files */
+		if(equal_pos==NULL && strcmp(outer_path,PARAM_FILE)==0)
+			inner_path=PARAM_PATH;
+		if(equal_pos==NULL && strcmp(outer_path,EBOOT_FILE)==0)
+			inner_path=EBOOT_PATH;
+		
+		ret |= file_add_req(zip,outer_path,inner_path);
 	}
-
-	if (!sfo) {
-		printf(".sfo file missing.\n");
-		goto error_wrong_args;
+	/* Don't write the zip file if something went wrong */
+	if(ret<0){
+		fprintf(stderr,"VPK generation canceled because of error(s) during packing\n");
+		return zip_discard(zip),ret;
 	}
+	/* warn if a mandatory files is missing */
+	if (zip_name_locate(zip, EBOOT_PATH, 0) < 0)
+		fprintf(stderr,"Warning: %s vpk does not have any \""EBOOT_PATH"\"\n",argv[1]);
+	if (zip_name_locate(zip, PARAM_PATH, 0) < 0)
+		fprintf(stderr,"Warning: %s does not have any \""PARAM_PATH"\"\n",argv[1]);
 
-	if (!eboot) {
-		printf(".bin file missing.\n");
-		goto error_wrong_args;
-	}
-
-	argc -= optind;
-	argv += optind;
-
-	if (argc > 0)
-		output = strdup(argv[0]);
-	else
-		output  = strdup(DEFAULT_OUTPUT_FILE);
-
-	zip = zip_open(output, ZIP_CREATE | ZIP_TRUNCATE, &err);
-	if (!zip) {
-		printf("Error creating: \'%s\': %s\n", output,
-			zip_strerror(zip));
-		goto error_create_zip;
-	}
-
-	if (!add_file_zip(zip, sfo, "sce_sys/param.sfo"))
-		goto error_add_zip;
-
-	if (!add_file_zip(zip, eboot, "eboot.bin"))
-		goto error_add_zip;
-
-	for (i = 0; i < additional_list.num; i++) {
-		if (!add_file_zip(zip, additional_list.src[i],
-				  additional_list.dst[i]))
-			goto error_add_zip;
-	}
-
-	err = zip_close(zip);
-	if (err == -1) {
-		printf("Error creating: \'%s\': %s\n", output,
-			zip_strerror(zip));
-		goto error_add_zip;
-	}
-
-	free(output);
-	free(sfo);
-	free(eboot);
-	additional_list_free();
-
+	EXPECT(zip_close(zip) == 0, "zip_close() failed");
 	return 0;
-
-error_add_zip:
-	zip_discard(zip);
-
-error_create_zip:
-	free(output);
-
-error_wrong_args:
-	if (sfo)
-		free(sfo);
-	if (eboot)
-		free(eboot);
-
-	additional_list_free();
-
-	return -1;
-}
-
-void usage(const char *arg)
-{
-	printf("Usage:\n\t%s [OPTIONS] output.vpk\n\n"
-		"  -s, --sfo=param.sfo     sets the param.sfo file\n"
-		"  -b, --eboot=eboot.bin   sets the eboot.bin file\n"
-		"  -a, --add src=dst       adds the file src to the vpk as dst\n"
-		"  -h, --help              displays this help and exit\n"
-		, arg);
 }
