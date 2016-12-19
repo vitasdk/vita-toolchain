@@ -11,11 +11,11 @@
 #include "sha256.h"
 
 void usage(const char **argv) {
-	fprintf(stderr, "usage: %s [-s|-ss] [-c] [-a 0x2XXXXXXXXXXXXXXX] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
+	fprintf(stderr, "usage: %s [-s|-ss|-a 0x2XXXXXXXXXXXXXXX] [-c] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
 	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
-	fprintf(stderr, "\t-c : Enable compression.\n");
 	fprintf(stderr, "\t-a : Authid for more permissions (SceShell: 0x2800000000000001).\n");
+	fprintf(stderr, "\t-c : Enable compression.\n");
 	exit(1);
 }
 
