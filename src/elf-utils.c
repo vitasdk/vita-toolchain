@@ -68,8 +68,10 @@ Elf *elf_utils_copy_to_file(const char *filename, Elf *source, FILE **file)
 	Elf *dest = NULL;
 
 	*file = fopen(filename, "wb");
-	if (*file == NULL)
-		FAIL("Could not open %s for writing", filename);
+	if (*file == NULL){
+		fprintf(stderr, "Could not open %s for writing\n",filename);
+		goto failure;
+	}
 
 
 	ELF_ASSERT(elf_version(EV_CURRENT) != EV_NONE);

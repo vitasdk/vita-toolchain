@@ -143,15 +143,28 @@ int main(int argc, char *argv[])
 	
 	int status = EXIT_SUCCESS;
 
-	elf_create_args args = {};
-	if (parse_arguments(argc, argv, &args) < 0) {
+	g_log = 0;
+	bool check_stub_count = true;
+
+	int c='?';
+	while ((c = getopt(argc, argv, "vne:")) != -1) {
+		switch (c) {
+		case 'v':g_log++;break;
+		case 'e':exports = optarg;break;
+		case 'n':check_stub_count = false;break;
+		default :c='?';break;/**< will be caught later */
+		}
+	}
+
+	if ((c == '?') || (argc - optind < 2)) {
 		usage(argc, argv);
 		return EXIT_FAILURE;
 	}
-
-	g_log = args.log_level;
-
-	if ((ve = vita_elf_load(args.input, args.check_stub_count)) == NULL)
+	
+	char*input = argv[optind];
+	char*output = argv[optind+1];
+	
+	if ((ve = vita_elf_load(input, check_stub_count)) == NULL)
 		return EXIT_FAILURE;
 
 	/* FIXME: save original segment sizes */
@@ -160,15 +173,12 @@ int main(int argc, char *argv[])
 	for(idx = 0; idx < ve->num_segments; idx++)
 		segment_sizes[idx] = ve->segments[idx].memsz;
 
-	if (args.exports) {
-		exports = vita_exports_load(args.exports, args.input, 0);
-		
-		if (!exports)
+	if (exports) {
+		if (!(exports = vita_exports_load(exports, input, 0)))
 			return EXIT_FAILURE;
-	}
-	else {
+	} else {
 		// generate a default export list
-		exports = vita_export_generate_default(args.input);
+		exports = vita_export_generate_default(input);
 	}
 
 	if (!vita_elf_lookup_imports(ve))
@@ -208,15 +218,14 @@ int main(int argc, char *argv[])
 	PRINTSEC(sceVNID_rodata);
 	PRINTSEC(sceVStub_rodata);
 
-	encoded_modinfo = sce_elf_module_info_encode(
-			module_info, ve, &section_sizes, &rtable);
+	encoded_modinfo = sce_elf_module_info_encode( module_info, ve, &section_sizes, &rtable);
 
 	TRACEF(VERBOSE, "Relocations from encoded modinfo:\n");
 	print_rtable(&rtable);
 
 	FILE *outfile;
 	Elf *dest;
-	ASSERT(dest = elf_utils_copy_to_file(args.output, ve->elf, &outfile));
+	ASSERT(dest = elf_utils_copy_to_file(output, ve->elf, &outfile));
 	ASSERT(elf_utils_duplicate_shstrtab(dest));
 	ASSERT(sce_elf_discard_invalid_relocs(ve, ve->rela_tables));
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));

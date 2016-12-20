@@ -85,8 +85,7 @@ static int load_symbols(vita_elf_t *ve, Elf_Scn *scn)
 	if (elf_ndxscn(scn) == ve->symtab_ndx)
 		return 1; /* Already loaded */
 
-	if (ve->symtab != NULL)
-		FAILX("ELF file appears to have multiple symbol tables!");
+	ASSERT(ve->symtab == NULL, "ELF file appears to have multiple symbol tables!");
 
 	gelf_getshdr(scn, &shdr);
 
@@ -100,8 +99,7 @@ static int load_symbols(vita_elf_t *ve, Elf_Scn *scn)
 
 		data_beginsym = data->d_off / shdr.sh_entsize;
 		for (symndx = 0; symndx < data->d_size / shdr.sh_entsize; symndx++) {
-			if (gelf_getsym(data, symndx, &sym) != &sym)
-				FAILE("gelf_getsym() failed");
+			ASSERT(gelf_getsym(data, symndx, &sym) == &sym, "gelf_getsym() failed :%s\n",elf_errmsg(-1));
 
 			cursym = ve->symtab + symndx + data_beginsym;
 
@@ -171,7 +169,8 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 				| ((data & 0xff) << 16);
 	}
 
-	errx(EXIT_FAILURE, "Invalid relocation type: %d", type);
+	fprintf(stderr, "Invalid relocation type: %d", type);
+	return ~0;
 }
 
 #define REL_HANDLE_NORMAL 0
@@ -239,8 +238,7 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	 * should be fixed someday. */
 	data = elf_getdata(scn, NULL);
 	for (relndx = 0; relndx < data->d_size / shdr.sh_entsize; relndx++) {
-		if (gelf_getrel(data, relndx, &rel) != &rel)
-			FAILX("gelf_getrel() failed");
+		ASSERT (gelf_getrel(data, relndx, &rel) == &rel, "gelf_getrel() failed");
 
 		currela = rtable->relas + relndx;
 		currela->type = GELF_R_TYPE(rel.r_info);
@@ -261,16 +259,15 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 
 		if (handling == REL_HANDLE_IGNORE)
 			continue;
-		else if (handling == REL_HANDLE_INVALID)
-			FAILX("Invalid relocation type %d!", currela->type);
+		ASSERT(handling != REL_HANDLE_INVALID, "Invalid relocation type %d!", currela->type);
 
 		rel_sym = GELF_R_SYM(rel.r_info);
-		if (rel_sym >= ve->num_symbols)
-			FAILX("REL entry tried to access symbol %d, but only %d symbols loaded", rel_sym, ve->num_symbols);
+		ASSERT(rel_sym < ve->num_symbols, "REL entry tried to access symbol %d, but only %d symbols loaded", rel_sym, ve->num_symbols);
 
 		currela->symbol = ve->symtab + rel_sym;
 
-		target = decode_rel_target(insn, currela->type, rel.r_offset);
+		if((target = decode_rel_target(insn, currela->type, rel.r_offset)) == ~0)
+			goto failure;
 
 		/* From some testing the added for MOVT/MOVW should actually always be 0 */
 		if (currela->type == R_ARM_MOVT_ABS || currela->type == R_ARM_THM_MOVT_ABS)
@@ -296,7 +293,7 @@ failure:
 
 static int load_rela_table(vita_elf_t *ve, Elf_Scn *scn)
 {
-	warnx("RELA sections currently unsupported");
+	fprintf(stderr,"RELA sections currently unsupported");
 	return 0;
 }
 
@@ -326,23 +323,19 @@ static int lookup_stub_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *s
 		if(stubs_ndx == -1)
 			continue;	
 			
-		if (cursym->type != sym_type)
-			FAILX("Global symbol %s in section %d expected to have type %s; instead has type %s",
+		ASSERT (cursym->type == sym_type, "Global symbol %s in section %d expected to have type %s; instead has type %s",
 					cursym->name, stubs_ndx, elf_decode_st_type(sym_type), elf_decode_st_type(cursym->type));
 		
 		for (stub = 0; stub < num_stubs; stub++) {
 			if (stubs[stub].addr != cursym->value)
 				continue;
-			if (stubs[stub].symbol != NULL)
-				FAILX("Stub at %06x in section %d has duplicate symbols: %s, %s",
+			ASSERT (stubs[stub].symbol == NULL, "Stub at %06x in section %d has duplicate symbols: %s, %s",
 						cursym->value, stubs_ndx, stubs[stub].symbol->name, cursym->name);
 			stubs[stub].symbol = cursym;
 			break;
 		}
 
-		if (stub == num_stubs)
-			FAILX("Global symbol %s in section %d not pointing to a valid stub",
-					cursym->name, cursym->shndx);
+		ASSERT(stub != num_stubs, "Global symbol %s in section %d not pointing to a valid stub", cursym->name, cursym->shndx);
 	}
 
 	return 1;
@@ -404,31 +397,16 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 	vita_elf_segment_info_t *curseg;
 
 
-	if (elf_version(EV_CURRENT) == EV_NONE)
-		FAILX("ELF library initialization failed: %s", elf_errmsg(-1));
-
-	ve = calloc(1, sizeof(vita_elf_t));
-	ASSERT(ve != NULL);
-	
+	ASSERT(elf_version(EV_CURRENT) != EV_NONE, "ELF library initialization failed: %s", elf_errmsg(-1));
+	ASSERT((ve = calloc(1, sizeof(vita_elf_t))) != NULL);
 	ASSERT(varray_init(&ve->fstubs_va, sizeof(int), 8));
 	ASSERT(varray_init(&ve->vstubs_va, sizeof(int), 4));
-
-	if ((ve->file = fopen(filename, "rb")) == NULL)
-		FAIL("open %s failed", filename);
-
+	ASSERT((ve->file = fopen(filename, "rb")) != NULL, "open %s failed", filename);
 	ELF_ASSERT(ve->elf = elf_begin(fileno(ve->file), ELF_C_READ, NULL));
-
-	if (elf_kind(ve->elf) != ELF_K_ELF)
-		FAILX("%s is not an ELF file", filename);
-
+	ASSERT(elf_kind(ve->elf) != ELF_K_ELF, "%s is not an ELF file", filename);
 	ELF_ASSERT(gelf_getehdr(ve->elf, &ehdr));
-
-	if (ehdr.e_machine != EM_ARM)
-		FAILX("%s is not an ARM binary", filename);
-
-	if (ehdr.e_ident[EI_CLASS] != ELFCLASS32 || ehdr.e_ident[EI_DATA] != ELFDATA2LSB)
-		FAILX("%s is not a 32-bit, little-endian binary", filename);
-
+	ASSERT(ehdr.e_machine == EM_ARM, "%s is not an ARM binary", filename);
+	ASSERT(ehdr.e_ident[EI_CLASS] == ELFCLASS32 && ehdr.e_ident[EI_DATA] == ELFDATA2LSB, "%s is not a 32-bit, little-endian binary", filename);
 	ELF_ASSERT(elf_getshdrstrndx(ve->elf, &shstrndx) == 0);
 
 	scn = NULL;
@@ -466,14 +444,12 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 		}
 	}
 
-	if (ve->fstubs_va.count == 0 && ve->vstubs_va.count == 0 && check_stub_count)
-		FAILX("No .vitalink stub sections in binary, probably not a Vita binary. If this is a vita binary, pass '-n' to squash this error.");
+	ASSERT(ve->fstubs_va.count == 0 && ve->vstubs_va.count == 0 && check_stub_count,
+	       "No .vitalink stub sections in binary, probably not a Vita binary. If this is a vita binary, pass '-n' to squash this error.");
 
-	if (ve->symtab == NULL)
-		FAILX("No symbol table in binary, perhaps stripped out");
+	ASSERT(ve->symtab != NULL,"No symbol table in binary, perhaps stripped out");
 
-	if (ve->rela_tables == NULL)
-		FAILX("No relocation sections in binary; use -Wl,-q while compiling");
+	ASSERT(ve->rela_tables != NULL, "No relocation sections in binary; use -Wl,-q while compiling");
 
 	if (ve->fstubs_va.count != 0) {
 		if (!lookup_stub_symbols(ve, ve->num_fstubs, ve->fstubs, &ve->fstubs_va, STT_FUNC)) goto failure;
@@ -503,8 +479,10 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 
 		if (curseg->memsz) {
 			curseg->vaddr_top = mmap(NULL, curseg->memsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-			if (curseg->vaddr_top == NULL)
-				FAIL("Could not allocate address space for segment %d", (int)segndx);
+			if (curseg->vaddr_top == NULL){
+				fprintf(stderr, "Could not allocate address space for segment %d", (int)segndx);
+				goto failure;
+			}
 			curseg->vaddr_bottom = curseg->vaddr_top + curseg->memsz;
 		}
 		

@@ -153,9 +153,7 @@ static int set_module_export(vita_elf_t *ve, sce_module_exports_t *export, vita_
 		Elf32_Addr vaddr = 0;
 		vita_export_symbol *sym = lib->functions[i];
 		
-		if (!get_function_by_symbol(sym->name, ve, &vaddr)) {
-			FAILX("Could not find function symbol '%s' for export '%s'", sym->name, lib->name);
-		}
+		ASSERT(get_function_by_symbol(sym->name, ve, &vaddr), "Could not find function symbol '%s' for export '%s'", sym->name, lib->name);
 		
 		export->nid_table[cur_ent] = sym->nid;
 		export->entry_table[cur_ent] = vita_elf_vaddr_to_host(ve, vaddr);
@@ -166,9 +164,7 @@ static int set_module_export(vita_elf_t *ve, sce_module_exports_t *export, vita_
 		Elf32_Addr vaddr = 0;
 		vita_export_symbol *sym = lib->variables[i];
 		
-		if (!get_variable_by_symbol(sym->name, ve, &vaddr)) {
-			FAILX("Could not find variable symbol '%s' for export '%s'", sym->name, lib->name);
-		}
+		ASSERT(get_variable_by_symbol(sym->name, ve, &vaddr), "Could not find variable symbol '%s' for export '%s'", sym->name, lib->name);
 		
 		export->nid_table[cur_ent] = sym->nid;
 		export->entry_table[cur_ent] = vita_elf_vaddr_to_host(ve, vaddr);
@@ -203,9 +199,7 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	
 	if (export_spec->start) {
 		Elf32_Addr vaddr = 0;
-		if (!get_function_by_symbol(export_spec->start, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'start'", export_spec->start);
-		}
+		ASSERT(get_function_by_symbol(export_spec->start, ve, &vaddr), "Could not find symbol '%s' for main export 'start'", export_spec->start);
 		
 		module_info->module_start = vita_elf_vaddr_to_host(ve, vaddr);
 	}
@@ -219,9 +213,7 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	if (export_spec->stop) {
 		Elf32_Addr vaddr = 0;
 		
-		if (!get_function_by_symbol(export_spec->stop, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'stop'", export_spec->stop);
-		}
+		ASSERT(get_function_by_symbol(export_spec->stop, ve, &vaddr), "Could not find symbol '%s' for main export 'stop'", export_spec->stop);
 		
 		export->nid_table[cur_nid] = NID_MODULE_STOP;
 		export->entry_table[cur_nid] = module_info->module_stop = vita_elf_vaddr_to_host(ve, vaddr);
@@ -231,9 +223,7 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	if (export_spec->exit) {
 		Elf32_Addr vaddr = 0;
 		
-		if (!get_function_by_symbol(export_spec->exit, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'exit'", export_spec->exit);
-		}
+		ASSERT(get_function_by_symbol(export_spec->exit, ve, &vaddr), "Could not find symbol '%s' for main export 'exit'", export_spec->exit);
 		
 		export->nid_table[cur_nid] = NID_MODULE_EXIT;
 		export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
@@ -432,8 +422,7 @@ void sce_elf_module_info_free(sce_module_info_t *module_info)
 
 #define INCR(section, size) do { \
 	cur_sizes.section += (size); \
-	if (cur_sizes.section > sizes->section) \
-		FAILX("Attempted to overrun section %s!", #section); \
+	ASSERT (cur_sizes.section <= sizes->section, "Attempted to overrun section %s!", #section); \
 	section_addrs.section += (size); \
 } while (0)
 #define ADDR(section) (data + section_addrs.section)
@@ -492,10 +481,8 @@ void *sce_elf_module_info_encode(
 	for (i = 0; i < ve->num_segments; i++) {
 		if (i == segndx)
 			continue;
-		if (ve->segments[i].vaddr >= segment_base + start_offset
-				&& ve->segments[i].vaddr < segment_base + start_offset + total_size)
-			FAILX("Cannot allocate %d bytes for SCE data at end of segment %d; segment %d overlaps",
-					total_size, segndx, i);
+		int pos = ve->segments[i].vaddr - segment_base - start_offset;
+		ASSERT((pos < 0) || (pos >= total_size)), "Cannot allocate %d bytes for SCE data at end of segment %d; segment %d overlaps", total_size, segndx, i)
 	}
 
 	data = calloc(1, total_size);
@@ -622,8 +609,7 @@ void *sce_elf_module_info_encode(
 	}
 
 	for (i = 0; i < sizeof(sce_section_sizes_t) / sizeof(Elf32_Word); i++) {
-		if (((Elf32_Word *)&cur_sizes)[i] != ((Elf32_Word *)sizes)[i])
-			FAILX("sce_elf_module_info_encode() did not use all space in section %d!", i);
+		ASSERT((((Elf32_Word *)&cur_sizes)[i] == ((Elf32_Word *)sizes)[i]), "remaining space in section %d!", i);
 	}
 
 	rtable->num_relas = relas.count;
@@ -699,8 +685,7 @@ int sce_elf_write_module_info(
 	start_foffset = phdr.p_offset + start_segoffset;
 	cur_pos = 0;
 
-	if (!elf_utils_shift_contents(dest, start_foffset, total_size))
-		FAILX("Unable to relocate ELF sections");
+	ASSERT(elf_utils_shift_contents(dest, start_foffset, total_size), "Unable to relocate ELF sections\n")
 
 	/* Extend in our copy of phdrs so that vita_elf_vaddr_to_segndx can match it */
 	ve->segments[segndx].memsz += total_size;
@@ -946,7 +931,7 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		
 		sh_name = shstrtab + shdr.sh_name;
 		if (strstr(sh_name, ".vitalink.fstubs.") != sh_name)
-			errx(EXIT_FAILURE, "Your ELF file contains a malformed .vitalink.fstubs section. Please make sure all your stub libraries are up-to-date.");
+			return fprintf(stderr, "Your ELF file contains a malformed .vitalink.fstubs section. Please make sure all your stub libraries are up-to-date."), -1;
 		stub_name = strrchr(sh_name, '.');
 		snprintf(sh_name, strlen(sh_name) + 1, ".text.fstubs%s", stub_name);
 		
@@ -975,7 +960,7 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		
 		sh_name = shstrtab + shdr.sh_name;
 		if (strstr(sh_name, ".vitalink.vstubs.") != sh_name)
-			errx(EXIT_FAILURE, "Your ELF file contains a malformed .vitalink.vstubs section. Please make sure all your stub libraries are up-to-date.");
+			return fprintf(stderr, "Your ELF file contains a malformed .vitalink.vstubs section. Please make sure all your stub libraries are up-to-date."), 0;
 		stub_name = strrchr(sh_name, '.');
 		snprintf(sh_name, strlen(sh_name) + 1, ".data.vstubs%s", stub_name);
 		
@@ -999,8 +984,8 @@ int sce_elf_set_headers(FILE *destfile, const vita_elf_t *ve)
 
 	ehdr.e_type = htole16(ET_SCE_RELEXEC);
 
-	SYS_ASSERT(fseek(destfile, offsetof(Elf32_Ehdr, e_type), SEEK_SET));
-	SYS_ASSERT(fwrite(&ehdr.e_type, sizeof(ehdr.e_type), 1, destfile));
+	ASSERT(fseek(destfile, offsetof(Elf32_Ehdr, e_type), SEEK_SET) >= 0);
+	ASSERT(fwrite(&ehdr.e_type, sizeof(ehdr.e_type), 1, destfile) >= 0);
 
 	return 1;
 failure:

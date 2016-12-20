@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <libelf.h>
 
+#define ASSERT(cond,fmt...) if(!(cond -0)){fprintf(stderr,"Failure:"#cond "\n" fmt);goto failure;}
+#define ELF_ASSERT(cond)    ASSERT((cond)!=0,"%s",elf_errmsg(-1))
+
 int elf_utils_copy(Elf *dest, Elf *source);
 
 Elf *elf_utils_copy_to_file(const char *filename, Elf *source, FILE **file);

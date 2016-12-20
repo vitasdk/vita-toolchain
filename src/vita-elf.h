@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <libelf.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "vita-import.h"
 #include "varray.h"
@@ -79,7 +80,7 @@ typedef struct vita_elf_t {
 	int num_segments;
 } vita_elf_t;
 
-vita_elf_t *vita_elf_load(const char *filename, int check_stub_count);
+vita_elf_t *vita_elf_load(const char *filename, bool check_stub_count);
 void vita_elf_free(vita_elf_t *ve);
 
 int vita_elf_lookup_imports(vita_elf_t *ve);
