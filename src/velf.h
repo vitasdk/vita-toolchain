@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "vita-import.h"
+#include "import.h"
 #include "varray.h"
 
 /* Convenience representation of a symtab entry */

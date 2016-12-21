@@ -25,7 +25,7 @@ DEALINGS IN THE SOFTWARE.
 #ifndef YAMLTREEUTIL_H
 #define YAMLTREEUTIL_H
 
-#include "yamltree.h"
+#include "yaml-tree.h"
 #include <stdint.h>
 #include <stdbool.h>
 

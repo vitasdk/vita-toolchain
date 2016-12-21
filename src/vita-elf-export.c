@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <yaml.h>
 
-#include "vita-export.h"
-#include "yamlemitter.h"
+#include "export.h"
+#include "yaml-emitter.h"
 
 
 vita_export_t *vita_exports_load(const char *filename, const char *elf, int verbose);

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "vita-import.h"
+#include "import.h"
 
 #define KERNEL_LIBS_STUB "SceKernel"
 

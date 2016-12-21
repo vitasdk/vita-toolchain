@@ -3,7 +3,6 @@
 #include <libelf.h>
 #include <gelf.h>
 
-#include "fail-utils.h"
 #include "elf-utils.h"
 
 

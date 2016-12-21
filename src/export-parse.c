@@ -4,9 +4,9 @@
 #include <errno.h>
 #include <limits.h>
 
-#include "vita-export.h"
-#include "yamltree.h"
-#include "yamltreeutil.h"
+#include "export.h"
+#include "yaml-tree.h"
+#include "yaml-treeutil.h"
 #include "sha256.h"
 
 static void print_module_tree(vita_export_t *export)
@@ -341,7 +341,7 @@ int process_module_info(yaml_node *parent, yaml_node *child, vita_export_t *info
 vita_export_t *read_module_exports(yaml_document *doc, uint32_t default_nid) {
 	if (!is_mapping(doc)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting root node to be a mapping, got '%s'.\n", doc->position.line, doc->position.column, node_type_str(doc));
-		return -1;
+		return NULL;
 	}
 	
 	yaml_mapping *root = &doc->data.mapping;
@@ -424,9 +424,9 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	vita_export_t *exports = calloc(1, sizeof(vita_export_t));
 	
 	// set module name to elf output name
-	char *fs = strrchr(elf, '/');
-	char *bs = strrchr(elf, '\\');
-	char *base = elf;
+	const char *fs = strrchr(elf, '/');
+	const char *bs = strrchr(elf, '\\');
+	const char *base = elf;
 	
 	if (fs && bs){
 		base = (fs > bs) ? (fs) : (bs);

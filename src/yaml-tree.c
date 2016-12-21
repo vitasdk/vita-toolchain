@@ -22,11 +22,12 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "yamltree.h"
 #include <yaml.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+
+#include "yaml-tree.h"
 
 typedef struct 
 {
@@ -38,51 +39,50 @@ typedef struct
 
 static yaml_node *process_node(parser_context *ctx);
 
+char yaml_last_error[1024];
 char *format_error_string(parser_context *ctx)
 {
 	assert(ctx->parser.error != YAML_NO_ERROR);
-	char *ptr;
 	
 	switch (ctx->parser.error)
 	{
 		case YAML_MEMORY_ERROR:
-			asprintf(&ptr, "libyaml: failed to allocate or reallocate a block of memory.");
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: failed to allocate or reallocate a block of memory.");
 			break;
 			
 		case YAML_READER_ERROR:
 			if (ctx->parser.problem_value != -1)
-				asprintf(&ptr, "libyaml: reader error: '%s:#%X' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_value, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+				snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: reader error: '%s:#%X' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_value, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			else
-				asprintf(&ptr, "libyaml: reader error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+				snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: reader error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_SCANNER_ERROR:
-			asprintf(&ptr, "libyaml: scanner error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: scanner error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_PARSER_ERROR:
-			asprintf(&ptr, "libyaml: parser error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: parser error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_COMPOSER_ERROR:
-			asprintf(&ptr, "libyaml: composer error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: composer error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_WRITER_ERROR:
-			asprintf(&ptr, "libyaml: writer error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: writer error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_EMITTER_ERROR:
-			asprintf(&ptr, "libyaml: emitter error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: emitter error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		default:
-			asprintf(&ptr, "unknown error code (%i) from libyaml. possible memory corruption?", ctx->parser.error);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "unknown error code (%i) from libyaml. possible memory corruption?", ctx->parser.error);
 			break;
 	}
 	
-	assert(ptr);
-	return ptr;
+	return yaml_last_error;
 }
 
 static const char *event_to_string(yaml_event_type_t event)
@@ -244,7 +244,7 @@ static yaml_node *process_node(parser_context *ctx)
 	{
 		case YAML_ALIAS_EVENT:
 			// TODO: we dont support aliases for now
-			asprintf(&ctx->error->problem, "yamltree: there is no support for aliases implemented.");
+			snprintf(ctx->error->problem=yaml_last_error, sizeof(yaml_last_error)-1,"yamltree: there is no support for aliases implemented.");
 			return NULL;
 			
 		case YAML_SCALAR_EVENT:
@@ -271,7 +271,7 @@ static yaml_document *process_document(parser_context *ctx)
 	{
 		if (!is_error_set(ctx))
 		{
-			asprintf(&ctx->error->problem, "yamltree: expecting YAML_DOCUMENT_START_EVENT got '%s'.", event_to_string(ctx->event.type));
+			snprintf(ctx->error->problem=yaml_last_error, sizeof(yaml_last_error)-1,"yamltree: expecting YAML_DOCUMENT_START_EVENT got '%s'.", event_to_string(ctx->event.type));
 		}
 		
 		return NULL;
@@ -288,7 +288,7 @@ static yaml_document *process_document(parser_context *ctx)
 	{
 		if (!is_error_set(ctx))
 		{
-			asprintf(&ctx->error->problem, "yamltree: expecting YAML_DOCUMENT_END_EVENT got '%s'.", event_to_string(ctx->event.type));
+			snprintf(ctx->error->problem=yaml_last_error, sizeof(yaml_last_error)-1,"yamltree: expecting YAML_DOCUMENT_END_EVENT got '%s'.", event_to_string(ctx->event.type));
 		}
 		
 		return NULL;
@@ -309,7 +309,7 @@ yaml_tree *parse_yaml_stream(FILE *input, yaml_error *error)
 	
 	if (ctx.next_event.type != YAML_STREAM_START_EVENT)
 	{
-		asprintf(&ctx.error->problem, "yamltree: expecting YAML_STREAM_START_EVENT got '%s'.", event_to_string(ctx.next_event.type));
+		snprintf(ctx.error->problem = yaml_last_error, sizeof(yaml_last_error)-1, "yamltree: expecting YAML_STREAM_START_EVENT got '%s'.", event_to_string(ctx.next_event.type));
 		goto error;
 	}
 	

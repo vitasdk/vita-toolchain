@@ -1,7 +1,7 @@
 #ifndef SCE_ELF_H
 #define SCE_ELF_H
 
-#include "vita-elf.h"
+#include "velf.h"
 
 /* SCE-specific definitions for e_type: */
 #define ET_SCE_EXEC		0xFE00		/* SCE Executable file */

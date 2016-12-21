@@ -23,10 +23,10 @@
 #define munmap(ptr, size) free(ptr)
 #endif
 
-#include "vita-elf.h"
-#include "vita-import.h"
+#include "velf.h"
+#include "import.h"
 #include "elf-defs.h"
-#include "fail-utils.h"
+#include "elf-utils.h"
 #include "endian-utils.h"
 
 static void free_rela_table(vita_elf_rela_table_t *rtable);
@@ -382,7 +382,7 @@ failure:
 	return 0;
 }
 
-vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
+vita_elf_t *vita_elf_load(const char *filename, bool check_stub_count)
 {
 	vita_elf_t *ve = NULL;
 	GElf_Ehdr ehdr;

@@ -22,12 +22,12 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "yamlemitter.h"
-
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <limits.h>
+
+#include "yaml-emitter.h"
 
 int yamlemitter_stream_start(yaml_emitter_t * emitter, yaml_event_t *event)
 {

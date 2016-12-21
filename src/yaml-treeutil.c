@@ -22,12 +22,12 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
-#include "yamltreeutil.h"
-
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <limits.h>
+
+#include "yaml-treeutil.h"
 
 int yaml_iterate_mapping(yaml_node *node, mapping_functor functor, void *userdata)
 {

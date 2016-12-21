@@ -22,8 +22,9 @@
 # define R_ARM_THM_PC11        102
 
 #define STB_NUM     3
+#ifndef SHT_ARM_EXIDX
 #define SHT_ARM_EXIDX 0x70000001
-
+#endif
 /* Decode functions to turn an enum into a string */
 
 const char *elf_decode_e_type(int e_type);	/* ELF file type */

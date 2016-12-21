@@ -5,12 +5,11 @@
 #include <libelf.h>
 #include <gelf.h>
 
-#include "vita-elf.h"
-#include "vita-export.h"
+#include "velf.h"
+#include "export.h"
 #include "elf-defs.h"
 #include "elf-utils.h"
 #include "sce-elf.h"
-#include "fail-utils.h"
 #include "varray.h"
 #include "endian-utils.h"
 
@@ -482,7 +481,7 @@ void *sce_elf_module_info_encode(
 		if (i == segndx)
 			continue;
 		int pos = ve->segments[i].vaddr - segment_base - start_offset;
-		ASSERT((pos < 0) || (pos >= total_size)), "Cannot allocate %d bytes for SCE data at end of segment %d; segment %d overlaps", total_size, segndx, i)
+		ASSERT((pos < 0) || (pos >= total_size), "Cannot allocate %d bytes for SCE data at end of segment %d; segment %d overlaps", total_size, segndx, i)
 	}
 
 	data = calloc(1, total_size);

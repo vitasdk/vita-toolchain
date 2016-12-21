@@ -1,6 +1,6 @@
-#include "vita-import.h"
 #include <stdlib.h>
 #include <string.h>
+#include "import.h"
 
 vita_imports_t *vita_imports_new(int n_libs)
 {

@@ -8,14 +8,12 @@
 #include <libelf.h>
 #include <gelf.h>
 
-#include "vita-elf.h"
-#include "vita-import.h"
-#include "vita-export.h"
+#include "velf.h"
+#include "import.h"
+#include "export.h"
 #include "elf-defs.h"
 #include "sce-elf.h"
 #include "elf-utils.h"
-#include "fail-utils.h"
-#include "elf-create-argp.h"
 
 // logging level
 int g_log = 0;
@@ -140,6 +138,7 @@ int main(int argc, char *argv[])
 	void *encoded_modinfo;
 	vita_elf_rela_table_t rtable = {};
 	vita_export_t *exports = NULL;
+	char *exports_path = NULL;
 	
 	int status = EXIT_SUCCESS;
 
@@ -150,13 +149,13 @@ int main(int argc, char *argv[])
 	while ((c = getopt(argc, argv, "vne:")) != -1) {
 		switch (c) {
 		case 'v':g_log++;break;
-		case 'e':exports = optarg;break;
+		case 'e':exports_path = optarg;break;
 		case 'n':check_stub_count = false;break;
 		default :c='?';break;/**< will be caught later */
 		}
 	}
 
-	if ((c == '?') || (argc - optind < 2)) {
+	if ((c == '?') || (argc < optind + 2)) {
 		usage(argc, argv);
 		return EXIT_FAILURE;
 	}
@@ -173,8 +172,8 @@ int main(int argc, char *argv[])
 	for(idx = 0; idx < ve->num_segments; idx++)
 		segment_sizes[idx] = ve->segments[idx].memsz;
 
-	if (exports) {
-		if (!(exports = vita_exports_load(exports, input, 0)))
+	if (exports_path) {
+		if (!(exports = vita_exports_load(exports_path, input, 0)))
 			return EXIT_FAILURE;
 	} else {
 		// generate a default export list
@@ -224,8 +223,9 @@ int main(int argc, char *argv[])
 	print_rtable(&rtable);
 
 	FILE *outfile;
-	Elf *dest;
-	ASSERT(dest = elf_utils_copy_to_file(output, ve->elf, &outfile));
+	Elf *dest = elf_utils_copy_to_file(output, ve->elf, &outfile);
+	ASSERT(dest != NULL, "Unable to copy to file");
+	
 	ASSERT(elf_utils_duplicate_shstrtab(dest));
 	ASSERT(sce_elf_discard_invalid_relocs(ve, ve->rela_tables));
 	ASSERT(sce_elf_write_module_info(dest, ve, &section_sizes, encoded_modinfo));

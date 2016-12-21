@@ -4,7 +4,7 @@
 #include <inttypes.h>
 #include <zlib.h>
 
-#include "vita-export.h"
+#include "export.h"
 #include "sce-elf.h"
 #include "endian-utils.h"
 #include "self.h"
@@ -13,13 +13,12 @@
 #define EXPECT(EXPR, FMT, ...) if(!(EXPR)){fprintf(stderr,FMT"\n",##__VA_ARGS__);ret=-1;goto clear;}
 
 int main(int argc, const char **argv) {
-	if (argc <= 2)
-		return fprintf(stderr, "usage: %s input.velf output-eboot.bin\n", argv[0]);,-1;
-
-	int sz, ret = 0;
+	int ret = 0;
 	FILE* fin=NULL, *fout=NULL;
 	char* input = NULL;
-
+	bool compressed = true;
+	
+	EXPECT(argc > 2, "usage: %s input.velf output-eboot.bin\n", argv[0]);
 	EXPECT(fin  = fopen(argv[0], "rb"), "Failed to open \"%s\"",argv[0]);
 	EXPECT(fout = fopen(argv[1], "wb"), "Failed to open \"%s\"",argv[1]);
 	
@@ -28,7 +27,7 @@ int main(int argc, const char **argv) {
 	fseek(fin, 0, SEEK_SET);
 
 	EXPECT((input = malloc(sz)), "Unable to allocate file size (%zu)", sz);
-	EXPECT(fread(*input, sz, 1, fin) == 1, "Failed to read input file");
+	EXPECT(fread(input, sz, 1, fin) == 1, "Failed to read input file");
 
 	Elf32_Ehdr *ehdr = (Elf32_Ehdr*)input;
 
@@ -46,51 +45,51 @@ int main(int argc, const char **argv) {
 	info->library_nid = htole32(info->library_nid);
 
 	SCE_header hdr = {
-		.magic = 0x454353; // "SCE\0"
-		.version = 3;
-		.sdk_type = 0xC0;
-		.header_type = 1;
-		.metadata_offset = 0x600; // ???
-		.header_len = HEADER_LEN;
-		.elf_filesize = sz;
-		.self_offset = 4;
-		.appinfo_offset = 0x80;
-		.elf_offset = sizeof(SCE_header) + sizeof(SCE_appinfo);
-		.phdr_offset = hdr.elf_offset + sizeof(Elf32_Ehdr);
-		.phdr_offset = (hdr.phdr_offset + 0xf) & ~0xf; // align
-		.section_info_offset = hdr.phdr_offset + sizeof(Elf32_Phdr) * ehdr->e_phnum;
-		.sceversion_offset = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum;
-		.controlinfo_offset = hdr.sceversion_offset + sizeof(SCE_version);
-		.controlinfo_size = sizeof(SCE_controlinfo_5) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7);
-		.self_filesize = 0;/* Will be updated later */
+		.magic = 0x454353, // "SCE\0"
+		.version = 3,
+		.sdk_type = 0xC0,
+		.header_type = 1,
+		.metadata_offset = 0x600, // ???
+		.header_len = HEADER_LEN,
+		.elf_filesize = sz,
+		.self_offset = 4,
+		.appinfo_offset = 0x80,
+		.elf_offset = sizeof(SCE_header) + sizeof(SCE_appinfo),
+		.phdr_offset = hdr.elf_offset + sizeof(Elf32_Ehdr),
+		.phdr_offset = (hdr.phdr_offset + 0xf) & ~0xf, // align
+		.section_info_offset = hdr.phdr_offset + sizeof(Elf32_Phdr) * ehdr->e_phnum,
+		.sceversion_offset = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum,
+		.controlinfo_offset = hdr.sceversion_offset + sizeof(SCE_version),
+		.controlinfo_size = sizeof(SCE_controlinfo_5) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7),
+		.self_filesize = 0,/* Will be updated later */
 	};
 	SCE_appinfo appinfo = {
-		.authid = 0x2F00000000000000ULL;
-		.vendor_id = 0;
-		.self_type = 8;
-		.version = 0x1000000000000;
-		.padding = 0;
+		.authid = 0x2F00000000000000ULL,
+		.vendor_id = 0,
+		.self_type = 8,
+		.version = 0x1000000000000,
+		.padding = 0,
 	};
 	SCE_version ver = {
-		.unk1 = 1;
-		.unk2 = 0;
-		.unk3 = 16;
-		.unk4 = 0;
+		.unk1 = 1,
+		.unk2 = 0,
+		.unk3 = 16,
+		.unk4 = 0,
 	};
 	SCE_controlinfo_5 control_5 = {{5, sizeof(control_5), 1}};
 	SCE_controlinfo_6 control_6 = {{6, sizeof(control_6), 1}, 1};
 	SCE_controlinfo_7 control_7 = {{7, sizeof(control_7)}};
 	Elf32_Ehdr myhdr = {
-		.e_ident = "\177ELF\1\1\1\0";
-		.e_type = ehdr->e_type;
-		.e_machine = 0x28;
-		.e_version = 1;
-		.e_entry = ehdr->e_entry;
-		.e_phoff = 0x34;
-		.e_flags = 0x05000000U;
-		.e_ehsize = 0x34;
-		.e_phentsize = 0x20;
-		.e_phnum = ehdr->e_phnum;
+		.e_ident = "\177ELF\1\1\1\0",
+		.e_type = ehdr->e_type,
+		.e_machine = 0x28,
+		.e_version = 1,
+		.e_entry = ehdr->e_entry,
+		.e_phoff = 0x34,
+		.e_flags = 0x05000000U,
+		.e_ehsize = 0x34,
+		.e_phentsize = 0x20,
+		.e_phnum = ehdr->e_phnum,
 	};
 
 	fseek(fout, hdr.appinfo_offset, SEEK_SET);
@@ -114,10 +113,10 @@ int main(int argc, const char **argv) {
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
 		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 		segment_info sinfo = {
-			.offset = HEADER_LEN + phdr->p_offset;
-			.length = phdr->p_filesz;
-			.compression = 1;
-			.encryption = 2;
+			.offset = HEADER_LEN + phdr->p_offset,
+			.length = phdr->p_filesz,
+			.compression = 1,
+			.encryption = 2,
 		};
 		EXPECT(fwrite(&sinfo, sizeof(sinfo), 1, fout) == 1, "Unable to write Segment[%i]",i);
 	}
@@ -137,9 +136,9 @@ int main(int argc, const char **argv) {
 		for (int i = 0; i < ehdr->e_phnum; ++i) {
 			Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 			segment_info sinfo = {
-				.length = 2 * phdr->p_filesz + 12;
-				.compression = 2;
-				.encryption = 2;
+				.length = 2 * phdr->p_filesz + 12,
+				.compression = 2,
+				.encryption = 2,
 			};
 			unsigned char *buf = malloc(sinfo.length);
 			if (compress2(buf, (uLongf *)&sinfo.length, (unsigned char *)input + phdr->p_offset, phdr->p_filesz, Z_BEST_COMPRESSION) != Z_OK) {
