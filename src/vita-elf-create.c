@@ -121,7 +121,7 @@ void list_segments(vita_elf_t *ve)
 
 static int usage(int argc, char *argv[])
 {
-	fprintf(stderr, "usage: %s [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf\n"
+	fprintf(stderr, "Usage: %s [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf\n"
 					"\t-v,-vv,-vvv:    logging verbosity (more v is more verbose)\n"
 					"\t-n         :    allow empty imports\n"
 					"\t-e yml     :    optional config options\n"

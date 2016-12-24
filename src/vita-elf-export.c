@@ -12,7 +12,7 @@ void vita_exports_free(vita_export_t *exp);
 
 static void show_usage(void)
 {
-	fprintf(stderr, "usage: vita-elf-export mod-type elf exports imports\n"
+	fprintf(stderr, "Usage: vita-elf-export mod-type elf exports imports\n"
 					"\tmod-type: valid values: 'u'/'user' for user mode, else 'k'/'kernel' for kernel mode\n"
 					"\telf: path to the elf produced by the toolchain to be used by vita-elf-create\n"
 					"\texports: path to the config yaml file specifying the module information and exports\n"

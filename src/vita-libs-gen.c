@@ -489,7 +489,7 @@ void usage()
 {
 	fprintf(stderr,
 		"vita-libs-gen by xerpi\n"
-		"usage: vita-libs-gen [-c] nids.yml [extra.yml ...] output-dir\n"
+		"Usage: vita-libs-gen [-c] nids.yml [extra.yml ...] output-dir\n"
 		"\t-c: Generate CMakeLists.txt instead of a Makefile\n"
 	);
 }
