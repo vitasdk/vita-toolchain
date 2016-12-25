@@ -35,6 +35,7 @@ fetch libzip 1.1.3  nih.at/libzip               "--disable-shared --enable-stati
 fetch yaml   0.1.7  pyyaml.org/download/libyaml "--disable-shared --enable-static CFLAGS=-DYAML_DECLARE_STATIC"
 fetch zlib   1.2.8  zlib.net                    "--static"
 
+# Cmake build alternative
 #cd $CWD
 # build vita-elf-create velf import import-parse export-parse elf-defs sce-elf varray elf-utils sha256 yaml-tree yaml-treeutil
 # build vita-elf-export yaml-tree yaml-treeutil sha256 yaml-emitter export-parse

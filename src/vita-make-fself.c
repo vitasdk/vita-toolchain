@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <zlib.h>
+#include <getopt.h>
 
 #include "export.h"
 #include "sce-elf.h"
@@ -12,48 +13,76 @@
 
 #define EXPECT(EXPR, FMT, ...) if(!(EXPR)){fprintf(stderr,FMT"\n",##__VA_ARGS__);ret=-1;goto clear;}
 
-int main(int argc, const char **argv) {
-	int ret = 0;
+typedef struct{int dummy;char*help;void*val;}opt_ex;
+enum{HELP=0,COMP,AUTH,VNDR,STYP,HDRV,APPV,SDKT,TYPE};/* for a sexier access to options[] */
+struct option options[] = {
+	/*name,hasArg,          defaultVal, description (for --help screen), value if found */
+	{"help",    0, (int*)&(opt_ex){  0,"display this help and exit"},1},
+	{"compress",0, (int*)&(opt_ex){  0,"compress the inner velf"},1},
+	{"authid",  1, (int*)&(opt_ex){  1,"1:normal,2:safe,3:secret"}},
+	{"vendorid",1, (int*)&(opt_ex){  0,"vendor id"}},
+	{"selftype",1, (int*)&(opt_ex){  8,"1:lv0,2:lv1,3:lv2,4:app,5:SPU,6:secldr,7:appldr,8:NPDRM"}},
+	{"ver_hdr", 1, (int*)&(opt_ex){  3,"version (header)"}},
+	{"ver_app", 1, (int*)&(opt_ex){  0,"version (appinfo)"}},
+	{"sdktype" ,1, (int*)&(opt_ex){192,"sdk type"}},
+	{"type"    ,1, (int*)&(opt_ex){  1,"1:self,2:?,3:pkg"}},
+	{}
+};
+
+int main(int argc, char **argv) {
+	int ret = 0, optidx = 0;
 	FILE* fin=NULL, *fout=NULL;
-	char* input = NULL;
-	bool compressed = true;
+	char* inbuf = NULL;
+
+	/* load arguments */
+	while (getopt_long_only(argc, argv, "", options, &optidx) != -1) {
+		if(options[optidx].has_arg)
+			options[optidx].val=strtol(optarg,NULL,0);
+	}
+
+	/* print help if requested or bad arg count */
+	if(*options[HELP].flag || (argc-optind) != 2){
+		fprintf(stderr,"Usage: %s [OPTIONS] inbuf.velf output-eboot.bin\nOPTIONS:\n", argv[0]);
+		for(struct option*opt = options; opt->name ; opt++){
+			char line[32] = {};
+			snprintf(line,sizeof(line)-1,"%s%s%.*i", opt->name, opt->has_arg?"=":" ",opt->has_arg, opt->has_arg?*opt->flag:0);
+			fprintf(stderr,"  --%-16s%s\n",line, ((opt_ex*)opt->flag)->help);
+		}
+		return -1;
+	}
 	
-	EXPECT(argc > 2, "Usage: %s input.velf output-eboot.bin\n", argv[0]);
-	EXPECT(fin  = fopen(argv[1], "rb"), "Failed to open \"%s\"",argv[1]);
-	EXPECT(fout = fopen(argv[2], "wb"), "Failed to open \"%s\"",argv[2]);
+	char*inpath=argv[argc-2];
+	char*outpath=argv[argc-1];
+	EXPECT(fin  = fopen(inpath, "rb"), "Failed to open \"%s\"",inpath);
+	EXPECT(fout = fopen(outpath,"wb"), "Failed to open \"%s\"",outpath);
 	
 	fseek(fin, 0, SEEK_END);
 	size_t sz = ftell(fin);
 	fseek(fin, 0, SEEK_SET);
 
-	EXPECT((input = malloc(sz)), "Unable to allocate file size (%zu)", sz);
-	EXPECT(fread(input, sz, 1, fin) == 1, "Failed to read input file");
+	EXPECT((inbuf = malloc(sz)), "Unable to allocate file size (%zu)", sz);
+	EXPECT(fread(inbuf, sz, 1, fin) == 1, "Failed to read inbuf file");
 
-	Elf32_Ehdr *ehdr = (Elf32_Ehdr*)input;
+	Elf32_Ehdr *ehdr = (Elf32_Ehdr*)inbuf;
 
+	EXPECT((ehdr->e_type==ET_SCE_EXEC) || (ehdr->e_type==ET_SCE_RELEXEC), "%s is not a SCE(REL)EXEC .velf file",inpath)
+	bool is_rel = (ehdr->e_type == ET_SCE_RELEXEC);
 	// write module nid
-	Elf32_Phdr *phdr;
-	sce_module_info_raw *info;
-	if (ehdr->e_type == ET_SCE_EXEC) {
-		phdr = (Elf32_Phdr*)(input + ehdr->e_phoff);
-		info = (sce_module_info_raw *)(input + phdr->p_offset + phdr->p_paddr);
-	} else if (ehdr->e_type == ET_SCE_RELEXEC) {
-		phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + (ehdr->e_entry >> 30) * ehdr->e_phentsize);
-		info = (sce_module_info_raw *)(input + phdr->p_offset + (ehdr->e_entry & 0x3fffffff));
-	}
-	EXPECT(sha256_32_file(argv[0], &info->library_nid) == 0, "Unable to compute SHA256");
+	Elf32_Phdr          *phdr = (Elf32_Phdr*          )(inbuf + ehdr->e_phoff  + (is_rel?(ehdr->e_entry >> 30)*ehdr->e_phentsize:0));
+	sce_module_info_raw *info = (sce_module_info_raw *)(inbuf + phdr->p_offset + (is_rel?(ehdr->e_entry & 0x3fffffff):phdr->p_paddr));
+	EXPECT(sha256_32_file(inpath, &info->library_nid) == 0, "Unable to compute SHA256");
 	info->library_nid = htole32(info->library_nid);
 
 	SCE_header hdr = {
-		.magic = 0x454353, // "SCE\0"
-		.version = 3,
-		.sdk_type = 0xC0,
-		.header_type = 1,
+		.magic       = 0x454353, // "SCE\0"
+		.version     = *options[HDRV].flag,
+		.sdk_type    = *options[SDKT].flag,
+		.header_type = *options[TYPE].flag,
 		.metadata_offset = 0x600, // ???
-		.header_len = HEADER_LEN,
+		.header_len = 0x1000,
 		.elf_filesize = sz,
 		.self_offset = 4,
-		.appinfo_offset = 0x80,
+		.appinfo_offset = sizeof(SCE_header),
 		.elf_offset = sizeof(SCE_header) + sizeof(SCE_appinfo),
 		.phdr_offset = hdr.elf_offset + sizeof(Elf32_Ehdr),
 		.phdr_offset = (hdr.phdr_offset + 0xf) & ~0xf, // align
@@ -64,10 +93,10 @@ int main(int argc, const char **argv) {
 		.self_filesize = 0,/* Will be updated later */
 	};
 	SCE_appinfo appinfo = {
-		.authid = 0x2F00000000000000ULL,
-		.vendor_id = 0,
-		.self_type = 8,
-		.version = 0x1000000000000,
+		.authid    = *options[AUTH].flag | (0x2FLLU<<56),
+		.vendor_id = *options[VNDR].flag,
+		.self_type = *options[STYP].flag,
+		.version   = *options[APPV].flag | (1LLU<<48),
 		.padding = 0,
 	};
 	SCE_version ver = {
@@ -91,7 +120,7 @@ int main(int argc, const char **argv) {
 		.e_phentsize = 0x20,
 		.e_phnum = ehdr->e_phnum,
 	};
-
+	
 	fseek(fout, hdr.appinfo_offset, SEEK_SET);
 	EXPECT(fwrite(&appinfo, sizeof(appinfo), 1, fout) == 1, "Failed to write appinfo");
 	fseek(fout, hdr.elf_offset, SEEK_SET);
@@ -100,7 +129,7 @@ int main(int argc, const char **argv) {
 	// copy elf phdr in same format
 	fseek(fout, hdr.phdr_offset, SEEK_SET);
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
-		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i);
+		Elf32_Phdr *phdr = (Elf32_Phdr*)(inbuf + ehdr->e_phoff + ehdr->e_phentsize * i);
 		// but fixup alignment, TODO: fix in toolchain
 		if (phdr->p_align > 0x1000)
 			phdr->p_align = 0x1000;
@@ -111,9 +140,9 @@ int main(int argc, const char **argv) {
 	// first round we assume no compression
 	fseek(fout, hdr.section_info_offset, SEEK_SET);
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
-		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
+		Elf32_Phdr *phdr = (Elf32_Phdr*)(inbuf + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 		segment_info sinfo = {
-			.offset = HEADER_LEN + phdr->p_offset,
+			.offset = hdr.header_len + phdr->p_offset,
 			.length = phdr->p_filesz,
 			.compression = 1,
 			.encryption = 2,
@@ -129,19 +158,19 @@ int main(int argc, const char **argv) {
 	fwrite(&control_6, sizeof(control_6), 1, fout);
 	fwrite(&control_7, sizeof(control_7), 1, fout);
 
-	if (!compressed) {
-		fseek(fout, HEADER_LEN, SEEK_SET);
-		EXPECT(fwrite(input, sz, 1, fout) == 1, "Failed to write a copy of input ELF");
+	if (!*options[COMP].flag) {
+		fseek(fout, hdr.header_len, SEEK_SET);
+		EXPECT(fwrite(inbuf, sz, 1, fout) == 1, "Failed to write a copy of inbuf ELF");
 	} else {
 		for (int i = 0; i < ehdr->e_phnum; ++i) {
-			Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
+			Elf32_Phdr *phdr = (Elf32_Phdr*)(inbuf + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 			segment_info sinfo = {
 				.length = 2 * phdr->p_filesz + 12,
 				.compression = 2,
 				.encryption = 2,
 			};
 			unsigned char *buf = malloc(sinfo.length);
-			if (compress2(buf, (uLongf *)&sinfo.length, (unsigned char *)input + phdr->p_offset, phdr->p_filesz, Z_BEST_COMPRESSION) != Z_OK) {
+			if (compress2(buf, (uLongf *)&sinfo.length, (unsigned char *)inbuf + phdr->p_offset, phdr->p_filesz, Z_BEST_COMPRESSION) != Z_OK) {
 				free(buf);
 				EXPECT(0, "compress failed");
 			}
@@ -167,7 +196,7 @@ int main(int argc, const char **argv) {
 clear:
 	if(fin)fclose(fin);
 	if(fout)fclose(fout);
-	if(input)free(input);
+	if(inbuf)free(inbuf);
 
 	return ret;
 }

@@ -72,7 +72,3 @@ typedef struct {
 	uint64_t encryption; // 1 = encrypted, 2 = plain
 } segment_info;
 #pragma pack(pop)
-
-enum {
-	HEADER_LEN = 0x1000
-};
