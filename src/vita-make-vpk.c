@@ -18,7 +18,7 @@ int file_add_req(zip_t *zip, char* outer_path, char* inner_path)
 {
 	struct stat s;
 	EXPECT(stat(outer_path,&s) == 0 , "can't access %s",outer_path)
-	if(s.st_mode & S_IFDIR){
+	if(S_ISDIR(s.st_mode)){
 		DIR *dir = opendir(outer_path);
 		struct dirent *entry;
 		while((entry = readdir(dir))){
@@ -33,7 +33,7 @@ int file_add_req(zip_t *zip, char* outer_path, char* inner_path)
 			file_add_req(zip,outer,inner);
 		}
 		closedir(dir);
-	}else if(s.st_mode & S_IFREG){
+	}else if(S_ISREG(s.st_mode)){
 		/*fprintf(stderr, "Packing \"%s\" as \"%s\"\n", outer_path, inner_path);*/
 		zip_file_add(zip, inner_path, zip_source_file(zip, outer_path, 0, 0), 0);
 	}

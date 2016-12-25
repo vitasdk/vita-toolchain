@@ -1,15 +1,25 @@
-vita-toolchain
-==============
-These are a set of tools that, along with an ARM compiler and linker, provides a
-build system for PlayStation Vita(TM). Look at
-[buildscripts](https://github.com/vitasdk/buildscripts) for more information on
-building the complete toolchain with binutils/gcc/newlib. As such, this repo
-only contains Vita specific host tools. Check out the
-[specifications](doc/specifications.pdf) for more details on the Vita executable
-format, these tools, and their inputs/outputs (including the YAML configuration 
-format).
+# Vita Toolchain
 
-### vita-elf-create
+These are a set of tools that, along with an ARM compiler and linker,
+provides a build system for PlayStation Vita(TM).
+Look at [buildscripts](https://github.com/vitasdk/buildscripts)
+for more information on building the complete toolchain with binutils/gcc/newlib.
+As such, this repo only contains Vita specific host tools.
+Check out the wiki for more details on the Vita executable format, these tools,
+and their inputs/outputs (including the YAML configuration format).
+
+# Build
+```
+mkdir build
+cd build
+cmake ..
+make
+```
+
+Vita Toolchain Binaries
+========
+
+## vita-elf-create
 ```
 usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
     -v,-vv,-vvv:    logging verbosity (more v is more verbose)
@@ -21,7 +31,7 @@ usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
 Converts a standard `ET_EXEC` ELF (outputted by `arm-vita-eabi-gcc` for example)
 to the Sony ELF format.
 
-### vita-elf-export
+## vita-elf-export
 ```
 usage: vita-elf-export mod-type elf exports imports
     mod-type: valid values: 'u'/'user' for user mode, else 'k'/'kernel' for kernel mode
@@ -34,7 +44,7 @@ database is a YAML file (not to be confused with the config YAML file) which
 defines the NID mappings for a given module. This can be used by other tools for
 debugging and reversing purposes.
 
-### vita-libs-gen
+## vita-libs-gen
 ```
 usage: vita-libs-gen nids.yml [extra.yml ...] output-dir
     -c: Generate CMakeLists.txt instead of a Makefile
@@ -45,7 +55,7 @@ libraries that can be linked to such that `vita-elf-create` can properly
 generate a Sony ELF. After calling `vita-libs-gen` you need to run `make` or 
 `cmake` in the output directory to build the stubs.
 
-### vita-make-fself
+## vita-make-fself
 ```
 usage: vita-make-fself [-s|-ss] [-c] input.velf output-eboot.bin
     -s : Generate a safe eboot.bin. A safe eboot.bin does not have access
@@ -58,7 +68,7 @@ wraps around the Sony ELF file. Optionally supports compression of the input
 ELF. Also allows marking a homebrew as "safe", which prevents it from harming
 the system.
 
-### vita-mksfoex
+## vita-mksfoex
 ```
 usage: mksfoex [options] TITLE output.sfo
     -d NAME=VALUE   Add a new DWORD value
@@ -70,7 +80,7 @@ recommended that you use `XXXXYYYYY` where `XXXX` is an author specific
 identifier and `YYYYY` is a unique number identifying your homebrew. For
 example, molecularShell uses `MLCL00001`.
 
-### vita-pack-vpk
+## vita-pack-vpk
 ```
 Usage:
     vita-pack-vpk [OPTIONS] output.vpk
@@ -81,30 +91,3 @@ Usage:
   -h, --help              displays this help and exit
 ```
 Generates a VPK homebrew package. `eboot.bin` and `param.sfo` are required.
-
-## Development
-Required libraries are 
-[libelf](http://www.mr511.de/software/libelf-0.8.13.tar.gz), 
-[zlib](http://zlib.net/zlib-1.2.8.tar.gz), 
-[libzip](https://nih.at/libzip/libzip-1.1.3.tar.gz), and 
-[libyaml](http://pyyaml.org/download/libyaml/yaml-0.1.7.tar.gz). Please note 
-that there are some compatibility problems with built-in libelf so it is 
-recommended that you download it from the provided link.
-
-After getting the dependencies, build with
-```
-mkdir build && cd build
-cmake ..
-make
-```
-
-### Note on Naming
-Early in the development, there was a confusion on the meaning of "module" and
-"library" in context of the Vita. After the tools were written initially, we
-decided to reverse the meaning of those two words. All user-facing usage of
-those words have been changed (console outputs, messages, etc) but it is too
-much word to change all internal usage of those words (function/variable names,
-etc). Therefore you may be confused when reading the source since the meaning of
-"module" and "library" is used inconsistently. It would be great if someone
-could take the time to correct all the usages ("module" exports one or more
-"libraries" and imports zero or more "libraries"; `eboot.bin` is a module).

@@ -1,19 +1,22 @@
 os:
   - linux
-dist: trusty
-sudo: false
+sudo: false # faster build
 language: c
 
-script:
-  - bash build.sh
-  - cd $TRAVIS_BUILD_DIR
+before_script: # Get vita-gcc (`make tests` purpose)
   - curl https://api.github.com/repos/vitasdk/autobuilds/releases | grep browser_download_url | grep linux | head -n 1 | cut -d '"' -f 4 | xargs curl -L | tar xj
   - export VITASDK=$PWD/vitasdk
   - export PATH=$VITASDK/bin:$PATH
-  # arm-none-eabi-gcc -Wl,-q -mfloat-abi=hard -std=gnu99 src/vita-make-sfo.c -o vita-make-sfo._elf -lSceRtc_stub -lSceSysmem_stub -lSceKernelThreadMgr_stub -lSceKernelModulemgr_stub -lSceIofilemgr_stub -lSceProcessmgr_stub -lSceLibKernel_stub -lSceNet_stub -lSceLibc_stub -L$VITASDK/arm-vita-eabi/lib/
-  - arm-vita-eabi-gcc -Wl,-q vita-make-sfo.c -o vita-make-sfo.elf
-  - vita-elf-create vita-make-sfo.elf  vita-make-sfo.velf
-  - vita-make-fself vita-make-sfo.velf vita-make-sfo.fself
+
+script:
+  - mkdir build
+  - cd build
+  - cmake -DCOVERAGE=ON .. # Build with coverage (`make test` purpose)
+  - make all test
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+
 notifications:
   irc:
     - "chat.freenode.net#vitasdk"

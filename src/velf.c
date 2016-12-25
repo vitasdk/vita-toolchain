@@ -403,7 +403,7 @@ vita_elf_t *vita_elf_load(const char *filename, bool check_stub_count)
 	ASSERT(varray_init(&ve->vstubs_va, sizeof(int), 4));
 	ASSERT((ve->file = fopen(filename, "rb")) != NULL, "open %s failed", filename);
 	ELF_ASSERT(ve->elf = elf_begin(fileno(ve->file), ELF_C_READ, NULL));
-	ASSERT(elf_kind(ve->elf) != ELF_K_ELF, "%s is not an ELF file", filename);
+	ASSERT(elf_kind(ve->elf) == ELF_K_ELF, "%s is not an ELF file", filename);
 	ELF_ASSERT(gelf_getehdr(ve->elf, &ehdr));
 	ASSERT(ehdr.e_machine == EM_ARM, "%s is not an ARM binary", filename);
 	ASSERT(ehdr.e_ident[EI_CLASS] == ELFCLASS32 && ehdr.e_ident[EI_DATA] == ELFDATA2LSB, "%s is not a 32-bit, little-endian binary", filename);
@@ -444,7 +444,7 @@ vita_elf_t *vita_elf_load(const char *filename, bool check_stub_count)
 		}
 	}
 
-	ASSERT(ve->fstubs_va.count == 0 && ve->vstubs_va.count == 0 && check_stub_count,
+	ASSERT(ve->fstubs_va.count != 0 || ve->vstubs_va.count != 0 || !check_stub_count,
 	       "No .vitalink stub sections in binary, probably not a Vita binary. If this is a vita binary, pass '-n' to squash this error.");
 
 	ASSERT(ve->symtab != NULL,"No symbol table in binary, perhaps stripped out");

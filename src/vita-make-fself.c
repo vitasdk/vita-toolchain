@@ -19,8 +19,8 @@ int main(int argc, const char **argv) {
 	bool compressed = true;
 	
 	EXPECT(argc > 2, "Usage: %s input.velf output-eboot.bin\n", argv[0]);
-	EXPECT(fin  = fopen(argv[0], "rb"), "Failed to open \"%s\"",argv[0]);
-	EXPECT(fout = fopen(argv[1], "wb"), "Failed to open \"%s\"",argv[1]);
+	EXPECT(fin  = fopen(argv[1], "rb"), "Failed to open \"%s\"",argv[1]);
+	EXPECT(fout = fopen(argv[2], "wb"), "Failed to open \"%s\"",argv[2]);
 	
 	fseek(fin, 0, SEEK_END);
 	size_t sz = ftell(fin);

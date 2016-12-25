@@ -1,77 +1,63 @@
 cmake_minimum_required(VERSION 2.6)
 project(vita-toolchain)
+option(COVERAGE "Build with coverage support" OFF)
+add_definitions(-std=gnu99)
+set(LIB ${CMAKE_SOURCE_DIR}/deps/lib/lib)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-set(SRC_DIR src)
-option (COVERAGE "Build with coverage support" OFF)
+enable_testing()
 
-find_package(libelf REQUIRED)
-find_package(libz REQUIRED)
-find_package(libzip REQUIRED)
-find_package(libyaml REQUIRED)
-
-include_directories(${libelf_INCLUDE_DIRS})
-include_directories(${libz_INCLUDE_DIRS})
-include_directories(${libzip_INCLUDE_DIRS})
-include_directories(${libyaml_INCLUDE_DIRS})
-
-add_definitions(-std=gnu99) # -Wall -Wextra
-
-if(USE_BUNDLED_ENDIAN_H)
-	add_definitions(-DUSE_BUNDLED_ENDIAN_H)
+if(NOT EXISTS ${LIB}elf.a)
+	execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/deps.sh WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()
 
-if(DEFINED ZIP_STATIC)
-	add_definitions(-DZIP_STATIC)
-endif()
+function(vita_tool)
+	FOREACH(arg ${ARGN})
+		LIST(APPEND src ${CMAKE_SOURCE_DIR}/src/${arg}.c)
+	ENDFOREACH(arg)
+	add_executable(${ARGV0} ${src})
+	include_directories(${CMAKE_SOURCE_DIR}/deps/include ${CMAKE_SOURCE_DIR}/deps/lib/libzip/include)
+	target_link_libraries(${ARGV0} ${LIB}elf.a ${LIB}zip.a ${LIB}z.a ${LIB}yaml.a)
+	install(TARGETS ${ARGV0} DESTINATION bin)
+	
+	# generate some basic functionals tests
+	add_test(${ARGV0}_usage ${CMAKE_BINARY_DIR}/${ARGV0})# no arguments should bring the USAGE screen
+	set_tests_properties(${ARGV0}_usage PROPERTIES PASS_REGULAR_EXPRESSION Usage)
+	add_test(${ARGV0}_retcode ${CMAKE_BINARY_DIR}/${ARGV0})# no arguments should have a failed (non-zero) return code
+	set_tests_properties(${ARGV0}_retcode PROPERTIES WILL_FAIL TRUE)
+endfunction()
 
-if (WIN32)
-	add_definitions(-DYAML_DECLARE_STATIC)
-endif()
+vita_tool(vita-elf-create velf import import-parse export-parse elf-defs sce-elf varray elf-utils sha256 yaml-tree yaml-treeutil)
+vita_tool(vita-libs-gen import import-parse yaml-tree yaml-treeutil)
+vita_tool(vita-mksfoex)
+vita_tool(vita-make-sfo)
+vita_tool(vita-make-fself sha256)
+vita_tool(vita-make-vpk)
+vita_tool(vita-pack-vpk)
+vita_tool(vita-elf-export yaml-tree yaml-treeutil sha256 yaml-emitter export-parse)
 
-enable_testing ()
-macro(vita_tool name libs)
-	SET(tool "vita-${name}")
-	SET(CMAKE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
-	SET(src "${SRC_DIR}/${tool}")
-	FOREACH(f ${ARGN})
-		LIST(APPEND src "${SRC_DIR}/${f}")
-	ENDFOREACH(f)
-	add_executable(${tool} ${src})
-	target_link_libraries(${tool} ${libs})
-	install(TARGETS ${tool} DESTINATION bin)
-	#not arguments should bring the USAGE screen
-	add_test(${name}_usage ${CMAKE_BINARY_DIR}/${tool})
-	set_tests_properties(${name}_usage PROPERTIES PASS_REGULAR_EXPRESSION Usage)
-	#not arguments should have a non-zero return code
-	add_test(${name}_retcode ${CMAKE_BINARY_DIR}/${tool})
-	set_tests_properties(${name}_retcode PROPERTIES WILL_FAIL TRUE)
-endmacro()
-
-vita_tool(libs-gen   "${libyaml_LIBRARIES}" import import-parse yaml-tree yaml-treeutil)
-vita_tool(elf-create "${libyaml_LIBRARIES};${libelf_LIBRARIES}" velf import import-parse export-parse elf-defs sce-elf varray elf-utils sha256 yaml-tree yaml-treeutil)
-vita_tool(mksfoex    "")
-vita_tool(make-sfo   "")
-vita_tool(make-fself "${libz_LIBRARIES}" sha256)
-vita_tool(make-vpk   "${libz_LIBRARIES};${libzip_LIBRARIES}")
-vita_tool(pack-vpk   "${libz_LIBRARIES};${libzip_LIBRARIES}")
-vita_tool(elf-export "${libyaml_LIBRARIES}" yaml-tree yaml-treeutil sha256 yaml-emitter export-parse)
-
+add_test(build-bin arm-vita-eabi-gcc -Wl,-q ${CMAKE_SOURCE_DIR}/src/vita-make-sfo.c -o test.elf)
+add_test(build-velf  ./vita-elf-create test.elf  test.velf)
+add_test(build-fself ./vita-make-fself test.velf test.fself)
+add_test(build-sfoex ./vita-mksfoex    test.sfo  sample -s STITLE=sample -d ID=42)
+add_test(build-sfo   ./vita-make-sfo   test.sfo  TITLE=sample ID=+42)
+add_test(build-vpk_  ./vita-pack-vpk   test.vpk  -s test.sfo -b test.fself -a Makefile)
+add_test(build-vpk   ./vita-make-vpk   test.vpk  test.sfo test.fself=eboot.bin CMakeFiles)
 
 if(COVERAGE)
+	set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -ftest-coverage -fprofile-arcs")
 	find_program (GCOV_EXECUTABLE gcov)
 	find_program (LCOV_EXECUTABLE lcov)
-	if (NOT GCOV_EXECUTABLE OR NOT LCOV_EXECUTABLE)
-		message(FATAL_ERROR "gcov or lcov was not found")
+	if (NOT GCOV_EXECUTABLE)
+		message(FATAL_ERROR "gcov was not found, can't do coverage")
 	endif ()
-	set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -ftest-coverage -fprofile-arcs")
-	add_test(gencov lcov --capture --directory ./ --output-file coverage.info)
-	add_test(genhtml genhtml coverage.info --output-directory coverage)
+	if (NOT LCOV_EXECUTABLE)
+		message("lcov was not found, skip html report generation")
+	else()
+		add_test(lcov lcov --capture --directory ./ --output-file coverage.info)
+		add_test(genhtml genhtml coverage.info --output-directory coverage)
+	endif ()
 endif()
 
 install(FILES
 	contrib/usr/share/*
 	DESTINATION share)
-
-
-

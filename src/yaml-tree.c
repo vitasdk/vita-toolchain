@@ -52,29 +52,29 @@ char *format_error_string(parser_context *ctx)
 			
 		case YAML_READER_ERROR:
 			if (ctx->parser.problem_value != -1)
-				snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: reader error: '%s:#%X' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_value, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+				snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: reader error: '%s:#%X' at line %zu, column %zu.", ctx->parser.problem, ctx->parser.problem_value, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			else
-				snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: reader error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+				snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: reader error: '%s' at line %zu, column %zu.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_SCANNER_ERROR:
-			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: scanner error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: scanner error: '%s' at line %zu, column %zu.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_PARSER_ERROR:
-			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: parser error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: parser error: '%s' at line %zu, column %zu.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_COMPOSER_ERROR:
-			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: composer error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: composer error: '%s' at line %zu, column %zu.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_WRITER_ERROR:
-			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: writer error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: writer error: '%s' at line %zu, column %zu.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		case YAML_EMITTER_ERROR:
-			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: emitter error: '%s' at line %d, column %d.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
+			snprintf(yaml_last_error, sizeof(yaml_last_error)-1, "libyaml: emitter error: '%s' at line %zu, column %zu.", ctx->parser.problem, ctx->parser.problem_mark.line, ctx->parser.problem_mark.column);
 			break;
 			
 		default:

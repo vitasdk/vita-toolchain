@@ -40,12 +40,13 @@ options.
 //TODO
 ```
 
-There are three filename extensions for SELFs. self is usually used for application
-executables and likely stands for “secure ELF” or “Sony ELF”. suprx are userland dynamic
-libraries and is similar to how so libraries work on Linux. skprx are kernel modules and is
-similar to how ko libraries work on Linux. Even though the extensions are different, all these
-file types use the same SCE ELF format. There is no difference between an ET SCE RELEXEC
-application and a suprx except that suprx usually exports additional libraries for linking.
+There are three filename extensions for SELFs.
+- self is usually used for application executables and likely stands for “secure ELF” or “Sony ELF”.
+- suprx are userland dynamic libraries and is similar to how so libraries work on Linux.
+- skprx are kernel modules and is similar to how ko libraries work on Linux.
+Even though the extensions are different, all these file types use the same SCE ELF format.
+There is no difference between an ET SCE RELEXEC application and a suprx except that suprx
+usually exports additional libraries for linking.
 That means, in theory, a single SCE ELF can act as both an application and a userland
 library. The only difference between suprx and skprx is that skprx is meant to run in kernel
 and can use ARM system instructions. A skprx can also export libraries to userland in the
