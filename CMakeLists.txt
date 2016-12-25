@@ -6,12 +6,12 @@ set(SRC_DIR src)
 option (COVERAGE "Build with coverage support" OFF)
 
 find_package(libelf REQUIRED)
-find_package(zlib REQUIRED)
+find_package(libz REQUIRED)
 find_package(libzip REQUIRED)
 find_package(libyaml REQUIRED)
 
 include_directories(${libelf_INCLUDE_DIRS})
-include_directories(${zlib_INCLUDE_DIRS})
+include_directories(${libz_INCLUDE_DIRS})
 include_directories(${libzip_INCLUDE_DIRS})
 include_directories(${libyaml_INCLUDE_DIRS})
 
@@ -52,9 +52,9 @@ vita_tool(libs-gen   "${libyaml_LIBRARIES}" import import-parse yaml-tree yaml-t
 vita_tool(elf-create "${libyaml_LIBRARIES};${libelf_LIBRARIES}" velf import import-parse export-parse elf-defs sce-elf varray elf-utils sha256 yaml-tree yaml-treeutil)
 vita_tool(mksfoex    "")
 vita_tool(make-sfo   "")
-vita_tool(make-fself "${zlib_LIBRARIES}" sha256)
-vita_tool(make-vpk   "${zlib_LIBRARIES};${libzip_LIBRARIES}")
-vita_tool(pack-vpk   "${zlib_LIBRARIES};${libzip_LIBRARIES}")
+vita_tool(make-fself "${libz_LIBRARIES}" sha256)
+vita_tool(make-vpk   "${libz_LIBRARIES};${libzip_LIBRARIES}")
+vita_tool(pack-vpk   "${libz_LIBRARIES};${libzip_LIBRARIES}")
 vita_tool(elf-export "${libyaml_LIBRARIES}" yaml-tree yaml-treeutil sha256 yaml-emitter export-parse)
 
 
