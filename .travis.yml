@@ -10,4 +10,4 @@ script:
 
 notifications:
   irc:
-    - "chat.freenode.net#vitasdk"
+    - $IRC_CHANNEL
