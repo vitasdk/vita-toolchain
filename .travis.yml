@@ -4,9 +4,21 @@ dist: trusty
 sudo: false
 language: c
 
+before_script: # Get vita-gcc first (for `make tests` purpose)
+  - URL=$(curl -s https://api.github.com/repos/vitasdk/autobuilds/releases | grep -oP '[^"]+download/master-linux[^"]+' | head -n 1)
+  - echo "Downloading VitaSDK from $URL"
+  - curl -L $URL | tar xj
+  - export VITASDK=$PWD/vitasdk
+  - export PATH=$VITASDK/bin:$PATH
+
 script:
-  - chmod +x build.sh
-  - ./build.sh
+  - mkdir build
+  - cd build
+  - cmake -DCOVERAGE=ON .. # Build with coverage (`make test` purpose)
+  - make all test
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
 
 notifications:
   irc:
