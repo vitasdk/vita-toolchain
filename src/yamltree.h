@@ -25,7 +25,6 @@ DEALINGS IN THE SOFTWARE.
 #ifndef YAMLTREE_H
 #define YAMLTREE_H
 
-#include  <vita-toolchain-public.h>
 #include  <stdio.h>
 
 typedef enum 
@@ -90,8 +89,8 @@ typedef struct
 	char *problem;
 } yaml_error;
 
-VITA_TOOLCHAIN_PUBLIC yaml_tree *parse_yaml_stream(FILE *input, yaml_error *error);
-VITA_TOOLCHAIN_PUBLIC void free_yaml_tree(yaml_tree *tree);
-VITA_TOOLCHAIN_PUBLIC const char *node_type_str(yaml_node *node);
+yaml_tree *parse_yaml_stream(FILE *input, yaml_error *error);
+void free_yaml_tree(yaml_tree *tree);
+const char *node_type_str(yaml_node *node);
 
 #endif // YAMLTREE_H

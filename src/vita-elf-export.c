@@ -4,6 +4,12 @@
 #include "vita-export.h"
 #include "yamlemitter.h"
 
+
+vita_export_t *vita_exports_load(const char *filename, const char *elf, int verbose);
+vita_export_t *vita_exports_loads(FILE *text, const char *elf, int verbose);
+vita_export_t *vita_export_generate_default(const char *elf);
+void vita_exports_free(vita_export_t *exp);
+
 static void show_usage(void)
 {
 	fprintf(stderr, "usage: vita-elf-export mod-type elf exports imports\n"
