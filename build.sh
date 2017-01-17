@@ -3,18 +3,23 @@ uname_string=`uname | sed 'y/LINUXDARWINFREEOPENPCBSDMSYS/linuxdarwinfreeopenpcb
 host_arch=`uname -m | sed 'y/XI/xi/'`
 case "$uname_string" in
   *linux*)
+    BUILD_SHARED_LIBS=OFF
     HOST_NATIVE="$host_arch"-linux-gnu
     JOBS="-j`grep ^processor /proc/cpuinfo|wc -l`"
     ;;
   *freebsd*)
+    BUILD_SHARED_LIBS=OFF
     HOST_NATIVE="$host_arch"-freebsd
     JOBS="-j`sysctl kern.smp.cpus | sed 's/kern.smp.cpus: //'`"
     ;;
   *darwin*)
+    BUILD_SHARED_LIBS=OFF
     HOST_NATIVE=x86_64-apple-darwin10
     JOBS="-j1"
     ;;
   *msys*)
+    # Windows can find DLL by default, so let it enable.
+    BUILD_SHARED_LIBS=ON
     HOST_NATIVE="$host_arch"-w64-mingw32
     JOBS="-j4"
     ;;
@@ -87,5 +92,5 @@ echo "[Step 2.0] Build vita-toolchain..."
 cd ${CWD}
 mkdir build
 cd build
-cmake -G"Unix Makefiles" -DCMAKE_C_FLAGS_RELEASE:STRING="-O3 -DNDEBUG -DZIP_STATIC" -DCMAKE_BUILD_TYPE=Release -Dlibyaml_INCLUDE_DIRS=$INSTALLDIR/include/ -Dlibyaml_LIBRARY=$INSTALLDIR/lib/libyaml.a -Dlibelf_INCLUDE_DIR=$INSTALLDIR/include -Dlibelf_LIBRARY=$INSTALLDIR/lib/libelf.a -Dzlib_INCLUDE_DIR=$INSTALLDIR/include/ -Dzlib_LIBRARY=$INSTALLDIR/lib/libz.a -Dlibzip_INCLUDE_DIR=$INSTALLDIR/include/ -Dlibzip_CONFIG_INCLUDE_DIR=$INSTALLDIR/lib/libzip/include -Dlibzip_LIBRARY=$INSTALLDIR/lib/libzip.a  ../
+cmake -G"Unix Makefiles" -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DCMAKE_C_FLAGS_RELEASE:STRING="-O3 -DNDEBUG -DZIP_STATIC" -DCMAKE_BUILD_TYPE=Release -Dlibyaml_INCLUDE_DIRS=$INSTALLDIR/include/ -Dlibyaml_LIBRARY=$INSTALLDIR/lib/libyaml.a -Dlibelf_INCLUDE_DIR=$INSTALLDIR/include -Dlibelf_LIBRARY=$INSTALLDIR/lib/libelf.a -Dzlib_INCLUDE_DIR=$INSTALLDIR/include/ -Dzlib_LIBRARY=$INSTALLDIR/lib/libz.a -Dlibzip_INCLUDE_DIR=$INSTALLDIR/include/ -Dlibzip_CONFIG_INCLUDE_DIR=$INSTALLDIR/lib/libzip/include -Dlibzip_LIBRARY=$INSTALLDIR/lib/libzip.a  ../
 make 
