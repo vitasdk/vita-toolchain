@@ -26,23 +26,22 @@ DEALINGS IN THE SOFTWARE.
 #define YAMLTREEUTIL_H
 
 #include "yamltree.h"
-#include <vita-toolchain-public.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 typedef int (* mapping_functor)(yaml_node *parent, yaml_node *child, void *userdata);
 typedef int (* sequence_functor)(yaml_node *entry, void *userdata);
 
-VITA_TOOLCHAIN_PUBLIC int yaml_iterate_mapping(yaml_node *node, mapping_functor functor, void *userdata);
-VITA_TOOLCHAIN_PUBLIC int yaml_iterate_sequence(yaml_node *node, sequence_functor functor, void *userdata);
+int yaml_iterate_mapping(yaml_node *node, mapping_functor functor, void *userdata);
+int yaml_iterate_sequence(yaml_node *node, sequence_functor functor, void *userdata);
 
-VITA_TOOLCHAIN_PUBLIC int process_32bit_integer(yaml_node *node, uint32_t *nid);
-VITA_TOOLCHAIN_PUBLIC int process_boolean(yaml_node *node, uint32_t *boolean);
-VITA_TOOLCHAIN_PUBLIC int process_bool(yaml_node *node, bool *boolean);
-VITA_TOOLCHAIN_PUBLIC int process_string(yaml_node *node, const char **str);
+int process_32bit_integer(yaml_node *node, uint32_t *nid);
+int process_boolean(yaml_node *node, uint32_t *boolean);
+int process_bool(yaml_node *node, bool *boolean);
+int process_string(yaml_node *node, const char **str);
 
-VITA_TOOLCHAIN_PUBLIC int is_scalar(yaml_node *node);
-VITA_TOOLCHAIN_PUBLIC int is_mapping(yaml_node *node);
-VITA_TOOLCHAIN_PUBLIC int is_sequence(yaml_node *node);
+int is_scalar(yaml_node *node);
+int is_mapping(yaml_node *node);
+int is_sequence(yaml_node *node);
 
 #endif // YAMLTREEUTIL_H
