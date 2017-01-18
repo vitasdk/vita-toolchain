@@ -28,4 +28,4 @@ cd ${CWD}
 mkdir build
 cd build
 cmake -G"Unix Makefiles" -DCMAKE_C_FLAGS_RELEASE:STRING="-O3 -DNDEBUG -DZIP_STATIC" -DCMAKE_BUILD_TYPE=Release -Dlibyaml_INCLUDE_DIRS=${DEPSDIR}/include/ -Dlibyaml_LIBRARY=${DEPSDIR}/lib/libyaml.a -Dlibelf_INCLUDE_DIR=${DEPSDIR}/include -Dlibelf_LIBRARY=${DEPSDIR}/lib/libelf.a -Dzlib_INCLUDE_DIR=${DEPSDIR}/include/ -Dzlib_LIBRARY=${DEPSDIR}/lib/libz.a -Dlibzip_INCLUDE_DIR=${DEPSDIR}/include/ -Dlibzip_CONFIG_INCLUDE_DIR=${DEPSDIR}/lib/libzip/include -Dlibzip_LIBRARY=${DEPSDIR}/lib/libzip.a  ../
-make 
+cmake --build . -- ${JOBS}
