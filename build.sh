@@ -6,6 +6,7 @@ CWD=$PWD
 BUILDDIR=$PWD/builds
 DEPSDIR=$PWD/builds/deps_build
 JOBS=-j`getconf _NPROCESSORS_ONLN || sysctl kern.smp.cpus | sed 's/kern.smp.cpus: //'` || true
+
 echo "[Step 0.0] Clone buildscripts..."
 git clone https://github.com/vitasdk/buildscripts
 
