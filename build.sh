@@ -1,27 +1,8 @@
 #!/bin/bash
-uname_string=`uname -s | sed 'y/LINUXDARWINFREEOPENPCBSDMSYS/linuxdarwinfreeopenpcbsdmsys/'`
-case "$uname_string" in
-  *linux*)
-    JOBS="-j`grep ^processor /proc/cpuinfo|wc -l`"
-    ;;
-  *freebsd*)
-    JOBS="-j`sysctl kern.smp.cpus | sed 's/kern.smp.cpus: //'`"
-    ;;
-  *darwin*)
-    JOBS="-j1"
-    ;;
-  *msys*)
-    JOBS="-j4"
-    ;;
-  *)
-    echo "Unsupported build system : `uname`"
-    exit 1
-    ;;
-esac
 CWD=$PWD
 BUILDDIR=$PWD/builds
 DEPSDIR=$PWD/builds/deps_build
-JOBS=-j2
+JOBS=-j`getconf _NPROCESSORS_ONLN || sysctl kern.smp.cpus | sed 's/kern.smp.cpus: //'` || true
 echo "[Step 0.0] Clone buildscripts..."
 git clone https://github.com/vitasdk/buildscripts
 
