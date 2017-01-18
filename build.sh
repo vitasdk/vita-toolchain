@@ -1,4 +1,7 @@
 #!/bin/bash
+
+set -eu
+
 CWD=$PWD
 BUILDDIR=$PWD/builds
 DEPSDIR=$PWD/builds/deps_build
