@@ -13,6 +13,10 @@
 #  define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#ifndef MAP_NORESERVE
+#  define MAP_NORESERVE 0
+#endif
+
 #ifndef __MINGW32__
 /* This may cause trouble with Windows portability, but there are Windows alternatives
  * to mmap() that we can explore later.  It'll probably work under Cygwin.
