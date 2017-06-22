@@ -5,9 +5,7 @@ sudo: false
 language: c
 
 before_script: # Get vita-gcc first (for `make tests` purpose)
-  - URL=$(curl -s https://api.github.com/repos/vitasdk/autobuilds/releases | grep -oP '[^"]+download/master-linux[^"]+' | head -n 1)
-  - echo "Downloading VitaSDK from $URL"
-  - curl -L $URL | tar xj
+  - curl -sL github.com/vitasdk/autobuilds/releases | grep linux | grep tar.bz2 | head -n 1 | cut -d '"' -f 2 | xargs -I PATH curl -sL github.comPATH | tar xj
   - export VITASDK=$PWD/vitasdk
   - export PATH=$VITASDK/bin:$PATH
 
