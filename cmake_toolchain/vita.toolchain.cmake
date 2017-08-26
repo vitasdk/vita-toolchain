@@ -102,6 +102,7 @@ set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-q" )
 
 # set these global flags for cmake client scripts to change behavior
 set( VITA True )
+add_definitions ( -DVITA )
 set( BUILD_VITA True )
 
 # where is the target environment
