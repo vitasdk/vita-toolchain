@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 	}
 	else {
 		// generate a default export list
-		exports = vita_export_generate_default(args.input);
+		exports = vita_export_generate_default2(args.input, 1);
 	}
 
 	if (!vita_elf_lookup_imports(ve))
