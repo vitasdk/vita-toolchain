@@ -421,6 +421,11 @@ vita_export_t *vita_exports_loads(FILE *text, const char *elf, int verbose)
 
 vita_export_t *vita_export_generate_default(const char *elf)
 {
+	return vita_export_generate_default2(elf, 0);
+}
+
+vita_export_t *vita_export_generate_default2(const char *elf, int skip_nid)
+{
 	vita_export_t *exports = calloc(1, sizeof(vita_export_t));
 	
 	// set module name to elf output name
@@ -450,7 +455,7 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	
 	
 	// nid is SHA256-32 of ELF
-	if (sha256_32_file(elf, &exports->nid) < 0)
+	if (!skip_nid && sha256_32_file(elf, &exports->nid) < 0)
 	{
 		free(exports);
 		return NULL;

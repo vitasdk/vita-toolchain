@@ -37,6 +37,7 @@ typedef struct {
 VITA_TOOLCHAIN_PUBLIC vita_export_t *vita_exports_load(const char *filename, const char *elf, int verbose);
 VITA_TOOLCHAIN_PUBLIC vita_export_t *vita_exports_loads(FILE *text, const char *elf, int verbose);
 VITA_TOOLCHAIN_PUBLIC vita_export_t *vita_export_generate_default(const char *elf);
+VITA_TOOLCHAIN_PUBLIC vita_export_t *vita_export_generate_default2(const char *elf, int skip_nid);
 VITA_TOOLCHAIN_PUBLIC void vita_exports_free(vita_export_t *exp);
 
 #endif // VITA_EXPORT_H
