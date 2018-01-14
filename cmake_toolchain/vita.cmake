@@ -11,6 +11,12 @@
 ##   - VITA_MKSFOEX_FLAGS
 ##   - VITA_PACK_VPK_FLAGS
 
+## add_include_guard() has been added in 3.10, but it's too recent so we don't use it
+if(__VITA_CMAKE_INCLUDED__)
+  return()
+endif()
+set(__VITA_CMAKE_INCLUDED__ TRUE)
+
 include(CMakeParseArguments)
 
 ##################################################
