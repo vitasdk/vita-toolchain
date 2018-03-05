@@ -36,6 +36,8 @@ typedef struct {
 } vita_imports_lib_t;
 
 typedef struct {
+	char *firmware;
+	char *postfix;
 	vita_imports_lib_t **libs;
 	int n_libs;
 } vita_imports_t;
