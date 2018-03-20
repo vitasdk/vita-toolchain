@@ -2,10 +2,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include <getopt.h>
 #include <zip.h>
 
 #define DEFAULT_OUTPUT_FILE "output.vpk"
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 static void usage(const char *arg);
 
@@ -19,23 +24,30 @@ static const struct option long_options[] = {
 
 static int add_file_zip(zip_t *zip, const char *src, const char *dst)
 {
-	int ret;
-	zip_source_t *zip_src;
-
-	zip_src = zip_source_file(zip, src, 0, 0);
-	if (!zip_src) {
-		printf("Error adding \'%s\': %s\n", src,
-			zip_strerror(zip));
+	struct stat s;
+	if (stat(src,&s)) {
 		return 0;
 	}
-
-	ret = zip_file_add(zip, dst, zip_src, 0);
-	if (ret == -1) {
-		printf("Error adding \'%s\': %s\n", src,
-			zip_strerror(zip));
+	if (S_ISDIR(s.st_mode)) {
+		DIR *dir = opendir(src);
+		struct dirent *entry;
+		while((entry = readdir(dir))){
+			if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+				continue;
+			char src_dir[PATH_MAX];
+			char dst_dir[PATH_MAX];
+			int src_len = snprintf(src_dir, sizeof(src_dir)-1, "%s/%s", src, entry->d_name);
+			int dst_len = snprintf(dst_dir, sizeof(dst_dir)-1, "%s/%s", dst, entry->d_name);
+			src_dir[src_len] = 0;
+			dst_dir[dst_len] = 0;
+			add_file_zip(zip, src_dir, dst_dir);
+		}
+		closedir(dir);
+	}else if(S_ISREG(s.st_mode)){
+		zip_file_add(zip, dst, zip_source_file(zip, src, 0, 0), 0);
+	} else { // symlink etc.
 		return 0;
 	}
-
 	return 1;
 }
 
@@ -213,7 +225,7 @@ void usage(const char *arg)
 	printf("Usage:\n\t%s [OPTIONS] output.vpk\n\n"
 		"  -s, --sfo=param.sfo     sets the param.sfo file\n"
 		"  -b, --eboot=eboot.bin   sets the eboot.bin file\n"
-		"  -a, --add src=dst       adds the file src to the vpk as dst\n"
+		"  -a, --add src=dst       adds the file or directory src to the vpk as dst\n"
 		"  -h, --help              displays this help and exit\n"
 		, arg);
 }
