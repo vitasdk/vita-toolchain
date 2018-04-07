@@ -8,6 +8,10 @@ vita_imports_t *vita_imports_new(int n_libs)
 	if (imp == NULL)
 		return NULL;
 
+	imp->postfix = calloc(64, sizeof(char));
+
+	imp->firmware = NULL;
+
 	imp->n_libs = n_libs;
 
 	imp->libs = calloc(n_libs, sizeof(*imp->libs));
@@ -22,6 +26,11 @@ void vita_imports_free(vita_imports_t *imp)
 		for (i = 0; i < imp->n_libs; i++) {
 			vita_imports_lib_free(imp->libs[i]);
 		}
+
+		if (imp->firmware)
+			free(imp->firmware);
+
+		free(imp->postfix);
 		free(imp);
 	}
 }

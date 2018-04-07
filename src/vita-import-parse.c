@@ -213,17 +213,33 @@ vita_imports_t *read_vita_imports(yaml_document *doc) {
 	for(int n = 0; n < root->count; n++){
 		// check lhs is a scalar
 		if (is_scalar(root->pairs[n]->lhs)) {
-		
-			if (strcmp(root->pairs[n]->lhs->data.scalar.value, "modules")==0) {
+			const char *root_value = root->pairs[n]->lhs->data.scalar.value;
+			if (strcmp(root_value, "firmware") == 0) {
+				if (!is_scalar(root->pairs[n]->rhs))
+					return NULL;
+				const char *firm = root->pairs[n]->rhs->data.scalar.value;
+				// skip default firmware
+				if (strcmp(firm, "3.60") == 0)
+					continue;
+				imports->firmware = strdup(firm);
+				int i = 0;
+				int j = 0;
+				imports->postfix[j++] = '_';
+				while (firm[i]) {
+					const char v = firm[i++];
+					if (v == '.')
+						continue;
+					imports->postfix[j++] = v;
+				}
+			}
+			else if (strcmp(root_value, "modules") == 0) {
 				if (yaml_iterate_mapping(root->pairs[n]->rhs, (mapping_functor)process_import_list, imports) < 0)
 					return NULL;
-				continue;
 			}
-			
-			fprintf(stderr, "warning: line: %zd, column: %zd, unknow tag '%s'.\n", root->pairs[n]->lhs->position.line, root->pairs[n]->lhs->position.column, root->pairs[n]->lhs->data.scalar.value);
-
+			else {
+				fprintf(stderr, "warning: line: %zd, column: %zd, unknow tag '%s'.\n", root->pairs[n]->lhs->position.line, root->pairs[n]->lhs->position.column, root->pairs[n]->lhs->data.scalar.value);
+			}
 		}
-
 	}
 	
 	return imports;
