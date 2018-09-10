@@ -66,6 +66,7 @@ typedef struct SCE_TYPE(sce_module_imports) {
 	uint16_t num_syms_funcs;		/* Number of function imports */
 	uint16_t num_syms_vars;			/* Number of variable imports */
 	uint16_t num_syms_unk;
+
 	uint32_t reserved1;
 	uint32_t module_nid;			/* NID of module to import */
 	SCE_PTR(const char *) module_name;	/* Pointer to name of imported module, for debugging */
@@ -77,6 +78,23 @@ typedef struct SCE_TYPE(sce_module_imports) {
 	SCE_PTR(uint32_t *) unk_nid_table;
 	SCE_PTR(const void **) unk_entry_table;
 } SCE_TYPE(sce_module_imports);
+
+/* alternative module imports struct with a size of 0x24 */
+typedef struct SCE_TYPE(sce_module_imports_short) {
+	uint16_t size;				/* Size of this struct, set to 0x24 */
+	uint16_t version;			/* Set to 0x1 */
+	uint16_t flags;				/* Set to 0x0 */
+	uint16_t num_syms_funcs;		/* Number of function imports */
+	uint16_t num_syms_vars;			/* Number of variable imports */
+	uint16_t num_syms_unk;
+
+	uint32_t module_nid;				/* NID of module to import */
+	SCE_PTR(const char *) module_name;	/* Pointer to name of imported module, for debugging */
+	SCE_PTR(uint32_t *) func_nid_table;	/* Pointer to array of function NIDs to import */
+	SCE_PTR(const void **) func_entry_table;	/* Pointer to array of stub functions to fill */
+	SCE_PTR(uint32_t *) var_nid_table;			/* Pointer to array of variable NIDs to import */
+	SCE_PTR(const void **) var_entry_table;		/* Pointer to array of data pointers to write to */
+} SCE_TYPE(sce_module_imports_short);
 
 #undef SCE_TYPE
 #undef SCE_PTR
