@@ -160,6 +160,7 @@ macro(vita_create_vpk target titleid eboot)
     list(GET vita_create_vpk_FILE 0 fname)
     list(GET vita_create_vpk_FILE 1 fdest)
     get_filename_component(fpath ${fname} ABSOLUTE)
+    list(APPEND resources "${fpath}")
     list(REMOVE_AT vita_create_vpk_FILE 0 1)
     set(VITA_PACK_VPK_FLAGS "${VITA_PACK_VPK_FLAGS} -a ${fpath}=${fdest}")
     list(LENGTH vita_create_vpk_FILE left)
@@ -180,7 +181,7 @@ macro(vita_create_vpk target titleid eboot)
   separate_arguments(VITA_PACK_VPK_FLAGS)
   add_custom_command(OUTPUT ${target}
     COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${target}_param.sfo -b ${eboot} ${target}
-    DEPENDS ${target}_param.sfo ${eboot}
+    DEPENDS ${target}_param.sfo ${eboot} ${resources}
     COMMENT "Building vpk ${target}"
   )
   add_custom_target(${target}_ ALL DEPENDS ${target})
