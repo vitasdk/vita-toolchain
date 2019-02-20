@@ -341,6 +341,7 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 			"foreach(library ${KERNEL_LIBRARIES})\n"
 			"\tadd_library(${library}_stub STATIC ${${library}_ASM})\n"
 			"\ttarget_compile_definitions(${library}_stub PRIVATE -DGEN_WEAK_EXPORTS=0)\n"
+			"\tinstall(TARGETS ${library}_stub DESTINATION $ENV{VITASDK}/arm-vita-eabi/lib/)\n"
 			"endforeach(library)\n\n", fp);
 	}
 
@@ -409,13 +410,15 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 			for (int weak = 0; weak < 2; weak++) {
 				if (!is_special) {
-					fprintf(fp, "%s%s =", library->name, weak ? "_weak_OBJS" : "_OBJS");
+					fprintf(fp, "%s%s%s =", library->name, imp->postfix, weak ? "_weak_OBJS" : "_OBJS");
 				}
 
 				for (j = 0; j < library->n_modules; j++) {
 					vita_imports_module_t *module = library->modules[j];
 
 					if(module->is_kernel)
+						continue;
+					if (!module->n_functions && !module->n_variables)
 						continue;
 
 					char buf[4096];
@@ -441,10 +444,12 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 				if (!module->is_kernel)
 					continue;
+				if (!module->n_functions && !module->n_variables)
+					continue;
 
 				char buf[4096];
 
-				fprintf(fp, "%s_OBJS =", module->name);
+				fprintf(fp, "%s%s_OBJS =", module->name, imp->postfix);
 
 				for (k = 0; k < module->n_functions; k++) {
 					vita_imports_stub_t *function = module->functions[k];
