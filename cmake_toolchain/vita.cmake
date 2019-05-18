@@ -69,7 +69,7 @@ macro(vita_create_self target source)
     DEPENDS ${source}.velf
     COMMENT "Creating SELF ${target}"
   )
-  add_custom_target(${target}_ ALL DEPENDS ${target})
+  add_custom_target(${target}.dep ALL DEPENDS ${target})
 endmacro(vita_create_self)
 ##################################################
 
@@ -184,6 +184,6 @@ macro(vita_create_vpk target titleid eboot)
     DEPENDS ${target}_param.sfo ${eboot} ${resources}
     COMMENT "Building vpk ${target}"
   )
-  add_custom_target(${target}_ ALL DEPENDS ${target})
+  add_custom_target(${target}.dep ALL DEPENDS ${target})
 endmacro(vita_create_vpk)
 ##################################################
