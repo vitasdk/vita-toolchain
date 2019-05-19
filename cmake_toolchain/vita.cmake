@@ -64,12 +64,12 @@ macro(vita_create_self target source)
     COMMENT "Converting to Sony ELF ${source}.velf" VERBATIM
   )
   separate_arguments(VITA_MAKE_FSELF_FLAGS)
-  add_custom_command(OUTPUT ${target}
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
     COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${source}.velf ${target}
     DEPENDS ${source}.velf
     COMMENT "Creating SELF ${target}"
   )
-  add_custom_target(${target}_ ALL DEPENDS ${target})
+  add_custom_target(${target} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target})
 endmacro(vita_create_self)
 ##################################################
 
@@ -179,11 +179,11 @@ macro(vita_create_vpk target titleid eboot)
     COMMENT "Generating param.sfo for ${target}"
   )
   separate_arguments(VITA_PACK_VPK_FLAGS)
-  add_custom_command(OUTPUT ${target}
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
     COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${target}_param.sfo -b ${eboot} ${target}
     DEPENDS ${target}_param.sfo ${eboot} ${resources}
     COMMENT "Building vpk ${target}"
   )
-  add_custom_target(${target}_ ALL DEPENDS ${target})
+  add_custom_target(${target} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target})
 endmacro(vita_create_vpk)
 ##################################################
