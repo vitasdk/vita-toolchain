@@ -59,7 +59,7 @@ macro(vita_create_self target source)
     set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -s")
   endif()
 
-  ## check source for being an internal target, otherwise it is a file path
+  ## check source for being a target, otherwise it is a file path
   if(TARGET ${source})
     set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${source})
   else()
@@ -69,7 +69,7 @@ macro(vita_create_self target source)
 
   ## VELF command
   separate_arguments(VITA_ELF_CREATE_FLAGS)
-  add_custom_command(OUTPUT ${sourcefile}.velf
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
     COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
     DEPENDS ${sourcepath}
     COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
@@ -77,20 +77,19 @@ macro(vita_create_self target source)
 
   ## SELF command
   separate_arguments(VITA_MAKE_FSELF_FLAGS)
-  add_custom_command(OUTPUT ${target}
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
     COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${CMAKE_CURRENT_BINARY_DIR}/${target}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
     COMMENT "Creating SELF ${target}"
   )
 
-  ## SELF internal target
-  ## use arbitrary target name to avoid name collision with command ("circular dependencies")
-  add_custom_target(tgt_${target}
+  ## SELF target
+  add_custom_target(${target}
     ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}
   )
   if(TARGET ${source})
-    add_dependencies(tgt_${target} ${source})
+    add_dependencies(${target} ${source})
   endif()
 endmacro(vita_create_self)
 ##################################################
@@ -124,22 +123,37 @@ macro(vita_create_stubs target-dir source config)
   else()
     set(kind user)
   endif()
+
+  ## check source for being a target, otherwise it is a file path
+  if(TARGET ${source})
+    set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${source})
+  else()
+    set(sourcepath ${source})
+  endif()
+  get_filename_component(sourcefile ${sourcepath} NAME)
+
+  ## ELF EXPORT command
   separate_arguments(VITA_ELF_EXPORT_FLAGS)
   get_filename_component(fconfig ${config} ABSOLUTE)
-  add_custom_command(OUTPUT ${target-dir}.yml
-    COMMAND ${VITA_ELF_EXPORT} ${kind} ${VITA_ELF_EXPORT_FLAGS} ${source} ${fconfig} ${target-dir}.yml
-    DEPENDS ${source} ${fconfig}
-    COMMENT "Generating imports YAML for ${source}"
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
+    COMMAND ${VITA_ELF_EXPORT} ${kind} ${VITA_ELF_EXPORT_FLAGS} ${sourcepath} ${fconfig} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
+    DEPENDS ${sourcepath}
+    DEPENDS ${fconfig}
+    COMMENT "Generating imports YAML for ${sourcefile}"
   )
+
+  ## ELF EXPORT target
   separate_arguments(VITA_LIBS_GEN_FLAGS)
   add_custom_target(${target-dir}
     ALL
-    COMMAND ${VITA_LIBS_GEN} ${VITA_LIBS_GEN_FLAGS} ${target-dir}.yml ${target-dir}
-    COMMAND make -C ${target-dir}
-    DEPENDS ${target-dir}.yml
+    COMMAND ${VITA_LIBS_GEN} ${VITA_LIBS_GEN_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
+    COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
     COMMENT "Building stubs ${target-dir}"
   )
-  add_dependencies(${target-dir} ${source})
+  if(TARGET ${source})
+    add_dependencies(${target-dir} ${source})
+  endif()
 endmacro(vita_create_stubs)
 ##################################################
 
@@ -158,7 +172,7 @@ endmacro(vita_create_stubs)
 ##   A nine character identifier for this homebrew. The recommended format is
 ##   XXXXYYYYY where XXXX is an author unique identifier and YYYYY is a number.
 ## @param eboot
-##   The SELF target (from vita_create_self for example, *without* the internal prefix tgt_)
+##   The SELF target (from vita_create_self for example)
 ##   or path to a provided SELF file
 ## @param[opt] VERSION
 ##   A version string
@@ -198,8 +212,8 @@ macro(vita_create_vpk target titleid eboot)
     set(vita_create_vpk_NAME "${PROJECT_NAME}")
   endif()
 
-  ## check eboot for being an internal target, otherwise it is a file path
-  if(TARGET tgt_${eboot})
+  ## check eboot for being a target, otherwise it is a file path
+  if(TARGET ${eboot})
     set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${eboot})
   else()
     set(sourcepath ${eboot})
@@ -208,7 +222,7 @@ macro(vita_create_vpk target titleid eboot)
 
   ## PARAM.SFO command
   separate_arguments(VITA_MKSFOEX_FLAGS)
-  add_custom_command(OUTPUT ${target}_param.sfo
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     COMMAND ${VITA_MKSFOEX} ${VITA_MKSFOEX_FLAGS} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
     COMMENT "Generating param.sfo for ${target}"
@@ -216,7 +230,7 @@ macro(vita_create_vpk target titleid eboot)
 
   ## VPK command
   separate_arguments(VITA_PACK_VPK_FLAGS)
-  add_custom_command(OUTPUT ${target}
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
     COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${target}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
@@ -224,14 +238,13 @@ macro(vita_create_vpk target titleid eboot)
     COMMENT "Building vpk ${target}"
   )
 
-  ## VPK internal target
-  ## use arbitrary target name to avoid name collision with command ("circular dependencies")
-  add_custom_target(tgt_${target}
+  ## VPK target
+  add_custom_target(${target}
     ALL
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}
   )
-  if(TARGET tgt_${eboot})
-    add_dependencies(tgt_${target} tgt_${eboot})
+  if(TARGET ${eboot})
+    add_dependencies(${target} ${eboot})
   endif()
 endmacro(vita_create_vpk)
 ##################################################
