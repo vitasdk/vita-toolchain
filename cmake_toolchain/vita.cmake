@@ -23,13 +23,33 @@ include(CMakeParseArguments)
 ## MACRO: vita_create_self
 ##
 ## Generate a SELF from an ARM EABI ELF
-##   vita_create_self(target source
+##   vita_create_self(self source
 ##                    [CONFIG file]
 ##                    [UNCOMPRESSED]
 ##                    [UNSAFE])
 ##
+macro(vita_create_self self source)
+  if(${CMAKE_GENERATOR} MATCHES ".*Ninja.*")
+    vita_create_self_target(${self}.target ${self} ${source} ${ARGN})
+  else()
+    vita_create_self_target(${self} ${self} ${source} ${ARGN})
+  endif()
+endmacro(vita_create_self)
+##################################################
+
+##################################################
+## MACRO: vita_create_self_target
+##
+## Generate a SELF from an ARM EABI ELF with a different target name
+##   vita_create_self_target(target self source
+##                           [CONFIG file]
+##                           [UNCOMPRESSED]
+##                           [UNSAFE])
+##
 ## @param target
 ##   A CMake custom target of this given name
+## @param self
+##   The filename of the output self
 ## @param source
 ##   The ARM EABI ELF target (from add_executable for example)
 ##   or path to a provided ELF file
@@ -40,7 +60,7 @@ include(CMakeParseArguments)
 ## @param[opt] CONFIG file
 ##   Path to a YAML config file defining exports and other optional information
 ##
-macro(vita_create_self target source)
+macro(vita_create_self_target target self source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
@@ -77,21 +97,21 @@ macro(vita_create_self target source)
 
   ## SELF command
   separate_arguments(VITA_MAKE_FSELF_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
-    COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${CMAKE_CURRENT_BINARY_DIR}/${target}
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${self}
+    COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${CMAKE_CURRENT_BINARY_DIR}/${self}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-    COMMENT "Creating SELF ${target}"
+    COMMENT "Creating SELF ${self}"
   )
 
   ## SELF target
   add_custom_target(${target}
     ALL
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${self}
   )
   if(TARGET ${source})
     add_dependencies(${target} ${source})
   endif()
-endmacro(vita_create_self)
+endmacro(vita_create_self_target)
 ##################################################
 
 ##################################################
@@ -161,13 +181,33 @@ endmacro(vita_create_stubs)
 ## MACRO: vita_create_vpk
 ##
 ## Creates a homebrew VPK from a SELF
-##   vita_create_vpk(target titleid eboot
+##   vita_create_vpk(vpk titleid eboot
 ##                   [VERSION version]
 ##                   [NAME name]
 ##                   [FILE path dest])
 ##
+macro(vita_create_vpk vpk titleid eboot)
+  if(${CMAKE_GENERATOR} MATCHES ".*Ninja.*")
+    vita_create_vpk_target(${vpk}.target ${vpk} ${titleid} ${eboot} ${ARGN})
+  else()
+    vita_create_vpk_target(${vpk} ${vpk} ${titleid} ${eboot} ${ARGN})
+  endif()
+endmacro(vita_create_vpk)
+##################################################
+
+##################################################
+## MACRO: vita_create_vpk_target
+##
+## Creates a homebrew VPK from a SELF with a different target name
+##   vita_create_vpk_target(target vpk titleid eboot
+##                          [VERSION version]
+##                          [NAME name]
+##                          [FILE path dest])
+##
 ## @param target
 ##   A CMake custom target of this given name
+## @param vpk
+##   The filename of the output vpk
 ## @param titleid
 ##   A nine character identifier for this homebrew. The recommended format is
 ##   XXXXYYYYY where XXXX is an author unique identifier and YYYYY is a number.
@@ -182,7 +222,7 @@ endmacro(vita_create_stubs)
 ##   Add an additional file at path to dest in the vpk (there can be multiple
 ##   of this parameter).
 ##
-macro(vita_create_vpk target titleid eboot)
+macro(vita_create_vpk_target target vpk titleid eboot)
   set(VITA_MKSFOEX_FLAGS "${VITA_MKSFOEX_FLAGS}" CACHE STRING "vita-mksfoex flags")
   set(VITA_PACK_VPK_FLAGS "${VITA_PACK_VPK_FLAGS}" CACHE STRING "vita-pack-vpk flags")
 
@@ -222,29 +262,29 @@ macro(vita_create_vpk target titleid eboot)
 
   ## PARAM.SFO command
   separate_arguments(VITA_MKSFOEX_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
-    COMMAND ${VITA_MKSFOEX} ${VITA_MKSFOEX_FLAGS} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${vpk}_param.sfo
+    COMMAND ${VITA_MKSFOEX} ${VITA_MKSFOEX_FLAGS} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${vpk}_param.sfo
     DEPENDS ${sourcepath}
-    COMMENT "Generating param.sfo for ${target}"
+    COMMENT "Generating param.sfo for ${vpk}"
   )
 
   ## VPK command
   separate_arguments(VITA_PACK_VPK_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
-    COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${target}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${vpk}
+    COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${vpk}_param.sfo -b ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${vpk}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${vpk}_param.sfo
     DEPENDS ${sourcepath}
     DEPENDS ${resources}
-    COMMENT "Building vpk ${target}"
+    COMMENT "Building vpk ${vpk}"
   )
 
   ## VPK target
   add_custom_target(${target}
     ALL
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${vpk}
   )
   if(TARGET ${eboot})
     add_dependencies(${target} ${eboot})
   endif()
-endmacro(vita_create_vpk)
+endmacro(vita_create_vpk_target)
 ##################################################
