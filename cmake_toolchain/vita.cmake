@@ -152,39 +152,33 @@ macro(vita_create_stubs target-dir source config)
 
   ## ELF EXPORT target
   separate_arguments(VITA_LIBS_GEN_FLAGS)
-  add_custom_target(${target-dir}
-    ALL
-    COMMAND ${VITA_LIBS_GEN} ${VITA_LIBS_GEN_FLAGS} ${target_yml} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
-    COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
-    COMMENT "Building stubs ${target-dir}"
-  )
 
   set(stub_lib lib${target-lib}_stub.a)
   set(stub_weak_lib lib${target-lib}_stub_weak.a)
 
-  if(${CMAKE_GENERATOR} MATCHES ".*Ninja.*")
-    add_custom_target(${stub_lib}
-      ALL
-      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_lib} ${stub_lib}
-      DEPENDS ${target-dir}
-    )
-    add_custom_target(${stub_weak_lib}
-      ALL
-      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_weak_lib} ${stub_weak_lib}
-      DEPENDS ${target-dir}
-    )
-  else()
-    add_custom_command(TARGET ${target-dir}
-      POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_lib}
-        ${CMAKE_CURRENT_BINARY_DIR}/${stub_lib}
-      COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_weak_lib}
-        ${CMAKE_CURRENT_BINARY_DIR}/${stub_weak_lib}
-    )
-  endif()
+  add_custom_target(${target-dir}
+    ALL
+    COMMAND ${VITA_LIBS_GEN} ${VITA_LIBS_GEN_FLAGS} ${target_yml} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
+    COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
+    COMMAND ${CMAKE_COMMAND} -E copy
+      ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_lib}
+      ${CMAKE_CURRENT_BINARY_DIR}/${stub_lib}
+    COMMAND ${CMAKE_COMMAND} -E copy
+      ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_weak_lib}
+      ${CMAKE_CURRENT_BINARY_DIR}/${stub_weak_lib}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
+    COMMENT "Building stubs ${target-dir}"
+  )
+
+  add_custom_target(${stub_lib}
+    ALL
+    DEPENDS ${target-dir}
+  )
+
+  add_custom_target(${stub_weak_lib}
+    ALL
+    DEPENDS ${target-dir}
+  )
 
   if(TARGET ${source})
     add_dependencies(${target-dir} ${source})
