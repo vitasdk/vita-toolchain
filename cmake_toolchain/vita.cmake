@@ -1,7 +1,8 @@
 ## Copyright (C) 2016 Yifan Lu
+## Copyright (C) 2020 Asakura Reiko
 ##
 ## This software may be modified and distributed under the terms
-## of the MIT license.  See the LICENSE file for details.
+## of the MIT license.  See the COPYING file for details.
 
 ## Advanced users may be interested in setting the following
 ##   - VITA_ELF_CREATE_FLAGS
@@ -23,13 +24,13 @@ include(CMakeParseArguments)
 ## MACRO: vita_create_self
 ##
 ## Generate a SELF from an ARM EABI ELF
-##   vita_create_self(target source
+##   vita_create_self(self source
 ##                    [CONFIG file]
 ##                    [UNCOMPRESSED]
 ##                    [UNSAFE])
 ##
-## @param target
-##   A CMake custom target of this given name
+## @param self
+##   A SELF of this given name
 ## @param source
 ##   The ARM EABI ELF target (from add_executable for example)
 ##   or path to a provided ELF file
@@ -40,7 +41,7 @@ include(CMakeParseArguments)
 ## @param[opt] CONFIG file
 ##   Path to a YAML config file defining exports and other optional information
 ##
-macro(vita_create_self target source)
+macro(vita_create_self self source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
@@ -77,16 +78,23 @@ macro(vita_create_self target source)
 
   ## SELF command
   separate_arguments(VITA_MAKE_FSELF_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
-    COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${CMAKE_CURRENT_BINARY_DIR}/${target}
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${self}
+    COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${CMAKE_CURRENT_BINARY_DIR}/${self}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-    COMMENT "Creating SELF ${target}"
+    COMMENT "Creating SELF ${self}"
   )
+
+  ## Workaround for cyclic dependencies for Ninja
+  if(${CMAKE_GENERATOR} MATCHES ".*Ninja.*")
+    set(target ${self}.target)
+  else()
+    set(target ${self})
+  endif()
 
   ## SELF target
   add_custom_target(${target}
     ALL
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${self}
   )
   if(TARGET ${source})
     add_dependencies(${target} ${source})
@@ -161,13 +169,13 @@ endmacro(vita_create_stubs)
 ## MACRO: vita_create_vpk
 ##
 ## Creates a homebrew VPK from a SELF
-##   vita_create_vpk(target titleid eboot
+##   vita_create_vpk(vpk titleid eboot
 ##                   [VERSION version]
 ##                   [NAME name]
 ##                   [FILE path dest])
 ##
-## @param target
-##   A CMake custom target of this given name
+## @param vpk
+##   A VPK of this given name
 ## @param titleid
 ##   A nine character identifier for this homebrew. The recommended format is
 ##   XXXXYYYYY where XXXX is an author unique identifier and YYYYY is a number.
@@ -182,7 +190,7 @@ endmacro(vita_create_stubs)
 ##   Add an additional file at path to dest in the vpk (there can be multiple
 ##   of this parameter).
 ##
-macro(vita_create_vpk target titleid eboot)
+macro(vita_create_vpk vpk titleid eboot)
   set(VITA_MKSFOEX_FLAGS "${VITA_MKSFOEX_FLAGS}" CACHE STRING "vita-mksfoex flags")
   set(VITA_PACK_VPK_FLAGS "${VITA_PACK_VPK_FLAGS}" CACHE STRING "vita-pack-vpk flags")
 
@@ -222,26 +230,33 @@ macro(vita_create_vpk target titleid eboot)
 
   ## PARAM.SFO command
   separate_arguments(VITA_MKSFOEX_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
-    COMMAND ${VITA_MKSFOEX} ${VITA_MKSFOEX_FLAGS} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${vpk}_param.sfo
+    COMMAND ${VITA_MKSFOEX} ${VITA_MKSFOEX_FLAGS} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${vpk}_param.sfo
     DEPENDS ${sourcepath}
-    COMMENT "Generating param.sfo for ${target}"
+    COMMENT "Generating param.sfo for ${vpk}"
   )
 
   ## VPK command
   separate_arguments(VITA_PACK_VPK_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
-    COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${target}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
+  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${vpk}
+    COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${vpk}_param.sfo -b ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${vpk}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${vpk}_param.sfo
     DEPENDS ${sourcepath}
     DEPENDS ${resources}
-    COMMENT "Building vpk ${target}"
+    COMMENT "Building vpk ${vpk}"
   )
+
+  ## Workaround for cyclic dependencies for Ninja
+  if(${CMAKE_GENERATOR} MATCHES ".*Ninja.*")
+    set(target ${vpk}.target)
+  else()
+    set(target ${vpk})
+  endif()
 
   ## VPK target
   add_custom_target(${target}
     ALL
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${vpk}
   )
   if(TARGET ${eboot})
     add_dependencies(${target} ${eboot})
