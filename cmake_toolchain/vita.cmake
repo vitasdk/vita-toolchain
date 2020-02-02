@@ -75,10 +75,12 @@ macro(vita_create_self target source)
     COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
   )
 
+  set(self_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
+
   ## SELF command
   separate_arguments(VITA_MAKE_FSELF_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
-    COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${CMAKE_CURRENT_BINARY_DIR}/${target}
+  add_custom_command(OUTPUT ${self_outfile}
+    COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
     COMMENT "Creating SELF ${target}"
   )
@@ -86,8 +88,10 @@ macro(vita_create_self target source)
   ## SELF target
   add_custom_target(${target}
     ALL
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}
+    DEPENDS ${self_outfile}
+    COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
   )
+
   if(TARGET ${source})
     add_dependencies(${target} ${source})
   endif()
@@ -132,11 +136,15 @@ macro(vita_create_stubs target-dir source config)
   endif()
   get_filename_component(sourcefile ${sourcepath} NAME)
 
+  set(target_yml ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml)
+
   ## ELF EXPORT command
   separate_arguments(VITA_ELF_EXPORT_FLAGS)
   get_filename_component(fconfig ${config} ABSOLUTE)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
-    COMMAND ${VITA_ELF_EXPORT} ${kind} ${VITA_ELF_EXPORT_FLAGS} ${sourcepath} ${fconfig} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
+  file(READ ${fconfig} fconfig_content)
+  string(REGEX REPLACE ":.+" "" target-lib ${fconfig_content})
+  add_custom_command(OUTPUT ${target_yml}
+    COMMAND ${VITA_ELF_EXPORT} ${kind} ${VITA_ELF_EXPORT_FLAGS} ${sourcepath} ${fconfig} ${target_yml}
     DEPENDS ${sourcepath}
     DEPENDS ${fconfig}
     COMMENT "Generating imports YAML for ${sourcefile}"
@@ -144,13 +152,34 @@ macro(vita_create_stubs target-dir source config)
 
   ## ELF EXPORT target
   separate_arguments(VITA_LIBS_GEN_FLAGS)
+
+  set(stub_lib lib${target-lib}_stub.a)
+  set(stub_weak_lib lib${target-lib}_stub_weak.a)
+
   add_custom_target(${target-dir}
     ALL
-    COMMAND ${VITA_LIBS_GEN} ${VITA_LIBS_GEN_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
+    COMMAND ${VITA_LIBS_GEN} ${VITA_LIBS_GEN_FLAGS} ${target_yml} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
     COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
+    COMMAND ${CMAKE_COMMAND} -E copy
+      ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_lib}
+      ${CMAKE_CURRENT_BINARY_DIR}/${stub_lib}
+    COMMAND ${CMAKE_COMMAND} -E copy
+      ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_weak_lib}
+      ${CMAKE_CURRENT_BINARY_DIR}/${stub_weak_lib}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
     COMMENT "Building stubs ${target-dir}"
   )
+
+  add_custom_target(${stub_lib}
+    ALL
+    DEPENDS ${target-dir}
+  )
+
+  add_custom_target(${stub_weak_lib}
+    ALL
+    DEPENDS ${target-dir}
+  )
+
   if(TARGET ${source})
     add_dependencies(${target-dir} ${source})
   endif()
@@ -228,10 +257,12 @@ macro(vita_create_vpk target titleid eboot)
     COMMENT "Generating param.sfo for ${target}"
   )
 
+  set(vpk_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
+
   ## VPK command
   separate_arguments(VITA_PACK_VPK_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}
-    COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${target}
+  add_custom_command(OUTPUT ${vpk_outfile}
+    COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${vpk_outfile}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
     DEPENDS ${resources}
@@ -241,8 +272,10 @@ macro(vita_create_vpk target titleid eboot)
   ## VPK target
   add_custom_target(${target}
     ALL
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}
+    DEPENDS ${vpk_outfile}
+    COMMAND ${CMAKE_COMMAND} -E copy ${vpk_outfile} ${target}
   )
+
   if(TARGET ${eboot})
     add_dependencies(${target} ${eboot})
   endif()
