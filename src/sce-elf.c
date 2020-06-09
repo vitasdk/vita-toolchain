@@ -512,9 +512,9 @@ void *sce_elf_module_info_encode(
 	module_info_raw->import_top = htole32(OFFSET(sceLib_stubs));
 	module_info_raw->import_end = htole32(OFFSET(sceLib_stubs) + sizes->sceLib_stubs);
 	CONVERT32(module_info, library_nid);
-	CONVERT32(module_info, field_38);
-	CONVERT32(module_info, field_3C);
-	CONVERT32(module_info, field_40);
+	CONVERT32(module_info, tls_start);
+	CONVERT32(module_info, tls_filesz);
+	CONVERT32(module_info, tls_memsz);
 	CONVERTOFFSET(module_info, module_start);
 	CONVERTOFFSET(module_info, module_stop);
 	CONVERTOFFSET(module_info, exidx_top);
@@ -523,6 +523,8 @@ void *sce_elf_module_info_encode(
 	CONVERTOFFSET(module_info, extab_end);
 	module_info_raw->process_param_size = 0x34;
 	memcpy(&module_info_raw->process_param_magic, "PSP2", 4);
+	module_info_raw->process_param_ver = 6 ;
+	module_info_raw->process_param_fw_ver = 0x03570011;
 
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		int num_syms;
