@@ -56,8 +56,15 @@ typedef struct {
 
 typedef struct {
 	SCE_controlinfo common;
-	uint32_t unk1;
-	char unk2[0xFC];
+	uint32_t is_used;               /* always set to 1 */
+	uint32_t attr;                  /* controls several app settings */
+	uint32_t phycont_memsize;       /* physically contiguous memory budget */
+	uint32_t total_memsize;         /* total memory budget (user + phycont) */
+	uint32_t filehandles_limit;     /* max number of opened filehandles simultaneously */
+	uint32_t dir_max_level;         /* max depth for directories support */
+	uint32_t encrypt_mount_max;     /* UNKNOWN */
+	uint32_t redirect_mount_max;    /* UNKNOWN */
+	char unk[0xE0];
 } SCE_controlinfo_6;
 
 typedef struct {

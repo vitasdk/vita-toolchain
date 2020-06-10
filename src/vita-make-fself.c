@@ -16,6 +16,9 @@ void usage(const char **argv) {
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
 	fprintf(stderr, "\t-a : Authid for more permissions (SceShell: 0x2800000000000001).\n");
 	fprintf(stderr, "\t-c : Enable compression.\n");
+	fprintf(stderr, "\t-m : Memory budget for the application. (Normal app: 0, System mode app: 0x100000 - 0x280100)\n");
+	fprintf(stderr, "\t-pm: Physically contiguous memory budget for the application. (Note: The budget will be subtracted from standard memory budget)\n");
+	fprintf(stderr, "\t-at: ATTRIBUTE word in Control Info section 6.\n");
 	exit(1);
 }
 
@@ -32,6 +35,9 @@ int main(int argc, const char **argv) {
 
 	int safe = 0;
 	int compressed = 0;
+	uint32_t mem_budget = 0;
+	uint32_t phycont_mem_budget = 0;
+	uint32_t attribute_cinfo = 0;
 	uint64_t authid = 0;
 	while (argc > 2) {
 		if (strcmp(*argv, "-s") == 0) {
@@ -46,6 +52,24 @@ int main(int argc, const char **argv) {
 			
 			if (argc > 2)
 				authid = strtoull(*argv, NULL, 0);
+		} else if (strcmp(*argv, "-m") == 0) {
+			argc--;
+			argv++;
+			
+			if (argc > 2)
+				mem_budget = strtoul(*argv, NULL, 0);
+		} else if (strcmp(*argv, "-pm") == 0) {
+			argc--;
+			argv++;
+			
+			if (argc > 2)
+				phycont_mem_budget = strtoul(*argv, NULL, 0);
+		} else if (strcmp(*argv, "-at") == 0) {
+			argc--;
+			argv++;
+			
+			if (argc > 2)
+				attribute_cinfo = strtoul(*argv, NULL, 0);
 		}
 		argc--;
 		argv++;
@@ -151,7 +175,12 @@ int main(int argc, const char **argv) {
 	control_6.common.type = 6;
 	control_6.common.size = sizeof(control_6);
 	control_6.common.unk = 1;
-	control_6.unk1 = 1;
+	control_6.is_used = 1;
+	if (mem_budget) {
+		control_6.attr = attribute_cinfo;
+		control_6.phycont_memsize = phycont_mem_budget;
+		control_6.total_memsize = mem_budget;	
+	}
 	SCE_controlinfo_7 control_7 = { 0 };
 	control_7.common.type = 7;
 	control_7.common.size = sizeof(control_7);
