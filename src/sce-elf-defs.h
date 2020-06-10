@@ -30,9 +30,9 @@ typedef struct SCE_TYPE(sce_module_info) {
 	SCE_PTR(struct sce_module_imports_t *)
 		import_end;			/* Offset to end of import table */
 	uint32_t library_nid;			/* NID of this library */
-	uint32_t field_38;
-	uint32_t field_3C;
-	uint32_t field_40;
+	uint32_t tls_start;
+	uint32_t tls_filesz;
+	uint32_t tls_memsz;
 	SCE_PTR(const void *) module_start;	/* Offset to function to run when library is started, 0 to disable */
 	SCE_PTR(const void *) module_stop;	/* Offset to function to run when library is exiting, 0 to disable */
 	SCE_PTR(const void *) exidx_top;	/* Offset to start of ARM EXIDX (optional) */
@@ -43,7 +43,16 @@ typedef struct SCE_TYPE(sce_module_info) {
 	// i decided to include process param into module_info (xyz)
 	uint32_t process_param_size;
 	uint32_t process_param_magic;
-	uint32_t process_param_unk[11];
+	uint32_t process_param_ver;
+	uint32_t process_param_fw_ver;
+	SCE_PTR(const char *) process_param_main_thread_name;
+	int32_t process_param_main_thread_priority;
+	uint32_t process_param_main_thread_stacksize;
+	uint32_t process_param_main_thread_attribute;
+	SCE_PTR(const char *) process_param_process_name;
+	uint32_t process_param_process_preload_disabled;
+	uint32_t process_param_main_thread_cpu_affinity_mask;
+	SCE_PTR(const void *) process_param_sce_libc_param;
 } SCE_TYPE(sce_module_info);
 
 typedef struct SCE_TYPE(sce_module_exports) {
