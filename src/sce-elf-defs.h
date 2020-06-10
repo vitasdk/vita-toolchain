@@ -53,6 +53,7 @@ typedef struct SCE_TYPE(sce_module_info) {
 	uint32_t process_param_process_preload_disabled;
 	uint32_t process_param_main_thread_cpu_affinity_mask;
 	SCE_PTR(const void *) process_param_sce_libc_param;
+	uint32_t process_param_unk;
 } SCE_TYPE(sce_module_info);
 
 typedef struct SCE_TYPE(sce_module_exports) {
