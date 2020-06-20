@@ -7,8 +7,15 @@ BUILDDIR=$PWD/builds
 DEPSDIR=$PWD/builds/deps_build
 JOBS=-j`getconf _NPROCESSORS_ONLN || sysctl kern.smp.cpus | sed 's/kern.smp.cpus: //'` || true
 
-echo "[Step 0.0] Clone buildscripts..."
-git clone https://github.com/vitasdk/buildscripts
+if [ ! -d buildscripts ]; then
+    echo "[Step 0.0] Clone buildscripts..."
+    git clone https://github.com/vitasdk/buildscripts
+else
+    echo "[Step 0.0] Update buildscripts..."
+    cd buildscripts
+    git fetch origin
+    git reset --hard origin/master
+fi
 
 echo "[Step 1.0] Prepare buildscripts..."
 mkdir -p ${BUILDDIR}
