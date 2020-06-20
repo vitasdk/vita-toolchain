@@ -1,5 +1,5 @@
 find_package(PkgConfig)
-pkg_check_modules(PC_libzip libzip>=1.1.3)
+pkg_check_modules(PC_libzip REQUIRED libzip>=1.1.3)
 
 find_path(libzip_INCLUDE_DIR zip.h
           HINTS ${PC_libzip_INCLUDEDIR} ${PC_libzip_INCLUDE_DIRS})

@@ -1,5 +1,5 @@
 find_package(PkgConfig)
-pkg_check_modules(PC_zlib zlib>=1.2.8)
+pkg_check_modules(PC_zlib REQUIRED zlib>=1.2.8)
 
 find_path(zlib_INCLUDE_DIR zlib.h
           HINTS ${PC_zlib_INCLUDEDIR} ${PC_zlib_INCLUDE_DIRS})
