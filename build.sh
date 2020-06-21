@@ -41,6 +41,7 @@ cd build
 cmake -G"Unix Makefiles" \
       -DCMAKE_C_FLAGS_RELEASE:STRING="-O3 -DNDEBUG -DZIP_STATIC" \
       -DCMAKE_BUILD_TYPE=Release \
+      -DTOOLCHAIN_DEPS_DIR=${DEPSDIR} \
       -DBUILD_SHARED_LIBS=`[ "$OS" = Windows_NT ] && echo ON || echo OFF` \
       ../
 cmake --build . --clean-first -- ${JOBS}
