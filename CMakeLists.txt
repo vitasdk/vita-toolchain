@@ -6,7 +6,6 @@ if (NOT TOOLCHAIN_DEPS_DIR)
     set(TOOLCHAIN_DEPS_DIR "${CMAKE_SOURCE_DIR}/builds/deps_build")
 endif()
 set(ENV{PKG_CONFIG_PATH} "${TOOLCHAIN_DEPS_DIR}/lib/pkgconfig")
-include_directories("${TOOLCHAIN_DEPS_DIR}/include")
 
 add_subdirectory(src)
 add_subdirectory(cmake_toolchain)
