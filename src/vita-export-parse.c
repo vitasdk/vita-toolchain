@@ -238,6 +238,19 @@ int process_syslib_list(yaml_node *parent, yaml_node *child, vita_export_t *info
 		
 		info->start = strdup(str);
 	}
+	else if (strcmp(key->value, "bootstart") == 0) {
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting 'bootstart' entry-point to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+		const char *str = NULL;
+		if (process_string(child, &str) < 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert 'bootstart' entry-point to string, got '%s'.\n", child->position.line, child->position.column, child->data.scalar.value);
+			return -1;
+		}
+		
+		info->bootstart = strdup(str);
+	}
 	else if (strcmp(key->value, "stop") == 0) {
 		if (!is_scalar(child)) {
 			fprintf(stderr, "error: line: %zd, column: %zd, expecting 'stop' entry-point to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
@@ -457,6 +470,7 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	}
 	
 	// we don't specify any specific symbols
+	exports->bootstart = NULL;
 	exports->start = NULL;
 	exports->stop = NULL;
 	exports->exit = NULL;

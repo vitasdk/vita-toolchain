@@ -27,6 +27,7 @@ typedef struct {
 	uint8_t ver_minor;
 	uint16_t attributes;
 	uint32_t nid;
+	const char *bootstart;
 	const char *start;
 	const char *stop;
 	const char *exit;
