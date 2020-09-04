@@ -216,6 +216,18 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	export->entry_table[cur_nid] = module_info->module_start;
 	++cur_nid;
 	
+	if (export_spec->bootstart) {
+		Elf32_Addr vaddr = 0;
+		
+		if (!get_function_by_symbol(export_spec->bootstart, ve, &vaddr)) {
+			FAILX("Could not find symbol '%s' for main export 'bootstart'", export_spec->bootstart);
+		}
+		
+		export->nid_table[cur_nid] = NID_MODULE_BOOTSTART;
+		export->entry_table[cur_nid] = module_info->module_bootstart = vita_elf_vaddr_to_host(ve, vaddr);
+		++cur_nid;
+	}
+	
 	if (export_spec->stop) {
 		Elf32_Addr vaddr = 0;
 		
