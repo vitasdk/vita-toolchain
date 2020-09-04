@@ -457,6 +457,7 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	}
 	
 	// we don't specify any specific symbols
+	exports->bootstart = NULL;
 	exports->start = NULL;
 	exports->stop = NULL;
 	exports->exit = NULL;
