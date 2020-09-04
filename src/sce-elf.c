@@ -189,6 +189,9 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	export->num_syms_funcs = 1;
 	export->num_syms_vars = 2;
 	
+	if (export_spec->bootstart)
+		++export->num_syms_funcs;
+	
 	if (export_spec->stop)
 		++export->num_syms_funcs;
 	
