@@ -224,7 +224,7 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 		}
 		
 		export->nid_table[cur_nid] = NID_MODULE_BOOTSTART;
-		export->entry_table[cur_nid] = module_info->module_bootstart = vita_elf_vaddr_to_host(ve, vaddr);
+		export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
 		++cur_nid;
 	}
 	
