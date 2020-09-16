@@ -252,8 +252,9 @@ int main(int argc, const char **argv) {
 	fwrite(&control_6, sizeof(control_6), 1, fout);
 	fwrite(&control_7, sizeof(control_7), 1, fout);
 
+	fseek(fout, HEADER_LEN, SEEK_SET);
+
 	if (!compressed) {
-		fseek(fout, HEADER_LEN, SEEK_SET);
 		if (fwrite(input, sz, 1, fout) != 1) {
 			perror("Failed to write a copy of input ELF");
 			goto error;
@@ -289,6 +290,13 @@ int main(int argc, const char **argv) {
 				goto error;
 			}
 			free(buf);
+
+#define SEGMENT_ALIGNMENT (0x10)
+
+			pad = (ftell(fout) & (SEGMENT_ALIGNMENT - 1));
+			if (((i + 1) != ehdr->e_phnum) && (pad != 0)) {
+				fseek(fout, (ftell(fout) + (SEGMENT_ALIGNMENT - 1)) & ~(SEGMENT_ALIGNMENT - 1), SEEK_SET);
+			}
 		}
 	}
 
@@ -299,7 +307,6 @@ int main(int argc, const char **argv) {
 		perror("Failed to write SCE header");
 		goto error;
 	}
-
 
 	fclose(fout);
 
