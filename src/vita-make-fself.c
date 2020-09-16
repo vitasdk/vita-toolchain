@@ -26,7 +26,6 @@ int main(int argc, const char **argv) {
 	const char *input_path, *output_path;
 	FILE *fin = NULL;
 	FILE *fout = NULL;
-	void *buf_0x1000 = NULL;
 	uint32_t mod_nid;
 
 	argc--;
@@ -204,20 +203,6 @@ int main(int argc, const char **argv) {
 		goto error;
 	}
 
-	buf_0x1000 = malloc(HEADER_LEN);
-	if (buf_0x1000 == NULL) {
-		perror("Failed to malloc(header len)");
-		goto error;
-	}
-
-	memset(buf_0x1000, 0, HEADER_LEN);
-
-	fseek(fout, 0, SEEK_SET);
-	if (fwrite(buf_0x1000, HEADER_LEN, 1, fout) != 1) {
-		perror("Failed to write buf_0x1000");
-		goto error;
-	}
-
 	fseek(fout, hdr.appinfo_offset, SEEK_SET);
 	if (fwrite(&appinfo, sizeof(appinfo), 1, fout) != 1) {
 		perror("Failed to write appinfo");
@@ -310,13 +295,7 @@ int main(int argc, const char **argv) {
 
 			pad = (ftell(fout) & (SEGMENT_ALIGNMENT - 1));
 			if (((i + 1) != ehdr->e_phnum) && (pad != 0)) {
-				pad = SEGMENT_ALIGNMENT - pad;
-
-				memset(buf_0x1000, 0, pad);
-				if (fwrite(buf_0x1000, pad, 1, fout) != 1) {
-					perror("Failed to write segment alignment padding");
-					goto error;
-				}
+				fseek(fout, (ftell(fout) + (SEGMENT_ALIGNMENT - 1)) & ~(SEGMENT_ALIGNMENT - 1), SEEK_SET);
 			}
 		}
 	}
@@ -329,13 +308,10 @@ int main(int argc, const char **argv) {
 		goto error;
 	}
 
-	free(buf_0x1000);
 	fclose(fout);
 
 	return 0;
 error:
-	if(buf_0x1000 != NULL)
-		free(buf_0x1000);
 	if (fin)
 		fclose(fin);
 	if (fout)
