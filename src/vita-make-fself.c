@@ -26,6 +26,7 @@ int main(int argc, const char **argv) {
 	const char *input_path, *output_path;
 	FILE *fin = NULL;
 	FILE *fout = NULL;
+	void *buf_0x1000 = NULL;
 	uint32_t mod_nid;
 
 	argc--;
@@ -203,6 +204,20 @@ int main(int argc, const char **argv) {
 		goto error;
 	}
 
+	buf_0x1000 = malloc(HEADER_LEN);
+	if (buf_0x1000 == NULL) {
+		perror("Failed to malloc(header len)");
+		goto error;
+	}
+
+	memset(buf_0x1000, 0, HEADER_LEN);
+
+	fseek(fout, 0, SEEK_SET);
+	if (fwrite(buf_0x1000, HEADER_LEN, 1, fout) != 1) {
+		perror("Failed to write buf_0x1000");
+		goto error;
+	}
+
 	fseek(fout, hdr.appinfo_offset, SEEK_SET);
 	if (fwrite(&appinfo, sizeof(appinfo), 1, fout) != 1) {
 		perror("Failed to write appinfo");
@@ -252,8 +267,9 @@ int main(int argc, const char **argv) {
 	fwrite(&control_6, sizeof(control_6), 1, fout);
 	fwrite(&control_7, sizeof(control_7), 1, fout);
 
+	fseek(fout, HEADER_LEN, SEEK_SET);
+
 	if (!compressed) {
-		fseek(fout, HEADER_LEN, SEEK_SET);
 		if (fwrite(input, sz, 1, fout) != 1) {
 			perror("Failed to write a copy of input ELF");
 			goto error;
@@ -289,6 +305,19 @@ int main(int argc, const char **argv) {
 				goto error;
 			}
 			free(buf);
+
+#define SEGMENT_ALIGNMENT (0x10)
+
+			pad = (ftell(fout) & (SEGMENT_ALIGNMENT - 1));
+			if (((i + 1) != ehdr->e_phnum) && (pad != 0)) {
+				pad = SEGMENT_ALIGNMENT - pad;
+
+				memset(buf_0x1000, 0, pad);
+				if (fwrite(buf_0x1000, pad, 1, fout) != 1) {
+					perror("Failed to write segment alignment padding");
+					goto error;
+				}
+			}
 		}
 	}
 
@@ -300,11 +329,13 @@ int main(int argc, const char **argv) {
 		goto error;
 	}
 
-
+	free(buf_0x1000);
 	fclose(fout);
 
 	return 0;
 error:
+	if(buf_0x1000 != NULL)
+		free(buf_0x1000);
 	if (fin)
 		fclose(fin);
 	if (fout)
