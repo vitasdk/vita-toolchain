@@ -45,27 +45,34 @@ static void print_module_tree(vita_export_t *export)
 	}
 }
 
+uint32_t exported_func_count = 0;
+
 int process_functions(yaml_node *entry, vita_library_export *export) {
 	if (!is_scalar(entry)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting function name to be scalar, got '%s'.\n"
 			, entry->position.line
 			, entry->position.column
 			, node_type_str(entry));
-		
+
 		return -1;
 	}
-	
+
 	yaml_scalar *key = &entry->data.scalar;
-	
+
 	// create an export symbol for this function
 	vita_export_symbol *symbol = malloc(sizeof(vita_export_symbol));
 	symbol->name = strdup(key->value);
-	symbol->nid = sha256_32_vector(1, (uint8_t **)&key->value, &key->len);
-	
+
+	// Hacky logic to protect against nid conflicts.
+	char *func_name_for_nid = malloc(key->len + 11);
+	int outlen = snprintf(func_name_for_nid, key->len + 10, "%s_%08X", key->value, exported_func_count++);
+	symbol->nid = sha256_32_vector(1, (uint8_t **)&func_name_for_nid, &outlen);
+	free(func_name_for_nid);
+    
 	// append to list
 	export->functions = realloc(export->functions, (export->function_n+1)*sizeof(const char*));
 	export->functions[export->function_n++] = symbol;
-	
+
 	return 0;
 }
 
