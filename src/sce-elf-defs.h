@@ -29,7 +29,7 @@ typedef struct SCE_TYPE(sce_module_info) {
 		import_top;			/* Offset to start of import table */
 	SCE_PTR(struct sce_module_imports_t *)
 		import_end;			/* Offset to end of import table */
-	uint32_t library_nid;			/* NID of this library */
+	uint32_t module_nid;			/* NID of this module */
 	uint32_t tls_start;
 	uint32_t tls_filesz;
 	uint32_t tls_memsz;
@@ -62,9 +62,9 @@ typedef struct SCE_TYPE(sce_module_exports) {
 	uint16_t flags;				/* 0x1 for normal export, 0x8000 for main module export */
 	uint16_t num_syms_funcs;		/* Number of function exports */
 	uint32_t num_syms_vars;			/* Number of variable exports */
-	uint32_t num_syms_unk;
-	uint32_t module_nid;			/* NID of this module */
-	SCE_PTR(const char *) module_name;	/* Pointer to name of this module */
+	uint32_t num_syms_tls_vars;     /* Number of TLS variable exports */
+	uint32_t library_nid;			/* NID of this library */
+	SCE_PTR(const char *) library_name;	/* Pointer to name of this library */
 	SCE_PTR(uint32_t *) nid_table;		/* Pointer to array of 32-bit NIDs to export */
 	SCE_PTR(const void **) entry_table;	/* Pointer to array of data pointers for each NID */
 } SCE_TYPE(sce_module_exports);
@@ -75,18 +75,18 @@ typedef struct SCE_TYPE(sce_module_imports) {
 	uint16_t flags;				/* Set to 0x0 */
 	uint16_t num_syms_funcs;		/* Number of function imports */
 	uint16_t num_syms_vars;			/* Number of variable imports */
-	uint16_t num_syms_unk;
+	uint16_t num_syms_tls_vars;     /* Number of TLS variable imports */
 
 	uint32_t reserved1;
-	uint32_t module_nid;			/* NID of module to import */
-	SCE_PTR(const char *) module_name;	/* Pointer to name of imported module, for debugging */
+	uint32_t library_nid;			/* NID of library to import */
+	SCE_PTR(const char *) library_name;	/* Pointer to name of imported library, for debugging */
 	uint32_t reserved2;
 	SCE_PTR(uint32_t *) func_nid_table;	/* Pointer to array of function NIDs to import */
 	SCE_PTR(const void **) func_entry_table;/* Pointer to array of stub functions to fill */
 	SCE_PTR(uint32_t *) var_nid_table;	/* Pointer to array of variable NIDs to import */
 	SCE_PTR(const void **) var_entry_table;	/* Pointer to array of data pointers to write to */
-	SCE_PTR(uint32_t *) unk_nid_table;
-	SCE_PTR(const void **) unk_entry_table;
+	SCE_PTR(uint32_t *) tls_var_nid_table; /* Pointer to array of TLS variable NIDs to import */
+	SCE_PTR(const void **) tls_var_entry_table; /* Pointer to array of data pointers to write to */
 } SCE_TYPE(sce_module_imports);
 
 /* alternative module imports struct with a size of 0x24 */
@@ -96,10 +96,10 @@ typedef struct SCE_TYPE(sce_module_imports_short) {
 	uint16_t flags;				/* Set to 0x0 */
 	uint16_t num_syms_funcs;		/* Number of function imports */
 	uint16_t num_syms_vars;			/* Number of variable imports */
-	uint16_t num_syms_unk;
-
-	uint32_t module_nid;				/* NID of module to import */
-	SCE_PTR(const char *) module_name;	/* Pointer to name of imported module, for debugging */
+	uint16_t num_syms_tls_vars;		/* Number of TLS variable imports */
+ 
+	uint32_t library_nid;				/* NID of library to import */
+	SCE_PTR(const char *) library_name;	/* Pointer to name of imported library, for debugging */
 	SCE_PTR(uint32_t *) func_nid_table;	/* Pointer to array of function NIDs to import */
 	SCE_PTR(const void **) func_entry_table;	/* Pointer to array of stub functions to fill */
 	SCE_PTR(uint32_t *) var_nid_table;			/* Pointer to array of variable NIDs to import */

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-vita_imports_t *vita_imports_new(int n_libs)
+vita_imports_t *vita_imports_new(int n_modules)
 {
 	vita_imports_t *imp = malloc(sizeof(*imp));
 	if (imp == NULL)
@@ -12,9 +12,9 @@ vita_imports_t *vita_imports_new(int n_libs)
 
 	imp->firmware = NULL;
 
-	imp->n_libs = n_libs;
+	imp->n_modules = n_modules;
 
-	imp->libs = calloc(n_libs, sizeof(*imp->libs));
+	imp->modules = calloc(n_modules, sizeof(*imp->modules));
 
 	return imp;
 }
@@ -23,8 +23,8 @@ void vita_imports_free(vita_imports_t *imp)
 {
 	if (imp) {
 		int i;
-		for (i = 0; i < imp->n_libs; i++) {
-			vita_imports_lib_free(imp->libs[i]);
+		for (i = 0; i < imp->n_modules; i++) {
+			vita_imports_module_free(imp->modules[i]);
 		}
 
 		if (imp->firmware)
@@ -35,23 +35,7 @@ void vita_imports_free(vita_imports_t *imp)
 	}
 }
 
-vita_imports_lib_t *vita_imports_lib_new(const char *name, uint32_t NID, int n_modules)
-{
-	vita_imports_lib_t *lib = malloc(sizeof(*lib));
-	if (lib == NULL)
-		return NULL;
-
-	lib->name = strdup(name);
-	lib->NID = NID;
-	lib->n_modules = n_modules;
-
-	lib->modules = calloc(n_modules, sizeof(*lib->modules));
-
-	return lib;
-}
-
-
-vita_imports_module_t *vita_imports_module_new(const char *name, bool kernel, uint32_t NID, int n_functions, int n_variables)
+vita_imports_module_t *vita_imports_module_new(const char *name, uint32_t NID, int n_modules)
 {
 	vita_imports_module_t *mod = malloc(sizeof(*mod));
 	if (mod == NULL)
@@ -59,42 +43,58 @@ vita_imports_module_t *vita_imports_module_new(const char *name, bool kernel, ui
 
 	mod->name = strdup(name);
 	mod->NID = NID;
-	mod->is_kernel = kernel;
-	mod->n_functions = n_functions;
-	mod->n_variables = n_variables;
+	mod->n_libs = n_modules;
 
-	mod->functions = calloc(n_functions, sizeof(*mod->functions));
-
-	mod->variables = calloc(n_variables, sizeof(*mod->variables));
+	mod->libs = calloc(n_modules, sizeof(*mod->libs));
 
 	return mod;
 }
 
-void vita_imports_module_free(vita_imports_module_t *mod)
-{
-	if (mod) {
-		int i;
-		for (i = 0; i < mod->n_variables; i++) {
-			vita_imports_stub_free(mod->variables[i]);
-		}
-		for (i = 0; i < mod->n_functions; i++) {
-			vita_imports_stub_free(mod->functions[i]);
-		}
-		free(mod->name);
-		free(mod);
-	}
-}
 
+vita_imports_lib_t *vita_imports_lib_new(const char *name, bool kernel, uint32_t NID, int n_functions, int n_variables)
+{
+	vita_imports_lib_t *lib = malloc(sizeof(*lib));
+	if (lib == NULL)
+		return NULL;
+
+	lib->name = strdup(name);
+	lib->NID = NID;
+	lib->is_kernel = kernel;
+	lib->n_functions = n_functions;
+	lib->n_variables = n_variables;
+
+	lib->functions = calloc(n_functions, sizeof(*lib->functions));
+
+	lib->variables = calloc(n_variables, sizeof(*lib->variables));
+
+	return lib;
+}
 
 void vita_imports_lib_free(vita_imports_lib_t *lib)
 {
 	if (lib) {
 		int i;
-		for (i = 0; i < lib->n_modules; i++) {
-			vita_imports_module_free(lib->modules[i]);
+		for (i = 0; i < lib->n_variables; i++) {
+			vita_imports_stub_free(lib->variables[i]);
+		}
+		for (i = 0; i < lib->n_functions; i++) {
+			vita_imports_stub_free(lib->functions[i]);
 		}
 		free(lib->name);
 		free(lib);
+	}
+}
+
+
+void vita_imports_module_free(vita_imports_module_t *mod)
+{
+	if (mod) {
+		int i;
+		for (i = 0; i < mod->n_libs; i++) {
+			vita_imports_lib_free(mod->libs[i]);
+		}
+		free(mod->name);
+		free(mod);
 	}
 }
 
@@ -136,15 +136,15 @@ static vita_imports_common_fields *generic_find(vita_imports_common_fields **ent
 	return NULL;
 }
 
-vita_imports_lib_t *vita_imports_find_lib(vita_imports_t *imp, uint32_t NID) {
-	return (vita_imports_lib_t *)generic_find((vita_imports_common_fields **)imp->libs, imp->n_libs, NID);
+vita_imports_module_t *vita_imports_find_module(vita_imports_t *imp, uint32_t NID) {
+	return (vita_imports_module_t *)generic_find((vita_imports_common_fields **)imp->modules, imp->n_modules, NID);
 }
-vita_imports_module_t *vita_imports_find_module(vita_imports_lib_t *lib, uint32_t NID) {
-	return (vita_imports_module_t *)generic_find((vita_imports_common_fields **)lib->modules, lib->n_modules, NID);
+vita_imports_lib_t *vita_imports_find_lib(vita_imports_module_t *mod, uint32_t NID) {
+	return (vita_imports_lib_t *)generic_find((vita_imports_common_fields **)mod->libs, mod->n_libs, NID);
 }
-vita_imports_stub_t *vita_imports_find_function(vita_imports_module_t *mod, uint32_t NID) {
-	return (vita_imports_stub_t *)generic_find((vita_imports_common_fields **)mod->functions, mod->n_functions, NID);
+vita_imports_stub_t *vita_imports_find_function(vita_imports_lib_t *lib, uint32_t NID) {
+	return (vita_imports_stub_t *)generic_find((vita_imports_common_fields **)lib->functions, lib->n_functions, NID);
 }
-vita_imports_stub_t *vita_imports_find_variable(vita_imports_module_t *mod, uint32_t NID) {
-	return (vita_imports_stub_t *)generic_find((vita_imports_common_fields **)mod->variables, mod->n_variables, NID);
+vita_imports_stub_t *vita_imports_find_variable(vita_imports_lib_t *lib, uint32_t NID) {
+	return (vita_imports_stub_t *)generic_find((vita_imports_common_fields **)lib->variables, lib->n_variables, NID);
 }

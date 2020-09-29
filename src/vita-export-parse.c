@@ -20,27 +20,27 @@ static void print_module_tree(vita_export_t *export)
 			"STOP: %s\n"
 			"EXIT: %s\n"
 			"MODULES: %zd\n"
-			, export->name, export->attributes, export->nid, export->ver_major, export->ver_minor, export->start, export->stop, export->exit, export->module_n);
+			, export->name, export->attributes, export->nid, export->ver_major, export->ver_minor, export->start, export->stop, export->exit, export->lib_n);
 			
-	for (int i = 0; i < export->module_n; ++i) {
+	for (int i = 0; i < export->lib_n; ++i) {
 		printf(	"\tLIBRARY: \"%s\"\n"
 				"\tNID: 0x%08X\n"
 				"\tSYSCALL: %s\n"
 				"\tFUNCTIONS: %zd\n"
-			, export->modules[i]->name, export->modules[i]->nid, export->modules[i]->syscall ? ("true") : ("false"), export->modules[i]->function_n);
+			, export->libs[i]->name, export->libs[i]->nid, export->libs[i]->syscall ? ("true") : ("false"), export->libs[i]->function_n);
 			
-		for (int j = 0; j < export->modules[i]->function_n; ++j) {
+		for (int j = 0; j < export->libs[i]->function_n; ++j) {
 			printf(	"\t\tEXPORT SYMBOL: \"%s\"\n"
 					"\t\tNID: 0x%08X\n"
-					, export->modules[i]->functions[j]->name, export->modules[i]->functions[j]->nid);
+					, export->libs[i]->functions[j]->name, export->libs[i]->functions[j]->nid);
 		}
 		
-		printf("\tVARIABLES: %zd\n", export->modules[i]->variable_n);
+		printf("\tVARIABLES: %zd\n", export->libs[i]->variable_n);
 		
-		for (int j = 0; j < export->modules[i]->variable_n; ++j) {
+		for (int j = 0; j < export->libs[i]->variable_n; ++j) {
 			printf(	"\t\tEXPORT SYMBOL: \"%s\"\n"
 					"\t\tNID: 0x%08X\n"
-					, export->modules[i]->variables[j]->name, export->modules[i]->variables[j]->nid);
+					, export->libs[i]->variables[j]->name, export->libs[i]->variables[j]->nid);
 		}
 	}
 }
@@ -261,8 +261,8 @@ int process_export_list(yaml_node *parent, yaml_node *child, vita_export_t *info
 	if (yaml_iterate_mapping(child, (mapping_functor)process_export, export) < 0)
 		return -1;
 	
-	info->modules = realloc(info->modules, (info->module_n+1)*sizeof(vita_library_export*));
-	info->modules[info->module_n++] = export;
+	info->libs = realloc(info->libs, (info->lib_n+1)*sizeof(vita_library_export*));
+	info->libs[info->lib_n++] = export;
 	return 0;
 }
 
@@ -526,7 +526,7 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	exports->exit = NULL;
 	
 	// we have no libraries to export
-	exports->module_n = 0;
-	exports->modules = NULL;
+	exports->lib_n = 0;
+	exports->libs = NULL;
 	return exports;
 }

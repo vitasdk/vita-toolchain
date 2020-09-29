@@ -113,13 +113,13 @@ int main(int argc, const char **argv) {
 	if (ehdr->e_type == ET_SCE_EXEC) {
 		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff);
 		sce_module_info_raw *info = (sce_module_info_raw *)(input + phdr->p_offset + phdr->p_paddr);
-		info->library_nid = htole32(mod_nid);
+		info->module_nid = htole32(mod_nid);
 	} else if (ehdr->e_type == ET_SCE_RELEXEC) {
 		int seg = ehdr->e_entry >> 30;
 		int off = ehdr->e_entry & 0x3fffffff;
 		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + seg * ehdr->e_phentsize);
 		sce_module_info_raw *info = (sce_module_info_raw *)(input + phdr->p_offset + off);
-		info->library_nid = htole32(mod_nid);
+		info->module_nid = htole32(mod_nid);
 	}
 
 	SCE_header hdr = { 0 };

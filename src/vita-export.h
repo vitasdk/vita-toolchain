@@ -31,8 +31,8 @@ typedef struct {
 	const char *start;
 	const char *stop;
 	const char *exit;
-	size_t module_n;
-	vita_library_export **modules;
+	size_t lib_n;
+	vita_library_export **libs;
 } vita_export_t;
 
 VITA_TOOLCHAIN_PUBLIC vita_export_t *vita_exports_load(const char *filename, const char *elf, int verbose);
