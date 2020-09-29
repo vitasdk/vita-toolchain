@@ -131,9 +131,9 @@ int main(int argc, char *argv[])
 	if(!yamlemitter_mapping_start(&emitter, &event))
 		goto error;
 	
-	for (int i = 0; i < exports->module_n; ++i)
+	for (int i = 0; i < exports->lib_n; ++i)
 	{
-		vita_library_export *lib = exports->modules[i];
+		vita_library_export *lib = exports->libs[i];
 		
 		int kernel_lib = is_kernel;
 		

@@ -5,7 +5,7 @@
 #include "yamltreeutil.h"
 #include "sha256.h"
 
-int process_import_functions(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+int process_import_functions(yaml_node *parent, yaml_node *child, vita_imports_lib_t *library) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting function to be scalar, got '%s'.\n"
 			, parent->position.line
@@ -40,7 +40,7 @@ int process_import_functions(yaml_node *parent, yaml_node *child, vita_imports_m
 	return 0;
 }
 
-int process_import_variables(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+int process_import_variables(yaml_node *parent, yaml_node *child, vita_imports_lib_t *library) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting variable to be scalar, got '%s'.\n"
 			, parent->position.line
@@ -75,7 +75,7 @@ int process_import_variables(yaml_node *parent, yaml_node *child, vita_imports_m
 	return 0;
 }
 
-int process_library(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+int process_library(yaml_node *parent, yaml_node *child, vita_imports_lib_t *library) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting library key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
 		return -1;
@@ -121,7 +121,7 @@ int process_library(yaml_node *parent, yaml_node *child, vita_imports_module_t *
 	return 0;
 }
 
-int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_lib_t *import) {
+int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_module_t *import) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting library key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
 		return -1;
@@ -129,7 +129,7 @@ int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_lib_t *i
 	
 	yaml_scalar *key = &parent->data.scalar;
 	
-	vita_imports_module_t *library = vita_imports_module_new("",false,0,0,0);
+	vita_imports_lib_t *library = vita_imports_lib_new("",false,0,0,0);
 	
 	// default values
 	library->name = strdup(key->value);
@@ -137,13 +137,13 @@ int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_lib_t *i
 	if (yaml_iterate_mapping(child, (mapping_functor)process_library, library) < 0)
 		return -1;
 
-	import->modules = realloc(import->modules, (import->n_modules+1)*sizeof(vita_imports_module_t*));
-	import->modules[import->n_modules++] = library;
+	import->libs = realloc(import->libs, (import->n_libs+1)*sizeof(vita_imports_module_t*));
+	import->libs[import->n_libs++] = library;
 		
 	return 0;
 }
 
-int process_import(yaml_node *parent, yaml_node *child, vita_imports_lib_t *import) {
+int process_import(yaml_node *parent, yaml_node *child, vita_imports_module_t *import) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting module key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
 		return -1;
@@ -184,13 +184,13 @@ int process_import_list(yaml_node *parent, yaml_node *child, vita_imports_t *imp
 	
 	yaml_scalar *key = &parent->data.scalar;
 	
-	vita_imports_lib_t *import = vita_imports_lib_new(key->value,0,0);
+	vita_imports_module_t *import = vita_imports_module_new(key->value,0,0);
 	
 	if (yaml_iterate_mapping(child, (mapping_functor)process_import, import) < 0)
 		return -1;
 	
-	imports->libs = realloc(imports->libs, (imports->n_libs+1)*sizeof(vita_imports_lib_t*));
-	imports->libs[imports->n_libs++] = import;
+	imports->modules = realloc(imports->modules, (imports->n_modules+1)*sizeof(vita_imports_lib_t*));
+	imports->modules[imports->n_modules++] = import;
 	return 0;
 }
 
