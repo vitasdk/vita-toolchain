@@ -58,7 +58,7 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 		// Hacky logic to protect against nid conflicts.
 		char *func_name_for_nid = malloc(key->len + 11);
 		int outlen = snprintf(func_name_for_nid, key->len + 10, "%s_%08X", key->value, exported_func_count++);
-		symbol->nid = sha256_32_vector(1, (uint8_t **)&func_name_for_nid, &outlen);
+		symbol->nid = sha256_32_vector(1, (uint8_t **)&func_name_for_nid, (size_t *)&outlen);
 		free(func_name_for_nid);
 
 		// append to list
@@ -70,7 +70,7 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 
 	if (is_mapping(entry)) {
 		if ((entry->data.mapping.count - 1) != 0) {
-			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %d\n"
+			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %u\n"
 				, entry->position.line
 				, entry->position.column
 				, entry->data.mapping.count);
@@ -88,7 +88,7 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 
 		// create an export symbol for this function
 		vita_export_symbol *symbol = malloc(sizeof(vita_export_symbol));
-		symbol->name = strdup(entry->data.mapping.pairs[0]->lhs->data.scalar->value);
+		symbol->name = strdup(entry->data.mapping.pairs[0]->lhs->data.scalar.value);
 
 		if (process_32bit_integer(entry->data.mapping.pairs[0]->rhs, &symbol->nid) < 0) {
 			fprintf(stderr, "error: line: %zd, column: %zd, could not convert function nid '%s' to 32 bit integer.\n"
@@ -96,7 +96,7 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 				, entry->data.mapping.pairs[0]->rhs->position.column
 				, entry->data.mapping.pairs[0]->rhs->data.scalar.value);
 
-			free(symbol->name);
+			free((void *)symbol->name);
 			free(symbol);
 
 			return -1;
