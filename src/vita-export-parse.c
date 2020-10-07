@@ -492,10 +492,10 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	char *base = elf;
 	
 	if (fs && bs){
-		base = (fs > bs) ? (fs) : (bs);
+		base = (fs > bs) ? (fs[1]) : (bs);
 	}
 	else if (fs) {
-		base = fs;
+		base = fs[1];
 	}
 	else if (bs) {
 		base = bs;
