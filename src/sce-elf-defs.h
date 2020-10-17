@@ -43,7 +43,7 @@ typedef struct SCE_TYPE(sce_module_info) {
 	// i decided to include process param into module_info (xyz)
 	uint32_t process_param_size;                             /* 0x34 */
 	uint32_t process_param_magic;                            /* PSP2 */
-	uint32_t process_param_ver;                              /* ? 6 ? */
+	uint32_t process_param_ver;                              /* unknown, but it could be 6 */
 	uint32_t process_param_fw_ver;                           /* sdk vsersion */
 	SCE_PTR(const char *) process_param_main_thread_name;    /* thread name pointer*/
 	SCE_PTR(int32_t *) process_param_main_thread_priority;   /* thread initPriority */
