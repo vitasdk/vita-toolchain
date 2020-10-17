@@ -41,19 +41,29 @@ typedef struct SCE_TYPE(sce_module_info) {
 	SCE_PTR(const void *) extab_end;	/* Offset to end of ARM EXTAB (optional */
 
 	// i decided to include process param into module_info (xyz)
-	uint32_t process_param_size;
-	uint32_t process_param_magic;
-	uint32_t process_param_ver;
-	uint32_t process_param_fw_ver;
-	SCE_PTR(const char *) process_param_main_thread_name;
-	int32_t process_param_main_thread_priority;
-	uint32_t process_param_main_thread_stacksize;
-	uint32_t process_param_main_thread_attribute;
-	SCE_PTR(const char *) process_param_process_name;
-	uint32_t process_param_process_preload_disabled;
-	uint32_t process_param_main_thread_cpu_affinity_mask;
-	SCE_PTR(const void *) process_param_sce_libc_param;
-	uint32_t process_param_unk;
+	uint32_t process_param_size;                             /* 0x34 */
+	uint32_t process_param_magic;                            /* PSP2 */
+	uint32_t process_param_ver;                              /* unknown, but it could be 6 */
+	uint32_t process_param_fw_ver;                           /* sdk vsersion */
+	SCE_PTR(const char *) process_param_main_thread_name;    /* thread name pointer*/
+	SCE_PTR(int32_t *) process_param_main_thread_priority;   /* thread initPriority */
+	SCE_PTR(uint32_t *) process_param_main_thread_stacksize; /* thread stacksize*/
+	uint32_t process_param_main_thread_attribute;            /* unknown */
+	SCE_PTR(const char *) process_param_process_name;        /* process name pointer */
+	/*
+	 * 0x01000000 - SceLibPvf
+	 * 0x00800000 - SceLibft2
+	 * 0x00400000 - SceAppUtil
+	 * 0x00200000 - unknown
+	 * 0x00100000 - SceCommonDialog
+	 * 0x00080000 - SceShellSvc
+	 * 0x00040000 - unknown
+	 * 0x00020000 - SceLibDbg and SceLibPvf
+	 */
+	SCE_PTR(uint32_t *) process_param_process_preload_disabled; /* module load inhibit */
+	uint32_t process_param_main_thread_cpu_affinity_mask;       /* unknown */
+	SCE_PTR(const void *) process_param_sce_libc_param;         /* SceLibc param pointer */
+	uint32_t process_param_unk;                                 /* unknown */
 } SCE_TYPE(sce_module_info);
 
 typedef struct SCE_TYPE(sce_module_exports) {
