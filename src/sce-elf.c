@@ -482,6 +482,7 @@ void *sce_elf_module_info_encode(
 	int total_size = 0;
 	Elf32_Addr segment_base;
 	Elf32_Word start_offset;
+	Elf32_Addr libc_param_addr = 0;
 	int segndx;
 	int i;
 	sce_module_exports_t *export;
@@ -503,6 +504,8 @@ void *sce_elf_module_info_encode(
 	segment_base = ve->segments[segndx].vaddr;
 	start_offset = ve->segments[segndx].memsz;
 	start_offset = (start_offset + 0xF) & ~0xF; // align to 16 bytes
+
+	get_variable_by_symbol("sceLibcParam", ve, &libc_param_addr);
 
 	for (i = 0; i < ve->num_segments; i++) {
 		if (i == segndx)
@@ -538,8 +541,12 @@ void *sce_elf_module_info_encode(
 	CONVERTOFFSET(module_info, extab_end);
 	module_info_raw->process_param_size = 0x34;
 	memcpy(&module_info_raw->process_param_magic, "PSP2", 4);
-	module_info_raw->process_param_ver = 6 ;
+	module_info_raw->process_param_ver = 6;
 	module_info_raw->process_param_fw_ver = 0x03570011;
+	if (libc_param_addr != 0) {
+		module_info_raw->process_param_sce_libc_param = libc_param_addr;
+		ADDRELA(&module_info_raw->process_param_sce_libc_param);
+	}
 
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		int num_syms;
