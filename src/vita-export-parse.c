@@ -119,24 +119,78 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 	return -1;
 }
 
+uint32_t exported_vars_count = 0;
+
 int process_variables(yaml_node *entry, vita_library_export *export) {
-	if (!is_scalar(entry)) {
-		fprintf(stderr, "error: line: %zd, column: %zd, expecting variable name to be scalar, got '%s'.\n", entry->position.line, entry->position.column, node_type_str(entry));
-		return -1;
+	if (is_scalar(entry)) {
+		yaml_scalar *key = &entry->data.scalar;
+
+		// create an export symbol for this variable
+		vita_export_symbol *symbol = malloc(sizeof(vita_export_symbol));
+		symbol->name = strdup(key->value);
+
+		// Hacky logic to protect against nid conflicts.
+		char *func_name_for_nid = malloc(key->len + 11);
+		int outlen = snprintf(func_name_for_nid, key->len + 10, "%s_%08X", key->value, exported_vars_count++);
+		symbol->nid = sha256_32_vector(1, (uint8_t **)&func_name_for_nid, (size_t *)&outlen);
+		free(func_name_for_nid);
+
+		// append to list
+		export->variables = realloc(export->variables, (export->variable_n+1)*sizeof(const char*));
+		export->variables[export->variable_n++] = symbol;
+
+		return 0;
 	}
-	
-	yaml_scalar *key = &entry->data.scalar;
-	
-	// create an export symbol for this variable
-	vita_export_symbol *symbol = malloc(sizeof(vita_export_symbol));
-	symbol->name = strdup(key->value);
-	symbol->nid = sha256_32_vector(1, (uint8_t **)&key->value, &key->len);
-	
-	// add to list
-	export->variables = realloc(export->variables, (export->variable_n+1)*sizeof(const char*));
-	export->variables[export->variable_n++] = symbol;
-	
-	return 0;
+
+	if (is_mapping(entry)) {
+		if ((entry->data.mapping.count - 1) != 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %u\n"
+				, entry->position.line
+				, entry->position.column
+				, entry->data.mapping.count);
+			return -1;
+		}
+
+		if (is_scalar(entry->data.mapping.pairs[0]->lhs) == 0 || is_scalar(entry->data.mapping.pairs[0]->rhs) == 0) {
+
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting variable name to be scalar, got '%s'.\n"
+				, entry->position.line
+				, entry->position.column
+				, node_type_str(entry));
+			return -1;
+		}
+
+		// create an export symbol for this variable
+		vita_export_symbol *symbol = malloc(sizeof(vita_export_symbol));
+		symbol->name = strdup(entry->data.mapping.pairs[0]->lhs->data.scalar.value);
+
+		if (process_32bit_integer(entry->data.mapping.pairs[0]->rhs, &symbol->nid) < 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert variable nid '%s' to 32 bit integer.\n"
+				, entry->data.mapping.pairs[0]->rhs->position.line
+				, entry->data.mapping.pairs[0]->rhs->position.column
+				, entry->data.mapping.pairs[0]->rhs->data.scalar.value);
+
+			free((void *)symbol->name);
+			free(symbol);
+
+			return -1;
+		}
+
+		exported_vars_count++;
+
+		// append to list
+		export->variables = realloc(export->variables, (export->variable_n+1)*sizeof(const char*));
+		export->variables[export->variable_n++] = symbol;
+
+		return 0;
+	}
+
+	fprintf(stderr, "error: line: %zd, column: %zd, Unhandled type, got '%s'.\n"
+		, entry->position.line
+		, entry->position.column
+		, node_type_str(entry));
+
+	return -1;
 }
 
 int process_module_version(yaml_node *parent, yaml_node *child, vita_export_t *info) {
