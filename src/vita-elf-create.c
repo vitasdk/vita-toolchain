@@ -136,6 +136,7 @@ int main(int argc, char *argv[])
 {
 	vita_elf_t *ve;
 	sce_module_info_t *module_info;
+	sce_module_params_t *params;
 	sce_section_sizes_t section_sizes;
 	void *encoded_modinfo;
 	vita_elf_rela_table_t rtable = {};
@@ -189,7 +190,11 @@ int main(int argc, char *argv[])
 	TRACEF(VERBOSE, "Segments:\n");
 	list_segments(ve);
 
-	module_info = sce_elf_module_info_create(ve, exports);
+	params = sce_elf_module_params_create(ve);	
+	if (!params)
+		return EXIT_FAILURE;
+
+	module_info = sce_elf_module_info_create(ve, exports, params->process_param);
 
 	if (!module_info)
 		return EXIT_FAILURE;
@@ -209,7 +214,7 @@ int main(int argc, char *argv[])
 	PRINTSEC(sceVStub_rodata);
 
 	encoded_modinfo = sce_elf_module_info_encode(
-			module_info, ve, &section_sizes, &rtable);
+			module_info, ve, &section_sizes, &rtable, params);
 
 	TRACEF(VERBOSE, "Relocations from encoded modinfo:\n");
 	print_rtable(&rtable);
@@ -234,6 +239,7 @@ int main(int argc, char *argv[])
 	free(segment_sizes);
 
 	sce_elf_module_info_free(module_info);
+	sce_elf_module_params_free(module_info);
 	vita_elf_free(ve);
 
 	return status;
