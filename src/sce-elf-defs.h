@@ -174,7 +174,7 @@ typedef struct SCE_TYPE(sce_libc_param) {
 	uint32_t unk_0x30;							  /* Unknown */
 	SCE_PTR(const void *) malloc_for_tls_replace; /* malloc_for_tls replacement functions */
 
-	uint32_t _default_heap_size;                  /* Default SceLibc heap size - 0x800000 (8MiB) */
+	uint32_t _default_heap_size;                  /* Default SceLibc heap size - 0x40000 (256KiB) */
 } SCE_TYPE(sce_libc_param);
 
 #undef SCE_TYPE

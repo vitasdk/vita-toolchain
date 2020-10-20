@@ -112,7 +112,7 @@ static int get_function_by_symbol(const char *symbol, const vita_elf_t *ve, Elf3
 	return i != ve->num_symbols;
 }
 
-static int get_variable_by_symbol(const char *symbol, const vita_elf_t *ve, Elf32_Addr *vaddr) {
+int get_variable_by_symbol(const char *symbol, const vita_elf_t *ve, Elf32_Addr *vaddr) {
 	int i;
 	
 	for (i = 0; i < ve->num_symbols; ++i) {
@@ -303,25 +303,26 @@ static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, cons
 	}
 }
 
-sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve) 
+sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, int have_libc) 
 {
 	sce_module_params_t *params = calloc(1, sizeof(sce_module_params_t));
 	ASSERT(params != NULL);
 
-	params->libc_param = calloc(1, sizeof(sce_libc_param_t));
-	ASSERT(params->libc_param != NULL);
 	params->process_param = calloc(1, sizeof(sce_process_param_t));
 	ASSERT(params->process_param != NULL);
-
-	params->libc_param->size = 0x38;
-	params->libc_param->unk_0x1C = 9;
-	params->libc_param->fw_version = PSP2_SDK_VERSION;
-	params->libc_param->_default_heap_size = 0x800000;
-
 	params->process_param->size = 0x34;
 	memcpy(&params->process_param->magic, "PSP2", 4);
 	params->process_param->version = 6;
 	params->process_param->fw_version = PSP2_SDK_VERSION;
+
+	if (have_libc) {
+		params->libc_param = calloc(1, sizeof(sce_libc_param_t));
+		ASSERT(params->libc_param != NULL);
+		params->libc_param->size = 0x38;
+		params->libc_param->unk_0x1C = 9;
+		params->libc_param->fw_version = PSP2_SDK_VERSION;
+		params->libc_param->_default_heap_size = 0x40000;
+	}
 
 	return params;
 
@@ -344,8 +345,7 @@ void sce_elf_module_params_free(sce_module_params_t *params)
 		return;
 
 	free(params->process_param);
-	if (params->libc_param != NULL)
-		free(params->libc_param);
+	free(params->process_param);
 	free(params);
 }
 
@@ -436,7 +436,7 @@ sce_failure:
 	sizes->section += (size); \
 	total_size += (size); \
 } while (0)
-int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes)
+int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, int have_libc)
 {
 	int total_size = 0;
 	sce_module_exports_t *export;
@@ -446,7 +446,9 @@ int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_siz
 
 	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
 	INCR(sceModuleInfo_rodata, sizeof(sce_process_param_raw));
-	INCR(sceModuleInfo_rodata, sizeof(sce_libc_param_raw));
+	if (have_libc)
+		INCR(sceModuleInfo_rodata, sizeof(sce_libc_param_raw));
+
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		INCR(sceLib_ent, sizeof(sce_module_exports_raw));
 		if (export->library_name != NULL) {
@@ -535,8 +537,8 @@ void *sce_elf_module_info_encode(
 	int total_size = 0;
 	Elf32_Addr segment_base;
 	Elf32_Word start_offset;
-	int32_t process_param_offset = sizeof(sce_module_info_raw);
-	int32_t libc_param_offset = process_param_offset + sizeof(sce_process_param_raw);
+	uint32_t process_param_offset = sizeof(sce_module_info_raw);
+	uint32_t libc_param_offset = process_param_offset + sizeof(sce_process_param_raw);
 	int segndx;
 	int i;
 	sce_module_exports_t *export;
@@ -545,7 +547,7 @@ void *sce_elf_module_info_encode(
 	sce_process_param_t *process_param = params->process_param;
 	sce_process_param_raw *process_param_raw;
 	sce_libc_param_t *libc_param = params->libc_param;
-	sce_libc_param_raw *libc_param_raw = NULL;
+	sce_libc_param_raw *libc_param_raw;
 	sce_module_exports_raw *export_raw;
 	sce_module_imports_raw *import_raw;
 	varray relas;
@@ -575,79 +577,89 @@ void *sce_elf_module_info_encode(
 	data = calloc(1, total_size);
 	ASSERT(data != NULL);
 
-	libc_param_raw = (sce_libc_param_raw *)(ADDR(sceModuleInfo_rodata) + libc_param_offset);
-	CONVERT32(libc_param, size);
-	CONVERT32(libc_param, fw_version);
-	CONVERT32(libc_param, unk_0x1C);
-	CONVERT32(libc_param, _default_heap_size);
-	libc_param_raw->default_heap_size = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _default_heap_size);
-	get_variable_by_symbol("sceLibcHeapSize", ve, &libc_param_raw->heap_size);
-	libc_param_raw->malloc_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _malloc_replace);
-	libc_param_raw->new_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _new_replace);
-	libc_param_raw->malloc_for_tls_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _malloc_for_tls_replace);
-	ADDRELA(&libc_param_raw->default_heap_size);
-	ADDRELA(&libc_param_raw->heap_size);
-	ADDRELA(&libc_param_raw->malloc_replace);
-	ADDRELA(&libc_param_raw->new_replace);
-	ADDRELA(&libc_param_raw->malloc_for_tls_replace);
-	{
-		libc_param_raw->_malloc_replace.size = 0x34;
-		libc_param_raw->_malloc_replace.unk_0x4 = 1;
-		libc_param_raw->_new_replace.size = 0x28;
-		libc_param_raw->_new_replace.unk_0x4 = 1;
-		libc_param_raw->_malloc_for_tls_replace.size = 0x18;
-		libc_param_raw->_malloc_for_tls_replace.unk_0x4 = 0x1;
+	if (libc_param != NULL) {
+		libc_param_raw = (sce_libc_param_raw *)(ADDR(sceModuleInfo_rodata) + libc_param_offset);
+		CONVERT32(libc_param, size);
+		CONVERT32(libc_param, fw_version);
+		CONVERT32(libc_param, unk_0x1C);
+		CONVERT32(libc_param, _default_heap_size);
+		libc_param_raw->default_heap_size = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _default_heap_size);
+		get_variable_by_symbol("sceLibcHeapSize", ve, &libc_param_raw->heap_size);
+		libc_param_raw->malloc_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _malloc_replace);
+		libc_param_raw->new_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _new_replace);
+		libc_param_raw->malloc_for_tls_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _malloc_for_tls_replace);
+		ADDRELA(&libc_param_raw->default_heap_size);
+		ADDRELA(&libc_param_raw->heap_size);
+		ADDRELA(&libc_param_raw->malloc_replace);
+		ADDRELA(&libc_param_raw->new_replace);
+		ADDRELA(&libc_param_raw->malloc_for_tls_replace);
+		{
+			libc_param_raw->_malloc_replace.size = 0x34;
+			libc_param_raw->_malloc_replace.unk_0x4 = 1;
+			libc_param_raw->_new_replace.size = 0x28;
+			libc_param_raw->_new_replace.unk_0x4 = 1;
+			libc_param_raw->_malloc_for_tls_replace.size = 0x18;
+			libc_param_raw->_malloc_for_tls_replace.unk_0x4 = 0x1;
 
-		// Memory allocation function names were found here: https://github.com/Olde-Skuul/burgerlib/blob/master/source/vita/brvitamemory.h
-		// Credit to Rebecca Ann Heineman <becky@burgerbecky.com>
-		get_function_by_symbol("user_malloc_init", ve, &libc_param_raw->_malloc_replace.malloc_init);
-		get_function_by_symbol("user_malloc_finalize", ve, &libc_param_raw->_malloc_replace.malloc_term);
-		get_function_by_symbol("user_malloc", ve, &libc_param_raw->_malloc_replace.malloc);
-		get_function_by_symbol("user_free", ve, &libc_param_raw->_malloc_replace.free);
-		get_function_by_symbol("user_calloc", ve, &libc_param_raw->_malloc_replace.calloc);
-		get_function_by_symbol("user_realloc", ve, &libc_param_raw->_malloc_replace.realloc);
-		get_function_by_symbol("user_memalign", ve, &libc_param_raw->_malloc_replace.memalign);
-		get_function_by_symbol("user_reallocalign", ve, &libc_param_raw->_malloc_replace.reallocalign);
-		get_function_by_symbol("user_malloc_stats", ve, &libc_param_raw->_malloc_replace.malloc_stats);
-		get_function_by_symbol("user_malloc_stats_fast", ve, &libc_param_raw->_malloc_replace.malloc_stats_fast);
-		get_function_by_symbol("user_malloc_usable_size", ve, &libc_param_raw->_malloc_replace.malloc_usable_size);
-		ADDRELA(&libc_param_raw->_malloc_replace.malloc_init);
-		ADDRELA(&libc_param_raw->_malloc_replace.malloc_term);
-		ADDRELA(&libc_param_raw->_malloc_replace.malloc);
-		ADDRELA(&libc_param_raw->_malloc_replace.free);
-		ADDRELA(&libc_param_raw->_malloc_replace.calloc);
-		ADDRELA(&libc_param_raw->_malloc_replace.realloc);
-		ADDRELA(&libc_param_raw->_malloc_replace.memalign);
-		ADDRELA(&libc_param_raw->_malloc_replace.reallocalign);
-		ADDRELA(&libc_param_raw->_malloc_replace.malloc_stats);
-		ADDRELA(&libc_param_raw->_malloc_replace.malloc_stats_fast);
-		ADDRELA(&libc_param_raw->_malloc_replace.malloc_usable_size);
+			// Memory allocation function names were found here: https://github.com/Olde-Skuul/burgerlib/blob/master/source/vita/brvitamemory.h
+			// Credit to Rebecca Ann Heineman <becky@burgerbecky.com>
+			get_function_by_symbol("user_malloc_init", ve, &libc_param_raw->_malloc_replace.malloc_init);
+			get_function_by_symbol("user_malloc_finalize", ve, &libc_param_raw->_malloc_replace.malloc_term);
+			get_function_by_symbol("user_malloc", ve, &libc_param_raw->_malloc_replace.malloc);
+			get_function_by_symbol("user_free", ve, &libc_param_raw->_malloc_replace.free);
+			get_function_by_symbol("user_calloc", ve, &libc_param_raw->_malloc_replace.calloc);
+			get_function_by_symbol("user_realloc", ve, &libc_param_raw->_malloc_replace.realloc);
+			get_function_by_symbol("user_memalign", ve, &libc_param_raw->_malloc_replace.memalign);
+			get_function_by_symbol("user_reallocalign", ve, &libc_param_raw->_malloc_replace.reallocalign);
+			get_function_by_symbol("user_malloc_stats", ve, &libc_param_raw->_malloc_replace.malloc_stats);
+			get_function_by_symbol("user_malloc_stats_fast", ve, &libc_param_raw->_malloc_replace.malloc_stats_fast);
+			get_function_by_symbol("user_malloc_usable_size", ve, &libc_param_raw->_malloc_replace.malloc_usable_size);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_init);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_term);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc);
+			ADDRELA(&libc_param_raw->_malloc_replace.free);
+			ADDRELA(&libc_param_raw->_malloc_replace.calloc);
+			ADDRELA(&libc_param_raw->_malloc_replace.realloc);
+			ADDRELA(&libc_param_raw->_malloc_replace.memalign);
+			ADDRELA(&libc_param_raw->_malloc_replace.reallocalign);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_stats);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_stats_fast);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_usable_size);
 
-		get_function_by_symbol("user_malloc_for_tls_init", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_init_for_tls);
-		get_function_by_symbol("user_malloc_for_tls_finalize", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_term_for_tls);
-		get_function_by_symbol("user_malloc_for_tls", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_for_tls);
-		get_function_by_symbol("user_free_for_tls", ve, &libc_param_raw->_malloc_for_tls_replace.free_for_tls);
-		ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_init_for_tls);
-		ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_term_for_tls);
-		ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_for_tls);
-		ADDRELA(&libc_param_raw->_malloc_for_tls_replace.free_for_tls);
+			get_function_by_symbol("user_malloc_for_tls_init", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_init_for_tls);
+			get_function_by_symbol("user_malloc_for_tls_finalize", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_term_for_tls);
+			get_function_by_symbol("user_malloc_for_tls", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_for_tls);
+			get_function_by_symbol("user_free_for_tls", ve, &libc_param_raw->_malloc_for_tls_replace.free_for_tls);
+			ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_init_for_tls);
+			ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_term_for_tls);
+			ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_for_tls);
+			ADDRELA(&libc_param_raw->_malloc_for_tls_replace.free_for_tls);
 
-		get_function_by_symbol("_Z8user_newj", ve, &libc_param_raw->_new_replace.operator_new);
-		get_function_by_symbol("_Z8user_newjRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_new_nothrow);
-		get_function_by_symbol("_Z14user_new_arrayj", ve, &libc_param_raw->_new_replace.operator_new_arr);
-		get_function_by_symbol("_Z14user_new_arrayjRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_new_arr_nothrow);
-		get_function_by_symbol("_Z11user_deletePv", ve, &libc_param_raw->_new_replace.operator_delete);
-		get_function_by_symbol("_Z11user_deletePvRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_delete_nothrow);
-		get_function_by_symbol("_Z17user_delete_arrayPv", ve, &libc_param_raw->_new_replace.operator_delete_arr);
-		get_function_by_symbol("_Z17user_delete_arrayPvRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_delete_arr_nothrow);
-		ADDRELA(&libc_param_raw->_new_replace.operator_new);
-		ADDRELA(&libc_param_raw->_new_replace.operator_new_nothrow);
-		ADDRELA(&libc_param_raw->_new_replace.operator_new_arr);
-		ADDRELA(&libc_param_raw->_new_replace.operator_new_arr_nothrow);
-		ADDRELA(&libc_param_raw->_new_replace.operator_delete);
-		ADDRELA(&libc_param_raw->_new_replace.operator_delete_nothrow);
-		ADDRELA(&libc_param_raw->_new_replace.operator_delete_arr);
-		ADDRELA(&libc_param_raw->_new_replace.operator_delete_arr_nothrow);
+			// user_new(std::size_t) throw(std::badalloc)
+			get_function_by_symbol("_Z8user_newj", ve, &libc_param_raw->_new_replace.operator_new);
+			// user_new(std::size_t, std::nothrow_t const&)
+			get_function_by_symbol("_Z8user_newjRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_new_nothrow);
+			// user_new_array(std::size_t) throw(std::badalloc)
+			get_function_by_symbol("_Z14user_new_arrayj", ve, &libc_param_raw->_new_replace.operator_new_arr);
+			// user_new_array(std::size_t, std::nothrow_t const&)
+			get_function_by_symbol("_Z14user_new_arrayjRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_new_arr_nothrow);
+			// user_delete(void*)
+			get_function_by_symbol("_Z11user_deletePv", ve, &libc_param_raw->_new_replace.operator_delete);
+			// user_delete(void*, std::nothrow_t const&)
+			get_function_by_symbol("_Z11user_deletePvRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_delete_nothrow);
+			// user_delete_array(void*)
+			get_function_by_symbol("_Z17user_delete_arrayPv", ve, &libc_param_raw->_new_replace.operator_delete_arr);
+			// user_delete_array(void*, std::nothrow_t const&)
+			get_function_by_symbol("_Z17user_delete_arrayPvRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_delete_arr_nothrow);
+			ADDRELA(&libc_param_raw->_new_replace.operator_new);
+			ADDRELA(&libc_param_raw->_new_replace.operator_new_nothrow);
+			ADDRELA(&libc_param_raw->_new_replace.operator_new_arr);
+			ADDRELA(&libc_param_raw->_new_replace.operator_new_arr_nothrow);
+			ADDRELA(&libc_param_raw->_new_replace.operator_delete);
+			ADDRELA(&libc_param_raw->_new_replace.operator_delete_nothrow);
+			ADDRELA(&libc_param_raw->_new_replace.operator_delete_arr);
+			ADDRELA(&libc_param_raw->_new_replace.operator_delete_arr_nothrow);
+		}
 	}
 
 	process_param_raw = (sce_process_param_raw *)(ADDR(sceModuleInfo_rodata) + process_param_offset);
@@ -660,13 +672,15 @@ void *sce_elf_module_info_encode(
 	get_variable_by_symbol("sceUserMainThreadStackSize", ve, &process_param_raw->main_thread_stacksize);
 	get_variable_by_symbol("sceUserMainThreadCpuAffinityMask", ve, &process_param_raw->main_thread_cpu_affinity_mask);
 	get_variable_by_symbol("sceUserMainThreadAttribute", ve, &process_param_raw->main_thread_attribute);
-	process_param_raw->sce_libc_param = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, size);
 	ADDRELA(&process_param_raw->main_thread_name);
 	ADDRELA(&process_param_raw->main_thread_priority);
 	ADDRELA(&process_param_raw->main_thread_stacksize);
 	ADDRELA(&process_param_raw->main_thread_cpu_affinity_mask);
 	ADDRELA(&process_param_raw->main_thread_attribute);
-	ADDRELA(&process_param_raw->sce_libc_param);
+	if (libc_param != NULL) {
+		process_param_raw->sce_libc_param = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, size);
+		ADDRELA(&process_param_raw->sce_libc_param);
+	}
 
 	module_info_raw = (sce_module_info_raw *)ADDR(sceModuleInfo_rodata);
 	CONVERT16(module_info, attributes);
@@ -790,7 +804,8 @@ void *sce_elf_module_info_encode(
 
 	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
 	INCR(sceModuleInfo_rodata, sizeof(sce_process_param_raw));
-	INCR(sceModuleInfo_rodata, sizeof(sce_libc_param_raw));
+	if (libc_param != NULL)
+		INCR(sceModuleInfo_rodata, sizeof(sce_libc_param_raw));
 
 	for (i = 0; i < sizeof(sce_section_sizes_t) / sizeof(Elf32_Word); i++) {
 		if (((Elf32_Word *)&cur_sizes)[i] != ((Elf32_Word *)sizes)[i])
@@ -1110,7 +1125,7 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 	ELF_ASSERT(data = elf_getdata(scn, NULL));
 	shstrtab = data->d_buf;
 
-	for(j=0;j<ve->fstubs_va.count;j++){
+	for(j=0;j<ve->fstubs_va.count;j++) {
 		cur_ndx = VARRAY_ELEMENT(&ve->fstubs_va,j);
 		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));
@@ -1139,7 +1154,7 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		return 1;
 	}
 	
-	for(j=0;j<ve->vstubs_va.count;j++){
+	for(j=0;j<ve->vstubs_va.count;j++) {
 		cur_ndx = VARRAY_ELEMENT(&ve->vstubs_va,j);
 		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));

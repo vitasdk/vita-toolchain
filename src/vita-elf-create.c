@@ -27,6 +27,8 @@ int g_log = 0;
 #define TRACEF(lvl, ...) \
 	do { if (g_log >= lvl) printf(__VA_ARGS__); } while (0)
 
+int get_variable_by_symbol(const char *symbol, const vita_elf_t *ve, Elf32_Addr *vaddr);
+
 void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 {
 	int i;
@@ -141,8 +143,9 @@ int main(int argc, char *argv[])
 	void *encoded_modinfo;
 	vita_elf_rela_table_t rtable = {};
 	vita_export_t *exports = NULL;
-	
 	int status = EXIT_SUCCESS;
+	int have_libc;
+	uint32_t have_libc_addr;
 
 	elf_create_args args = {};
 	if (parse_arguments(argc, argv, &args) < 0) {
@@ -190,7 +193,9 @@ int main(int argc, char *argv[])
 	TRACEF(VERBOSE, "Segments:\n");
 	list_segments(ve);
 
-	params = sce_elf_module_params_create(ve);	
+	have_libc = get_variable_by_symbol("sceLibcHeapSize", ve, &have_libc_addr);
+
+	params = sce_elf_module_params_create(ve, have_libc);
 	if (!params)
 		return EXIT_FAILURE;
 
@@ -199,7 +204,7 @@ int main(int argc, char *argv[])
 	if (!module_info)
 		return EXIT_FAILURE;
 	
-	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes);
+	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes, have_libc);
 	int curpos = 0;
 	TRACEF(VERBOSE, "Total SCE data size: %d / %x\n", total_size, total_size);
 #define PRINTSEC(name) TRACEF(VERBOSE, "  .%.*s.%s: %d (%x @ %x)\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name, section_sizes.name, curpos+ve->segments[0].vaddr+ve->segments[0].memsz); curpos += section_sizes.name
@@ -239,7 +244,7 @@ int main(int argc, char *argv[])
 	free(segment_sizes);
 
 	sce_elf_module_info_free(module_info);
-	sce_elf_module_params_free(module_info);
+	sce_elf_module_params_free(params);
 	vita_elf_free(ve);
 
 	return status;
