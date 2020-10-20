@@ -343,7 +343,7 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 
 	for (i = 0; i < ve->num_fstubs; i++) {
 		curstub = ve->fstubs + i;
-		curlib = varray_sorted_search_or_insert(&liblist.va, &curstub[i].library_nid, NULL);
+		curlib = varray_sorted_search_or_insert(&liblist.va, &curstub->library_nid, NULL);
 		ASSERT(curlib);
 		curlib->nid = curstub->library_nid;
 		if (curstub->library)
@@ -354,7 +354,7 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 
 	for (i = 0; i < ve->num_vstubs; i++) {
 		curstub = ve->vstubs + i;
-		curlib = varray_sorted_search_or_insert(&liblist.va, &curstub[i].library_nid, NULL);
+		curlib = varray_sorted_search_or_insert(&liblist.va, &curstub->library_nid, NULL);
 		ASSERT(curlib);
 		curlib->nid = curstub[i].library_nid;
 		if (curstub[i].library)
