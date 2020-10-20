@@ -40,30 +40,8 @@ typedef struct SCE_TYPE(sce_module_info) {
 	SCE_PTR(const void *) extab_top;	/* Offset to start of ARM EXTAB (optional) */
 	SCE_PTR(const void *) extab_end;	/* Offset to end of ARM EXTAB (optional */
 
-	// i decided to include process param into module_info (xyz)
-	uint32_t process_param_size;                             /* 0x34 */
-	uint32_t process_param_magic;                            /* PSP2 */
-	uint32_t process_param_ver;                              /* unknown, but it could be 6 */
-	uint32_t process_param_fw_ver;                           /* sdk vsersion */
-	SCE_PTR(const char *) process_param_main_thread_name;    /* thread name pointer*/
-	SCE_PTR(int32_t *) process_param_main_thread_priority;   /* thread initPriority */
-	SCE_PTR(uint32_t *) process_param_main_thread_stacksize; /* thread stacksize*/
-	uint32_t process_param_main_thread_attribute;            /* unknown */
-	SCE_PTR(const char *) process_param_process_name;        /* process name pointer */
-	/*
-	 * 0x01000000 - SceLibPvf
-	 * 0x00800000 - SceLibft2
-	 * 0x00400000 - SceAppUtil
-	 * 0x00200000 - unknown
-	 * 0x00100000 - SceCommonDialog
-	 * 0x00080000 - SceShellSvc
-	 * 0x00040000 - unknown
-	 * 0x00020000 - SceLibDbg and SceLibPvf
-	 */
-	SCE_PTR(uint32_t *) process_param_process_preload_disabled; /* module load inhibit */
-	uint32_t process_param_main_thread_cpu_affinity_mask;       /* unknown */
-	SCE_PTR(const void *) process_param_sce_libc_param;         /* SceLibc param pointer */
-	uint32_t process_param_unk;                                 /* unknown */
+	// Included module_sdk_version export in module_info
+	uint32_t module_sdk_version;        /* SDK version */
 } SCE_TYPE(sce_module_info);
 
 typedef struct SCE_TYPE(sce_module_exports) {
@@ -115,6 +93,89 @@ typedef struct SCE_TYPE(sce_module_imports_short) {
 	SCE_PTR(uint32_t *) var_nid_table;			/* Pointer to array of variable NIDs to import */
 	SCE_PTR(const void **) var_entry_table;		/* Pointer to array of data pointers to write to */
 } SCE_TYPE(sce_module_imports_short);
+
+typedef struct SCE_TYPE(sce_process_param) {
+	uint32_t size;                          /* 0x34 */
+	uint32_t magic;                         /* PSP2 */
+	uint32_t version;                       /* Unknown, but it could be 6 */
+	uint32_t fw_version;                    /* SDK vsersion */
+	SCE_PTR(const char *) main_thread_name; /* Thread name pointer*/
+	int32_t main_thread_priority;           /* Thread initPriority */
+	uint32_t main_thread_stacksize;         /* Thread stacksize*/
+	uint32_t main_thread_attribute;         /* Unknown */
+	SCE_PTR(const char *) process_name;     /* Process name pointer */
+	/*
+	 * 0x01000000 - SceLibPvf
+	 * 0x00800000 - SceLibft2
+	 * 0x00400000 - SceAppUtil
+	 * 0x00200000 - unknown
+	 * 0x00100000 - SceCommonDialog
+	 * 0x00080000 - SceShellSvc
+	 * 0x00040000 - unknown
+	 * 0x00020000 - SceLibDbg and SceLibPvf
+	 */
+	uint32_t process_preload_disabled;      /* Module load inhibit */
+	uint32_t main_thread_cpu_affinity_mask; /* Unknown */
+	SCE_PTR(const void *) sce_libc_param;   /* SceLibc param pointer */
+	uint32_t unk;                           /* Unknown */
+} SCE_TYPE(sce_process_param);
+
+typedef struct SCE_TYPE(sce_libc_param) {
+	struct {
+		uint32_t       size;                /* 0x34 */
+		uint32_t       unk_0x4;             /* Unknown, set to 1 */
+		SCE_PTR(void *) malloc_init;        /* Initialize malloc heap */
+		SCE_PTR(void *) malloc_term;        /* Terminate malloc heap */
+		SCE_PTR(void *) malloc;             /* malloc replacement */
+		SCE_PTR(void *) free;               /* free replacement */
+		SCE_PTR(void *) calloc;             /* calloc replacement */
+		SCE_PTR(void *) realloc;            /* realloc replacement */
+		SCE_PTR(void *) memalign;           /* memalign replacement */
+		SCE_PTR(void *) reallocalign;       /* reallocalign replacement */
+		SCE_PTR(void *) malloc_stats;       /* malloc_stats replacement */
+		SCE_PTR(void *) malloc_stats_fast;  /* malloc_stats_fast replacement */
+		SCE_PTR(void *) malloc_usable_size; /* malloc_usable_size replacement */
+	} _malloc_replace;
+
+	struct {
+		uint32_t size;                               /* 0x28 */
+		uint32_t unk_0x4;                            /* Unknown, set to 1 */
+		SCE_PTR(void *) operator_new;                /* new operator replacement */
+		SCE_PTR(void *) operator_new_nothrow;        /* new (nothrow) operator replacement */
+		SCE_PTR(void *) operator_new_arr;            /* new[] operator replacement */
+		SCE_PTR(void *) operator_new_arr_nothrow;    /* new[] (nothrow) operator replacement */
+		SCE_PTR(void *) operator_delete;             /* delete operator replacement */
+		SCE_PTR(void *) operator_delete_nothrow;     /* delete (nothrow) operator replacement */
+		SCE_PTR(void *) operator_delete_arr;         /* delete[] operator replacement */
+		SCE_PTR(void *) operator_delete_arr_nothrow; /* delete[] (nothrow) operator replacement */
+	} _new_replace;
+
+	struct {
+		uint32_t size;                       /* 0x18 */
+		uint32_t unk_0x4;                    /* Unknown, set to 1 */
+		SCE_PTR(void *) malloc_init_for_tls; /* Initialise tls malloc heap */
+		SCE_PTR(void *) malloc_term_for_tls; /* Terminate tls malloc heap */
+		SCE_PTR(void *) malloc_for_tls;      /* malloc_for_tls replacement */
+		SCE_PTR(void *) free_for_tls;        /* free_for_tls replacement */
+	} _malloc_for_tls_replace;
+
+	uint32_t size;							      /* 0x38 */
+	uint32_t unk_0x4;
+	SCE_PTR(uint32_t *) heap_size;                /* Heap size variable */
+	SCE_PTR(uint32_t *) default_heap_size;        /* Default heap size variable */
+	SCE_PTR(uint32_t *) heap_extended_alloc;      /* Unknown */
+	SCE_PTR(uint32_t *) heap_delayed_alloc;       /* Unknown */
+	uint32_t fw_version;                          /* SDK version */
+	uint32_t unk_0x1C;                            /* Unknown, set to 9 */  
+	SCE_PTR(const void *) malloc_replace;         /* malloc replacement functions */
+	SCE_PTR(const void *) new_replace;            /* new replacement functions */
+	uint32_t unk_0x28;                            /* Unknown */
+	uint32_t unk_0x2C;                            /* Unknown */
+	uint32_t unk_0x30;							  /* Unknown */
+	SCE_PTR(const void *) malloc_for_tls_replace; /* malloc_for_tls replacement functions */
+
+	uint32_t _default_heap_size;                  /* Default SceLibc heap size - 0x800000 (8MiB) */
+} SCE_TYPE(sce_libc_param);
 
 #undef SCE_TYPE
 #undef SCE_PTR
