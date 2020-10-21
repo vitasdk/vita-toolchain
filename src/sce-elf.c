@@ -672,11 +672,13 @@ void *sce_elf_module_info_encode(
 	get_variable_by_symbol("sceUserMainThreadStackSize", ve, &process_param_raw->main_thread_stacksize);
 	get_variable_by_symbol("sceUserMainThreadCpuAffinityMask", ve, &process_param_raw->main_thread_cpu_affinity_mask);
 	get_variable_by_symbol("sceUserMainThreadAttribute", ve, &process_param_raw->main_thread_attribute);
+	get_variable_by_symbol("sceKernelPreloadModuleInhibit", ve, &process_param_raw->process_preload_disabled);
 	ADDRELA(&process_param_raw->main_thread_name);
 	ADDRELA(&process_param_raw->main_thread_priority);
 	ADDRELA(&process_param_raw->main_thread_stacksize);
 	ADDRELA(&process_param_raw->main_thread_cpu_affinity_mask);
 	ADDRELA(&process_param_raw->main_thread_attribute);
+	ADDRELA(&process_param_raw->process_preload_disabled);
 	if (libc_param != NULL) {
 		process_param_raw->sce_libc_param = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, size);
 		ADDRELA(&process_param_raw->sce_libc_param);
