@@ -330,8 +330,8 @@ failure:
 	if (params->process_param != NULL)
 		free(params->process_param);
 
-	if (params->process_param != NULL)
-		free(params->process_param);
+	if (params->libc_param != NULL)
+		free(params->libc_param);
 
 	if (params != NULL)
 		free(params);
@@ -344,7 +344,8 @@ void sce_elf_module_params_free(sce_module_params_t *params)
 	if (params == NULL)
 		return;
 
-	free(params->process_param);
+	if (params->libc_param)
+		free(params->libc_param);
 	free(params->process_param);
 	free(params);
 }
