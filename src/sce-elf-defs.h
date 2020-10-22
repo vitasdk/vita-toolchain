@@ -104,16 +104,6 @@ typedef struct SCE_TYPE(sce_process_param) {
 	uint32_t main_thread_stacksize;         /* Thread stacksize*/
 	uint32_t main_thread_attribute;         /* Unknown */
 	SCE_PTR(const char *) process_name;     /* Process name pointer */
-	/*
-	 * 0x01000000 - SceLibPvf
-	 * 0x00800000 - SceLibft2
-	 * 0x00400000 - SceAppUtil
-	 * 0x00200000 - unknown
-	 * 0x00100000 - SceCommonDialog
-	 * 0x00080000 - SceShellSvc
-	 * 0x00040000 - unknown
-	 * 0x00020000 - SceLibDbg and SceLibPvf
-	 */
 	uint32_t process_preload_disabled;      /* Module load inhibit */
 	uint32_t main_thread_cpu_affinity_mask; /* Unknown */
 	SCE_PTR(const void *) sce_libc_param;   /* SceLibc param pointer */
