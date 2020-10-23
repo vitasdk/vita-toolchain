@@ -20,6 +20,8 @@ jobs:
     - name: Compile project
       run: |
         chmod +x build.sh
+        pwd
+        ls
         ./build.sh
     - name: Upload artifacts
       if: ${{ success() }}
