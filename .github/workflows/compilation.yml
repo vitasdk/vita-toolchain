@@ -24,6 +24,7 @@ jobs:
         ls
         sh build.sh
         pwd
+        cd build
         make install DESTDIR=../vita-toolchain
     #- name: Upload artifacts
     #  if: ${{ success() }}
