@@ -26,9 +26,9 @@ jobs:
         pwd
         cd build
         make install DESTDIR=../vita-toolchain
-    #- name: Upload artifacts
-    #  if: ${{ success() }}
-    #  uses: actions/upload-artifact@v2
-    #  with:
-    #    name: vita-toolchain-${{ steps.core.outputs.sha8 }}
-    #    path: ./builds
+    - name: Upload artifacts
+      if: ${{ success() }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: vita-toolchain-${{ steps.core.outputs.sha8 }}
+        path: ./vita-toolchain/usr/local/
