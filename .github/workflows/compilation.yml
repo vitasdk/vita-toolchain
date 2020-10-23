@@ -9,7 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: vitasdk/vitasdk:latest
     steps:
     - uses: actions/checkout@v2
 
@@ -22,7 +21,7 @@ jobs:
         chmod +x build.sh
         pwd
         ls
-        ./build.sh
+        sh build.sh
     - name: Upload artifacts
       if: ${{ success() }}
       uses: actions/upload-artifact@v2
