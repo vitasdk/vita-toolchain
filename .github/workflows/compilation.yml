@@ -18,13 +18,9 @@ jobs:
         echo "::set-output name=sha8::$(echo ${GITHUB_SHA} | cut -c1-8)"
     - name: Compile project
       run: |
-        chmod +x build.sh
-        mkdir vita-toolchain
-        pwd
-        ls
         sh build.sh
-        pwd
         cd build
+        mkdir vita-toolchain
         make install DESTDIR=../vita-toolchain
     - name: Upload artifacts
       if: ${{ success() }}
