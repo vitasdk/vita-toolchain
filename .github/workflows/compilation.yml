@@ -19,12 +19,15 @@ jobs:
     - name: Compile project
       run: |
         chmod +x build.sh
+        mkdir vita-toolchain
         pwd
         ls
         sh build.sh
-    - name: Upload artifacts
-      if: ${{ success() }}
-      uses: actions/upload-artifact@v2
-      with:
-        name: vita-toolchain-${{ steps.core.outputs.sha8 }}
-        path: ./builds
+        pwd
+        make install DESTDIR=../vita-toolchain
+    #- name: Upload artifacts
+    #  if: ${{ success() }}
+    #  uses: actions/upload-artifact@v2
+    #  with:
+    #    name: vita-toolchain-${{ steps.core.outputs.sha8 }}
+    #    path: ./builds
