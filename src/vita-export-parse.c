@@ -583,14 +583,15 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	
 	// default attribute of 0
 	exports->attributes = 0;
-	
-	
+
 	// nid is SHA256-32 of ELF
 	if (sha256_32_file(elf, &exports->nid) < 0)
 	{
 		free(exports);
 		return NULL;
 	}
+
+	exports->is_image_module = 0;
 	
 	// we don't specify any specific symbols
 	exports->bootstart = NULL;
