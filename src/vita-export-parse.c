@@ -424,7 +424,7 @@ int process_module_info(yaml_node *parent, yaml_node *child, vita_export_t *info
 	else if (strcmp(key->value, "imagemodule") == 0) {
 
 		if (!is_scalar(child)) {
-			fprintf(stderr, "error: line: %zd, column: %zd, expecting imagemodule to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting imagemodule to be scalar, got '%s'. Vaild value is \"true\" or \"false\".\n", child->position.line, child->position.column, node_type_str(child));
 			return -1;
 		}
 
