@@ -420,7 +420,26 @@ int process_module_info(yaml_node *parent, yaml_node *child, vita_export_t *info
 		// perform cast to 16 bit
 		info->attributes = (uint16_t)attrib32;
 	}
-	
+
+	else if (strcmp(key->value, "imagemodule") == 0) {
+
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting imagemodule to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+
+		key = &child->data.scalar;
+
+		if (strcmp(key->value, "true") == 0) {
+			info->is_image_module = 1;
+		} else if (strcmp(key->value, "false") == 0) {
+			info->is_image_module = 0;
+		} else {
+			fprintf(stderr, "error: line: %zd, column: %zd, Received unexpected value in imagemodule, got '%s'.\n", child->position.line, child->position.column, key->value);
+			return -1;
+		}
+	}
+
 	else if (strcmp(key->value, "version") == 0) {
 		if (yaml_iterate_mapping(child, (mapping_functor)process_module_version, info) < 0)
 			return -1;
