@@ -186,75 +186,78 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	export->size = sizeof(sce_module_exports_raw);
 	export->version = 0;
 	export->flags = 0x8000;
-	export->num_syms_funcs = 1;
+	export->num_syms_funcs = (export_spec->is_image_module == 0) ? 1 : 0;
 	export->num_syms_vars = 3;
-	
-	if (export_spec->bootstart)
-		++export->num_syms_funcs;
-	
-	if (export_spec->stop)
-		++export->num_syms_funcs;
-	
-	if (export_spec->exit)
-		++export->num_syms_funcs;
+
+	if (export_spec->is_image_module == 0) {
+		if (export_spec->bootstart)
+			++export->num_syms_funcs;
+
+		if (export_spec->stop)
+			++export->num_syms_funcs;
+
+		if (export_spec->exit)
+			++export->num_syms_funcs;
+	}
 	
 	int total_exports = export->num_syms_funcs + export->num_syms_vars;
 	export->nid_table = calloc(total_exports, sizeof(uint32_t));
 	export->entry_table = calloc(total_exports, sizeof(void*));
 	
 	int cur_nid = 0;
-	
-	if (export_spec->start) {
-		Elf32_Addr vaddr = 0;
-		if (!get_function_by_symbol(export_spec->start, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'start'", export_spec->start);
+	if (export_spec->is_image_module == 0) {
+		if (export_spec->start) {
+			Elf32_Addr vaddr = 0;
+			if (!get_function_by_symbol(export_spec->start, ve, &vaddr)) {
+				FAILX("Could not find symbol '%s' for main export 'start'", export_spec->start);
+			}
+
+			module_info->module_start = vita_elf_vaddr_to_host(ve, vaddr);
+		} else {
+			module_info->module_start = vita_elf_vaddr_to_host(ve, elf32_getehdr(ve->elf)->e_entry);
 		}
-		
-		module_info->module_start = vita_elf_vaddr_to_host(ve, vaddr);
-	}
-	else
-		module_info->module_start = vita_elf_vaddr_to_host(ve, elf32_getehdr(ve->elf)->e_entry);
-	
-	export->nid_table[cur_nid] = NID_MODULE_START;
-	export->entry_table[cur_nid] = module_info->module_start;
-	++cur_nid;
-	
-	if (export_spec->bootstart) {
-		Elf32_Addr vaddr = 0;
-		
-		if (!get_function_by_symbol(export_spec->bootstart, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'bootstart'", export_spec->bootstart);
-		}
-		
-		export->nid_table[cur_nid] = NID_MODULE_BOOTSTART;
-		export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
+
+		export->nid_table[cur_nid] = NID_MODULE_START;
+		export->entry_table[cur_nid] = module_info->module_start;
 		++cur_nid;
-	}
-	
-	if (export_spec->stop) {
-		Elf32_Addr vaddr = 0;
+
+		if (export_spec->bootstart) {
+			Elf32_Addr vaddr = 0;
+
+			if (!get_function_by_symbol(export_spec->bootstart, ve, &vaddr)) {
+				FAILX("Could not find symbol '%s' for main export 'bootstart'", export_spec->bootstart);
+			}
 		
-		if (!get_function_by_symbol(export_spec->stop, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'stop'", export_spec->stop);
+			export->nid_table[cur_nid] = NID_MODULE_BOOTSTART;
+			export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
+			++cur_nid;
 		}
-		
-		export->nid_table[cur_nid] = NID_MODULE_STOP;
-		export->entry_table[cur_nid] = module_info->module_stop = vita_elf_vaddr_to_host(ve, vaddr);
-		++cur_nid;
-	}
-	
-	if (export_spec->exit) {
-		Elf32_Addr vaddr = 0;
-		
-		if (!get_function_by_symbol(export_spec->exit, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'exit'", export_spec->exit);
+
+		if (export_spec->stop) {
+			Elf32_Addr vaddr = 0;
+
+			if (!get_function_by_symbol(export_spec->stop, ve, &vaddr)) {
+				FAILX("Could not find symbol '%s' for main export 'stop'", export_spec->stop);
+			}
+
+			export->nid_table[cur_nid] = NID_MODULE_STOP;
+			export->entry_table[cur_nid] = module_info->module_stop = vita_elf_vaddr_to_host(ve, vaddr);
+			++cur_nid;
 		}
-		
-		export->nid_table[cur_nid] = NID_MODULE_EXIT;
-		export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
-		++cur_nid;
+
+		if (export_spec->exit) {
+			Elf32_Addr vaddr = 0;
+
+			if (!get_function_by_symbol(export_spec->exit, ve, &vaddr)) {
+				FAILX("Could not find symbol '%s' for main export 'exit'", export_spec->exit);
+			}
+
+			export->nid_table[cur_nid] = NID_MODULE_EXIT;
+			export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
+			++cur_nid;
+		}
 	}
-	
+
 	export->nid_table[cur_nid] = NID_MODULE_INFO;
 	export->entry_table[cur_nid] = module_info;
 	++cur_nid;
