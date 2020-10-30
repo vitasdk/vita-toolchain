@@ -563,7 +563,7 @@ void *sce_elf_module_info_encode(
 		total_size += ((Elf32_Word *)sizes)[i];
 	}
 
-	segndx = 0; // code area is always segment 0
+	segndx = (module_info->module_start != NULL) ? vita_elf_host_to_segndx(ve, module_info->module_start) : 0;
 
 	segment_base = ve->segments[segndx].vaddr;
 	start_offset = ve->segments[segndx].memsz;
