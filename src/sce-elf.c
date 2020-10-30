@@ -563,7 +563,7 @@ void *sce_elf_module_info_encode(
 		total_size += ((Elf32_Word *)sizes)[i];
 	}
 
-	segndx = vita_elf_host_to_segndx(ve, module_info->module_start);
+	segndx = 0; // code area is always segment 0
 
 	segment_base = ve->segments[segndx].vaddr;
 	start_offset = ve->segments[segndx].memsz;
@@ -701,8 +701,18 @@ void *sce_elf_module_info_encode(
 	CONVERT32(module_info, tls_start);
 	CONVERT32(module_info, tls_filesz);
 	CONVERT32(module_info, tls_memsz);
-	CONVERTOFFSET(module_info, module_start);
-	CONVERTOFFSET(module_info, module_stop);
+	if(module_info->module_start != NULL){
+		CONVERTOFFSET(module_info, module_start);
+	}else{
+		module_info_raw->module_start = 0xFFFFFFFF;
+		module_info_raw->import_top = 0;
+		module_info_raw->import_end = 0;
+	}
+	if(module_info->module_stop != NULL){
+		CONVERTOFFSET(module_info, module_stop);
+	}else{
+		module_info_raw->module_stop = 0xFFFFFFFF;
+	}
 	CONVERTOFFSET(module_info, exidx_top);
 	CONVERTOFFSET(module_info, exidx_end);
 	CONVERTOFFSET(module_info, extab_top);
