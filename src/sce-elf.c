@@ -504,6 +504,95 @@ void sce_elf_module_info_free(sce_module_info_t *module_info)
 	free(module_info);
 }
 
+int sce_elf_import_code_address_sanitization(const sce_module_info_t *module_info)
+{
+	sce_module_imports_t *import;
+
+	void *import_code_top = (void *)~0;
+
+	for (import = module_info->import_top; import < module_info->import_end; import++) {
+		for (int n=0;n<import->num_syms_funcs;n++) {
+			if (import->func_entry_table[n] < import_code_top) {
+				import_code_top = import->func_entry_table[n];
+			}
+		}
+	}
+
+	for (import = module_info->import_top; import < module_info->import_end; import++) {
+		for (int n=0;n<import->num_syms_funcs;n++) {
+			import->func_entry_table[n] = import_code_top;
+			import_code_top += 0x10;
+		}
+	}
+
+	return 0;
+}
+
+int sce_elf_import_nid_sort(const sce_module_info_t *module_info)
+{
+	sce_module_imports_t *import;
+
+	for (import = module_info->import_top; import < module_info->import_end; import++) {
+		for (int n=0;n<(import->num_syms_funcs - 1);) {
+			if (import->func_nid_table[n] > import->func_nid_table[n + 1]) {
+
+				uint32_t nid_temp = import->func_nid_table[n];
+				void *func_temp   = import->func_entry_table[n];
+
+				import->func_nid_table[n]   = import->func_nid_table[n + 1];
+				import->func_nid_table[n + 1]   = nid_temp;
+
+				if (n > 0)
+					n--;
+			}else{
+				n++;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int sce_elf_export_lib_sort(sce_module_exports_t *export, unsigned int ent_num, unsigned int start_idx)
+{
+	// TODO:add more check
+
+	if (ent_num <= 1)
+		return 0;
+
+	for (unsigned int n=start_idx;n<(export->num_syms_funcs + start_idx - 1);) {
+		if (export->nid_table[n] > export->nid_table[n + 1]) {
+
+			uint32_t nid_temp = export->nid_table[n];
+			void *func_temp   = export->entry_table[n];
+
+			export->nid_table[n]   = export->nid_table[n + 1];
+			export->entry_table[n] = export->entry_table[n + 1];
+			export->nid_table[n + 1]   = nid_temp;
+			export->entry_table[n + 1] = func_temp;
+
+			if (n > 0)
+				n--;
+		}else{
+			n++;
+		}
+	}
+
+	return 0;
+}
+
+int sce_elf_export_sort(const sce_module_info_t *module_info)
+{
+	sce_module_exports_t *export;
+
+	for (export = module_info->export_top; export < module_info->export_end; export++) {
+		sce_elf_export_lib_sort(export, export->num_syms_funcs, 0);
+		sce_elf_export_lib_sort(export, export->num_syms_vars, export->num_syms_funcs);
+	}
+
+	return 0;
+}
+
 #define INCR(section, size) do { \
 	cur_sizes.section += (size); \
 	if (cur_sizes.section > sizes->section) \
@@ -695,8 +784,13 @@ void *sce_elf_module_info_encode(
 	module_info_raw->type = module_info->type;
 	module_info_raw->export_top = htole32(OFFSET(sceLib_ent));
 	module_info_raw->export_end = htole32(OFFSET(sceLib_ent) + sizes->sceLib_ent);
+	sce_elf_export_sort(module_info);
+
 	module_info_raw->import_top = htole32(OFFSET(sceLib_stubs));
 	module_info_raw->import_end = htole32(OFFSET(sceLib_stubs) + sizes->sceLib_stubs);
+	sce_elf_import_code_address_sanitization(module_info);
+	sce_elf_import_nid_sort(module_info);
+
 	CONVERT32(module_info, module_nid);
 	CONVERT32(module_info, tls_start);
 	CONVERT32(module_info, tls_filesz);
