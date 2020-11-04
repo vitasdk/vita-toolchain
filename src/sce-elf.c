@@ -790,7 +790,10 @@ void *sce_elf_module_info_encode(
 
 	module_info_raw->import_top = htole32(OFFSET(sceLib_stubs));
 	module_info_raw->import_end = htole32(OFFSET(sceLib_stubs) + sizes->sceLib_stubs);
-	// if want sce_elf_import_code_address_sanitization, need working in very low level
+	/*
+	 * The imported function is already assigned an address, so sanitizing the import address here will result in an unexpected call in the vita program.
+	 * if want sce_elf_import_code_address_sanitization, need working in very low level
+	 */
 	// sce_elf_import_code_address_sanitization(module_info);
 	sce_elf_import_nid_sort(module_info);
 
