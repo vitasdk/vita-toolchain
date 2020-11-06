@@ -246,6 +246,9 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		if (gelf_getrel(data, relndx, &rel) != &rel)
 			FAILX("gelf_getrel() failed");
 
+		if ((rel.r_offset - text_shdr.sh_addr) >= text_shdr.sh_size)
+			continue;
+
 		currela = rtable->relas + relndx;
 		currela->type = GELF_R_TYPE(rel.r_info);
 		/* R_ARM_THM_JUMP24 is functionally the same as R_ARM_THM_CALL, however Vita only supports the second one */
