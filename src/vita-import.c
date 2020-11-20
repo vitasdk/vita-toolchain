@@ -57,6 +57,8 @@ vita_imports_lib_t *vita_imports_lib_new(const char *name, bool kernel, uint32_t
 	if (lib == NULL)
 		return NULL;
 
+	memset(lib, 0, sizeof(vita_imports_lib_t));
+
 	lib->name = strdup(name);
 	lib->NID = NID;
 	lib->is_kernel = kernel;

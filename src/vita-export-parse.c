@@ -70,7 +70,7 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 
 	if (is_mapping(entry)) {
 		if ((entry->data.mapping.count - 1) != 0) {
-			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %u\n"
+			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %lu\n"
 				, entry->position.line
 				, entry->position.column
 				, entry->data.mapping.count);
@@ -144,7 +144,7 @@ int process_variables(yaml_node *entry, vita_library_export *export) {
 
 	if (is_mapping(entry)) {
 		if ((entry->data.mapping.count - 1) != 0) {
-			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %u\n"
+			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %lu\n"
 				, entry->position.line
 				, entry->position.column
 				, entry->data.mapping.count);
@@ -289,6 +289,22 @@ int process_export(yaml_node *parent, yaml_node *child, vita_library_export *exp
 			return -1;
 		}
 	}
+	else if (strcmp(key->value, "version") == 0) {
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting library nid to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+		
+		if (process_32bit_integer(child, &export->version) < 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert library nid '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
+			return -1;
+		}
+
+		if (export->version > 0xFFFF) {
+			fprintf(stderr, "error: line: %zd, column: %zd, Library version must be 65535 or lower.\n", child->position.line, child->position.column);
+			return -1;
+		}
+	}
 	else {
 		fprintf(stderr, "error: line: %zd, column: %zd, unrecognised library key '%s'.\n", child->position.line, child->position.column, key->value);
 		return -1;
@@ -311,6 +327,7 @@ int process_export_list(yaml_node *parent, yaml_node *child, vita_export_t *info
 	export->name = strdup(key->value);
 	export->nid = sha256_32_vector(1, (uint8_t **)&key->value, &key->len);
 	export->syscall = 0;
+	export->version = 1;
 	
 	if (yaml_iterate_mapping(child, (mapping_functor)process_export, export) < 0)
 		return -1;
@@ -477,7 +494,7 @@ int process_module_info(yaml_node *parent, yaml_node *child, vita_export_t *info
 vita_export_t *read_module_exports(yaml_document *doc, uint32_t default_nid) {
 	if (!is_mapping(doc)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting root node to be a mapping, got '%s'.\n", doc->position.line, doc->position.column, node_type_str(doc));
-		return -1;
+		return NULL;
 	}
 	
 	yaml_mapping *root = &doc->data.mapping;
@@ -560,9 +577,9 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	vita_export_t *exports = calloc(1, sizeof(vita_export_t));
 	
 	// set module name to elf output name
-	char *fs = strrchr(elf, '/');
-	char *bs = strrchr(elf, '\\');
-	char *base = elf;
+	const char *fs = strrchr(elf, '/');
+	const char *bs = strrchr(elf, '\\');
+	const char *base = elf;
 	
 	if (fs && bs){
 		base = (fs > bs) ? (&fs[1]) : (bs);
