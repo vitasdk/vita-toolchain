@@ -291,12 +291,12 @@ int process_export(yaml_node *parent, yaml_node *child, vita_library_export *exp
 	}
 	else if (strcmp(key->value, "version") == 0) {
 		if (!is_scalar(child)) {
-			fprintf(stderr, "error: line: %zd, column: %zd, expecting library nid to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting library version to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
 			return -1;
 		}
 		
 		if (process_32bit_integer(child, &export->version) < 0) {
-			fprintf(stderr, "error: line: %zd, column: %zd, could not convert library nid '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert library version '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
 			return -1;
 		}
 
