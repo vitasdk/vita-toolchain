@@ -161,6 +161,9 @@ int main(int argc, char *argv[])
 		
 		if(!yamlemitter_key_value(&emitter, &event,"kernel",booltostr(kernel_lib)))
 			goto error;
+			
+		if(!yamlemitter_key_value(&emitter, &event,"version",hextostr(lib->version)))
+			goto error;
 		
 		
 		if(lib->function_n){
