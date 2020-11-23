@@ -22,6 +22,11 @@
 # define R_ARM_THM_PC11        102
 
 #define STB_NUM     3
+
+#ifdef SHT_ARM_EXIDX
+#undef SHT_ARM_EXIDX
+#endif
+
 #define SHT_ARM_EXIDX 0x70000001
 
 /* Decode functions to turn an enum into a string */

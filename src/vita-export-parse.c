@@ -70,7 +70,7 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 
 	if (is_mapping(entry)) {
 		if ((entry->data.mapping.count - 1) != 0) {
-			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %u\n"
+			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %lu\n"
 				, entry->position.line
 				, entry->position.column
 				, entry->data.mapping.count);
@@ -144,7 +144,7 @@ int process_variables(yaml_node *entry, vita_library_export *export) {
 
 	if (is_mapping(entry)) {
 		if ((entry->data.mapping.count - 1) != 0) {
-			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %u\n"
+			fprintf(stderr, "error: line: %zd, column: %zd, Invalid reference count : %lu\n"
 				, entry->position.line
 				, entry->position.column
 				, entry->data.mapping.count);
@@ -477,7 +477,7 @@ int process_module_info(yaml_node *parent, yaml_node *child, vita_export_t *info
 vita_export_t *read_module_exports(yaml_document *doc, uint32_t default_nid) {
 	if (!is_mapping(doc)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting root node to be a mapping, got '%s'.\n", doc->position.line, doc->position.column, node_type_str(doc));
-		return -1;
+		return NULL;
 	}
 	
 	yaml_mapping *root = &doc->data.mapping;
@@ -560,9 +560,9 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	vita_export_t *exports = calloc(1, sizeof(vita_export_t));
 	
 	// set module name to elf output name
-	char *fs = strrchr(elf, '/');
-	char *bs = strrchr(elf, '\\');
-	char *base = elf;
+	const char *fs = strrchr(elf, '/');
+	const char *bs = strrchr(elf, '\\');
+	const char *base = elf;
 	
 	if (fs && bs){
 		base = (fs > bs) ? (&fs[1]) : (bs);

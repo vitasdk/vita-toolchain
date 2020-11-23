@@ -573,9 +573,9 @@ static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, find_stub_func_pt
 int vita_elf_lookup_imports(vita_elf_t *ve)
 {
 	int found_all = 1;
-	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, &vita_imports_find_function, "function"))
+	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, (find_stub_func_ptr)&vita_imports_find_function, "function"))
 		found_all = 0;
-	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, &vita_imports_find_variable, "variable"))
+	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, (find_stub_func_ptr)&vita_imports_find_variable, "variable"))
 		found_all = 0;
 
 	return found_all;
