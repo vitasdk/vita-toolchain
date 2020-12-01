@@ -136,7 +136,7 @@ typedef union {
 static int set_module_export(vita_elf_t *ve, sce_module_exports_t *export, vita_library_export *lib)
 {
 	export->size = sizeof(sce_module_exports_raw);
-	export->version = 1;
+	export->version = lib->version;
 	export->flags = lib->syscall ? 0x4001 : 0x0001;
 	export->num_syms_funcs = lib->function_n;
 	export->num_syms_vars = lib->variable_n;
@@ -281,11 +281,16 @@ static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, cons
 	int i;
 
 	import->size = sizeof(sce_module_imports_raw);
-	import->version = 1;
+
+	if (((library->library->flags >> 16) & 0xFFFF) <= 1) {
+		import->version = 1;
+	} else {
+		import->version = ((library->library->flags >> 16) & 0xFFFF);
+	}
 	import->num_syms_funcs = library->functions_va.count;
 	import->num_syms_vars = library->variables_va.count;
 	import->library_nid = library->nid;
-	import->flags = library->library->flags;
+	import->flags = library->library->flags & 0xFFFF;
 
 	if (library->library) {
 		import->library_name = library->library->name;

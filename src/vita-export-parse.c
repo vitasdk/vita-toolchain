@@ -289,6 +289,22 @@ int process_export(yaml_node *parent, yaml_node *child, vita_library_export *exp
 			return -1;
 		}
 	}
+	else if (strcmp(key->value, "version") == 0) {
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting library version to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+		
+		if (process_32bit_integer(child, &export->version) < 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert library version '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
+			return -1;
+		}
+
+		if (export->version > 0xFFFF) {
+			fprintf(stderr, "error: line: %zd, column: %zd, Library version must be 65535 or lower.\n", child->position.line, child->position.column);
+			return -1;
+		}
+	}
 	else {
 		fprintf(stderr, "error: line: %zd, column: %zd, unrecognised library key '%s'.\n", child->position.line, child->position.column, key->value);
 		return -1;
@@ -311,6 +327,7 @@ int process_export_list(yaml_node *parent, yaml_node *child, vita_export_t *info
 	export->name = strdup(key->value);
 	export->nid = sha256_32_vector(1, (uint8_t **)&key->value, &key->len);
 	export->syscall = 0;
+	export->version = 1;
 	
 	if (yaml_iterate_mapping(child, (mapping_functor)process_export, export) < 0)
 		return -1;

@@ -121,14 +121,16 @@ int generate_assembly(vita_imports_t **imports, int imports_count)
 						"\t.type %s, %%function\n"
 						"%s:\n"
 						".if GEN_WEAK_EXPORTS\n"
-						"\t.word 0x00000008\n"
+						"\t.word 0x%04X0008\n"
 						".else\n"
-						"\t.word 0x00000000\n"
+						"\t.word 0x%04X0000\n"
 						".endif //GEN_WEAK_EXPORTS\n"
 						"\t.word 0x%08X\n"
 						"\t.word 0x%08X\n"
 						"\t.align 4\n\n",
 						fname, fname, fname,
+						((library->flags >> 16) & 0xFFFF),
+						((library->flags >> 16) & 0xFFFF),
 						library->NID,
 						function->NID);
 					fclose(fp);
@@ -149,14 +151,16 @@ int generate_assembly(vita_imports_t **imports, int imports_count)
 						"\t.type %s, %%object\n"
 						"%s:\n"
 						".if GEN_WEAK_EXPORTS\n"
-						"\t.word 0x00000008\n"
+						"\t.word 0x%04X0008\n"
 						".else\n"
-						"\t.word 0x00000000\n"
+						"\t.word 0x%04X0000\n"
 						".endif //GEN_WEAK_EXPORTS\n"
 						"\t.word 0x%08X\n"
 						"\t.word 0x%08X\n"
 						"\t.align 4\n\n",
 						vname, vname, vname,
+						((library->flags >> 16) & 0xFFFF),
+						((library->flags >> 16) & 0xFFFF),
 						library->NID,
 						variable->NID);
 					fclose(fp);

@@ -13,6 +13,7 @@ typedef struct {
 
 typedef struct {
 	const char *name;
+	uint32_t version;
 	int syscall;
 	size_t function_n;
 	vita_export_symbol **functions;
