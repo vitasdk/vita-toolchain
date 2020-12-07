@@ -16,8 +16,8 @@ void usage(const char **argv) {
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
 	fprintf(stderr, "\t-a : Authid for more permissions (SceShell: 0x2800000000000001).\n");
 	fprintf(stderr, "\t-c : Enable compression.\n");
-	fprintf(stderr, "\t-m : Memory budget for the application. (Normal app: 0, System mode app: 0x100000 - 0x280100)\n");
-	fprintf(stderr, "\t-pm: Physically contiguous memory budget for the application. (Note: The budget will be subtracted from standard memory budget)\n");
+	fprintf(stderr, "\t-m : Memory budget for the application in kilobytes. (Normal app: 0, System mode app: 0x1000 - 0x12800)\n");
+	fprintf(stderr, "\t-pm: Physically contiguous memory budget for the application in kilobytes. (Note: The budget will be subtracted from standard memory budget)\n");
 	fprintf(stderr, "\t-at: ATTRIBUTE word in Control Info section 6.\n");
 	exit(1);
 }
