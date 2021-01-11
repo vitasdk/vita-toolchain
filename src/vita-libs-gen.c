@@ -444,33 +444,6 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 					}
 				}
 			}
-
-			for (j = 0; j < module->n_libs; j++) {
-				vita_imports_lib_t *library = module->libs[j];
-
-				if (!library->is_kernel)
-					continue;
-				if (!library->n_functions && !library->n_variables)
-					continue;
-
-				char buf[4096];
-
-				fprintf(fp, "%s%s_OBJS =", library->name, imp->postfix);
-
-				for (k = 0; k < library->n_functions; k++) {
-					vita_imports_stub_t *function = library->functions[k];
-					snprintf(buf, sizeof(buf), " %s_%s_%s%s.o", module->name, library->name, function->name, imp->postfix);
-					write_symbol(buf, 1);
-				}
-
-				for (k = 0; k < library->n_variables; k++) {
-					vita_imports_stub_t *variable = library->variables[k];
-					snprintf(buf, sizeof(buf), " %s_%s_%s%s.o", module->name, library->name, variable->name, imp->postfix);
-					write_symbol(buf, 1);
-				}
-
-				fprintf(fp, "\n");
-			}
 		}
 	}
 
