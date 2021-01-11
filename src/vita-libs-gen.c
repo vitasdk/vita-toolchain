@@ -474,9 +474,6 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 		}
 	}
 
-	// write kernel lib stub
-	fprintf(fp, "%s_OBJS =%s\n", KERNEL_LIBS_STUB, g_kernel_objs);
-
 	fputs(
 		"ALL_OBJS=\n\n"
 		"all: $(TARGETS) $(TARGETS_WEAK)\n\n"
