@@ -399,8 +399,6 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 		vita_imports_t *imp = imports[h];
 
 		for (i = 0; i < imp->n_modules; i++) {
-			fprintf(fp, " lib%s%s_stub_weak.a", imp->modules[i]->name, imp->postfix);
-
 			for (j = 0; j < imp->modules[i]->n_libs; j++) {
 				vita_imports_lib_t *library = imp->modules[i]->libs[j];
 
@@ -419,12 +417,12 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 			is_special = (strcmp(KERNEL_LIBS_STUB, module->name) == 0);
 
 			for (int weak = 0; weak < 2; weak++) {
-				if (!is_special) {
-					fprintf(fp, "%s%s%s =", module->name, imp->postfix, weak ? "_weak_OBJS" : "_OBJS");
-				}
-
 				for (j = 0; j < module->n_libs; j++) {
 					vita_imports_lib_t *library = module->libs[j];
+
+					if (!is_special) {
+						fprintf(fp, "%s%s%s =", library->name, imp->postfix, weak ? "_weak_OBJS" : "_OBJS");
+					}
 
 					if (!library->n_functions && !library->n_variables)
 						continue;
@@ -440,10 +438,10 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 						snprintf(buf, sizeof(buf), " %s_%s_%s%s.%s", module->name, library->name, variable->name, imp->postfix, weak ? "wo" : "o");
 						write_symbol(buf, is_special);
 					}
-				}
 
-				if (!is_special) {
-					fprintf(fp, "\n");
+					if (!is_special) {
+						fprintf(fp, "\n");
+					}
 				}
 			}
 
