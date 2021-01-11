@@ -386,9 +386,6 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 			for (j = 0; j < imp->modules[i]->n_libs; j++) {
 				vita_imports_lib_t *library = imp->modules[i]->libs[j];
 
-				if (!library->is_kernel)
-					continue;
-
 				fprintf(fp, " lib%s%s_stub.a", library->name, imp->postfix);
 			}
 		}
