@@ -400,6 +400,12 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 		for (i = 0; i < imp->n_modules; i++) {
 			fprintf(fp, " lib%s%s_stub_weak.a", imp->modules[i]->name, imp->postfix);
+
+			for (j = 0; j < imp->modules[i]->n_libs; j++) {
+				vita_imports_lib_t *library = imp->modules[i]->libs[j];
+
+				fprintf(fp, " lib%s%s_stub_weak.a", library->name, imp->postfix);
+			}
 		}
 	}
 
