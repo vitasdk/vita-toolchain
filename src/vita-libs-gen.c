@@ -420,8 +420,6 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 				for (j = 0; j < module->n_libs; j++) {
 					vita_imports_lib_t *library = module->libs[j];
 
-					if(library->is_kernel)
-						continue;
 					if (!library->n_functions && !library->n_variables)
 						continue;
 
