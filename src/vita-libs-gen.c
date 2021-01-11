@@ -381,8 +381,6 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 		vita_imports_t *imp = imports[h];
 
 		for (i = 0; i < imp->n_modules; i++) {
-			fprintf(fp, " lib%s%s_stub.a", imp->modules[i]->name, imp->postfix);
-
 			for (j = 0; j < imp->modules[i]->n_libs; j++) {
 				vita_imports_lib_t *library = imp->modules[i]->libs[j];
 
