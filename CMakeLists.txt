@@ -9,3 +9,4 @@ set(ENV{PKG_CONFIG_PATH} "${TOOLCHAIN_DEPS_DIR}/lib/pkgconfig:${TOOLCHAIN_DEPS_D
 
 add_subdirectory(src)
 add_subdirectory(cmake_toolchain)
+add_subdirectory(pkgconfig)
