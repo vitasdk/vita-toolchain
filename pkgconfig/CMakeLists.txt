@@ -1,3 +1,3 @@
-install(FILES arm-vita-eabi-pkg-config
+install(PROGRAMS arm-vita-eabi-pkg-config
   DESTINATION bin
 )
