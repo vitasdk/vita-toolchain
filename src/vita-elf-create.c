@@ -141,6 +141,9 @@ int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
 		goto end_io_close_dst;
 	}
 
+	/*
+	 * Read elf header
+	 */
 	if (fread(elf_header, 0x100, 1, fd_src) != 1) {
 		res = -1;
 		goto end_free_elf_header;
@@ -179,6 +182,9 @@ int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
 
 	long seg_offset = pEhdr->e_ehsize + (pEhdr->e_phentsize * pEhdr->e_phnum);
 
+	/*
+	 * Write packed elf header
+	 */
 	fseek(fd_dst, 0, SEEK_SET);
 	if (fwrite(elf_header, seg_offset, 1, fd_dst) != 1) {
 		res = -1;
@@ -187,6 +193,9 @@ int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
 
 	void *seg_tmp;
 
+	/*
+	 * Write elf segments
+	 */
 	for (int i=0;i<pEhdr->e_phnum;i++) {
 
 		if (pPhdr[i].p_align > 0x1000) {
@@ -222,6 +231,9 @@ int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
 
 	seg_offset = pEhdr->e_ehsize + (pEhdr->e_phentsize * pEhdr->e_phnum);
 
+	/*
+	 * Write updated elf header
+	 */
 	fseek(fd_dst, 0, SEEK_SET);
 	if (fwrite(elf_header, seg_offset, 1, fd_dst) != 1) {
 		res = -1;
