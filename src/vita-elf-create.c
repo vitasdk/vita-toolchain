@@ -110,6 +110,141 @@ void list_segments(vita_elf_t *ve)
 	}
 }
 
+int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
+{
+	int res;
+	char tmp[0x400];
+
+	int velf_path_length = strnlen(velf_path, 0x400);
+	if (velf_path_length >= 0x3FC)
+		return -1;
+
+	snprintf(tmp, sizeof(tmp), "%s.tmp", velf_path);
+
+	FILE *fd_src, *fd_dst;
+
+	fd_src = fopen(velf_path, "rb");
+	if (fd_src == NULL)
+		return -1;
+
+	fd_dst = fopen(tmp, "wb");
+	if (fd_dst == NULL) {
+		res = -1;
+		goto end_io_close_src;
+	}
+
+	void *elf_header = NULL;
+
+	elf_header = malloc(0x100);
+	if (elf_header == NULL) {
+		res = -1;
+		goto end_io_close_dst;
+	}
+
+	if (fread(elf_header, 0x100, 1, fd_src) != 1) {
+		res = -1;
+		goto end_free_elf_header;
+	}
+
+	Elf32_Ehdr *pEhdr = (Elf32_Ehdr *)elf_header;
+
+	/*
+	 * Remove section entrys
+	 */
+	pEhdr->e_shoff     = 0;
+	pEhdr->e_shentsize = 0;
+	pEhdr->e_shnum     = 0;
+	pEhdr->e_shstrndx  = 0;
+
+	Elf32_Phdr *pPhdr, *pPhdrTmp;
+
+	pPhdr = (Elf32_Phdr *)(elf_header + pEhdr->e_phoff);
+
+	/*
+	 * Packed ehdr and phdr
+	 */
+	if (pEhdr->e_phoff != pEhdr->e_ehsize) {
+		pPhdrTmp = malloc(pEhdr->e_phentsize * pEhdr->e_phnum);
+
+		memcpy(pPhdrTmp, pPhdr, pEhdr->e_phentsize * pEhdr->e_phnum);
+
+		memset(elf_header + pEhdr->e_ehsize, 0, 0x100 - pEhdr->e_ehsize);
+		memcpy(elf_header + pEhdr->e_ehsize, pPhdrTmp, pEhdr->e_phentsize * pEhdr->e_phnum);
+
+		free(pPhdrTmp);
+
+		pEhdr->e_phoff = pEhdr->e_ehsize;
+		pPhdr = (Elf32_Phdr *)(elf_header + pEhdr->e_phoff);
+	}
+
+	long seg_offset = pEhdr->e_ehsize + (pEhdr->e_phentsize * pEhdr->e_phnum);
+
+	fseek(fd_dst, 0, SEEK_SET);
+	if (fwrite(elf_header, seg_offset, 1, fd_dst) != 1) {
+		res = -1;
+		goto end_free_elf_header;
+	}
+
+	void *seg_tmp;
+
+	for (int i=0;i<pEhdr->e_phnum;i++) {
+
+		if (pPhdr[i].p_align > 0x1000) {
+			pPhdr[i].p_align = 0x10; // vita elf default align
+		}
+
+		seg_tmp = malloc(pPhdr[i].p_filesz);
+
+		seg_offset = (seg_offset + (pPhdr[i].p_align - 1)) & ~(pPhdr[i].p_align - 1);
+
+		fseek(fd_dst, seg_offset, SEEK_SET);
+		fseek(fd_src, pPhdr[i].p_offset, SEEK_SET);
+
+		if (fread(seg_tmp, pPhdr[i].p_filesz, 1, fd_src) != 1) {
+			free(seg_tmp);
+			res = -1;
+			goto end_free_elf_header;
+		}
+
+		if (fwrite(seg_tmp, pPhdr[i].p_filesz, 1, fd_dst) != 1) {
+			free(seg_tmp);
+			res = -1;
+			goto end_free_elf_header;
+		}
+
+		pPhdr[i].p_offset = seg_offset;
+
+		free(seg_tmp);
+		seg_tmp = NULL;
+
+		seg_offset += pPhdr[i].p_filesz;
+	}
+
+	seg_offset = pEhdr->e_ehsize + (pEhdr->e_phentsize * pEhdr->e_phnum);
+
+	fseek(fd_dst, 0, SEEK_SET);
+	if (fwrite(elf_header, seg_offset, 1, fd_dst) != 1) {
+		res = -1;
+		goto end_free_elf_header;
+	}
+
+	remove(velf_path);
+	rename(tmp, velf_path);
+
+	res = 0;
+
+end_free_elf_header:
+	free(elf_header);
+
+end_io_close_dst:
+	fclose(fd_dst);
+
+end_io_close_src:
+	fclose(fd_src);
+
+	return res;
+}
+
 #if defined(_WIN32) && !defined(__CYGWIN__)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -237,6 +372,8 @@ int main(int argc, char *argv[])
 	elf_end(dest);
 	ASSERT(sce_elf_set_headers(outfile, ve));
 	fclose(outfile);
+
+	vita_elf_packing(args.output, exports);
 
 	/* FIXME: restore original segment sizes */
 	for(idx = 0; idx < ve->num_segments; idx++)
