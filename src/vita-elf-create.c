@@ -113,10 +113,10 @@ void list_segments(vita_elf_t *ve)
 int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
 {
 	int res;
-	char tmp[0x400];
+	char tmp[PATH_MAX];
 
-	int velf_path_length = strnlen(velf_path, 0x400);
-	if (velf_path_length >= 0x3FC)
+	int velf_path_length = strnlen(velf_path, PATH_MAX);
+	if (velf_path_length >= (PATH_MAX - 4))
 		return -1;
 
 	snprintf(tmp, sizeof(tmp), "%s.tmp", velf_path);
