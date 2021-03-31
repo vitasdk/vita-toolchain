@@ -198,6 +198,9 @@ int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
 	 */
 	for (int i=0;i<pEhdr->e_phnum;i++) {
 
+		/*
+		 * vita only accepts 0x10 to 0x1000 alignments
+		 */
 		if (pPhdr[i].p_align > 0x1000) {
 			pPhdr[i].p_align = 0x10; // vita elf default align
 		}
