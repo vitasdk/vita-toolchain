@@ -202,30 +202,31 @@ int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
 			pPhdr[i].p_align = 0x10; // vita elf default align
 		}
 
-		seg_tmp = malloc(pPhdr[i].p_filesz);
+		if (pPhdr[i].p_filesz != 0) {
+			seg_tmp = malloc(pPhdr[i].p_filesz);
 
-		seg_offset = (seg_offset + (pPhdr[i].p_align - 1)) & ~(pPhdr[i].p_align - 1);
+			seg_offset = (seg_offset + (pPhdr[i].p_align - 1)) & ~(pPhdr[i].p_align - 1);
 
-		fseek(fd_dst, seg_offset, SEEK_SET);
-		fseek(fd_src, pPhdr[i].p_offset, SEEK_SET);
+			fseek(fd_dst, seg_offset, SEEK_SET);
+			fseek(fd_src, pPhdr[i].p_offset, SEEK_SET);
 
-		if (fread(seg_tmp, pPhdr[i].p_filesz, 1, fd_src) != 1) {
+			if (fread(seg_tmp, pPhdr[i].p_filesz, 1, fd_src) != 1) {
+				free(seg_tmp);
+				res = -1;
+				goto end_free_elf_header;
+			}
+
+			if (fwrite(seg_tmp, pPhdr[i].p_filesz, 1, fd_dst) != 1) {
+				free(seg_tmp);
+				res = -1;
+				goto end_free_elf_header;
+			}
+
 			free(seg_tmp);
-			res = -1;
-			goto end_free_elf_header;
-		}
-
-		if (fwrite(seg_tmp, pPhdr[i].p_filesz, 1, fd_dst) != 1) {
-			free(seg_tmp);
-			res = -1;
-			goto end_free_elf_header;
+			seg_tmp = NULL;
 		}
 
 		pPhdr[i].p_offset = seg_offset;
-
-		free(seg_tmp);
-		seg_tmp = NULL;
-
 		seg_offset += pPhdr[i].p_filesz;
 	}
 
