@@ -205,10 +205,10 @@ int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
 			pPhdr[i].p_align = 0x10; // vita elf default align
 		}
 
+		seg_offset = (seg_offset + (pPhdr[i].p_align - 1)) & ~(pPhdr[i].p_align - 1);
+
 		if (pPhdr[i].p_filesz != 0) {
 			seg_tmp = malloc(pPhdr[i].p_filesz);
-
-			seg_offset = (seg_offset + (pPhdr[i].p_align - 1)) & ~(pPhdr[i].p_align - 1);
 
 			fseek(fd_dst, seg_offset, SEEK_SET);
 			fseek(fd_src, pPhdr[i].p_offset, SEEK_SET);
