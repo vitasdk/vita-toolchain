@@ -389,7 +389,8 @@ int main(int argc, char *argv[])
 	ASSERT(sce_elf_set_headers(outfile, ve));
 	fclose(outfile);
 
-	vita_elf_packing(args.output, exports);
+	if (args.is_test_stripping != 0)
+		vita_elf_packing(args.output, exports);
 
 	/* FIXME: restore original segment sizes */
 	for(idx = 0; idx < ve->num_segments; idx++)
