@@ -10,6 +10,7 @@ typedef struct elf_create_args
 	int extra_imports_count;
 	char **extra_imports;
 	int check_stub_count;
+	int is_test_stripping;
 } elf_create_args;
 
 
