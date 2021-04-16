@@ -26,7 +26,8 @@ include(CMakeParseArguments)
 ##   vita_create_self(target source
 ##                    [CONFIG file]
 ##                    [UNCOMPRESSED]
-##                    [UNSAFE])
+##                    [UNSAFE]
+##                    [STRIPPED])
 ##
 ## @param target
 ##   A CMake custom target of this given name
@@ -44,7 +45,7 @@ macro(vita_create_self target source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
-  set(options UNCOMPRESSED UNSAFE)
+  set(options UNCOMPRESSED UNSAFE STRIPPED)
   set(oneValueArgs CONFIG)
   cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
 
