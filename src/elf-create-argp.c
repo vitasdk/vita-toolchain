@@ -12,7 +12,7 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 	arguments->check_stub_count = 1;
 	arguments->is_test_stripping = 0;
 
-	while ((c = getopt(argc, argv, "vnes:")) != -1)
+	while ((c = getopt(argc, argv, "vne:s")) != -1)
 	{
 		switch (c)
 		{
