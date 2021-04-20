@@ -24,7 +24,7 @@ const uint32_t sce_elf_stub_func[3] = {
 
 typedef struct {
 	uint32_t nid;
-	vita_imports_module_t *module;
+	vita_imports_lib_t *library;
 
 	union {
 		vita_elf_stub_t *functions;
@@ -35,7 +35,7 @@ typedef struct {
 		vita_elf_stub_t *variables;
 		varray variables_va;
 	};
-} import_module;
+} import_library;
 
 static int _stub_sort(const void *el1, const void *el2) {
 	const vita_elf_stub_t *stub1 = el1, *stub2 = el2;
@@ -57,30 +57,30 @@ static int _stub_nid_search(const void *key, const void *element) {
 
 static void * _module_init(void *element)
 {
-	import_module *module = element;
-	if (!varray_init(&module->functions_va, sizeof(vita_elf_stub_t), 8)) return NULL;
-	if (!varray_init(&module->variables_va, sizeof(vita_elf_stub_t), 4)) return NULL;
+	import_library  *library = element;
+	if (!varray_init(&library->functions_va, sizeof(vita_elf_stub_t), 8)) return NULL;
+	if (!varray_init(&library->variables_va, sizeof(vita_elf_stub_t), 4)) return NULL;
 
-	module->functions_va.sort_compar = _stub_sort;
-	module->functions_va.search_compar = _stub_nid_search;
-	module->variables_va.sort_compar = _stub_sort;
-	module->variables_va.search_compar = _stub_nid_search;
+	library->functions_va.sort_compar = _stub_sort;
+	library->functions_va.search_compar = _stub_nid_search;
+	library->variables_va.sort_compar = _stub_sort;
+	library->variables_va.search_compar = _stub_nid_search;
 
-	return module;
+	return library;
 }
 static void _module_destroy(void *element)
 {
-	import_module *module = element;
-	varray_destroy(&module->functions_va);
-	varray_destroy(&module->variables_va);
+	import_library  *library = element;
+	varray_destroy(&library->functions_va);
+	varray_destroy(&library->variables_va);
 }
 
 static int _module_sort(const void *el1, const void *el2)
 {
-	const import_module *mod1 = el1, *mod2 = el2;
-	if (mod2->nid > mod1->nid)
+	const import_library  *lib1 = el1, *lib2 = el2;
+	if (lib2->nid > lib1->nid)
 		return 1;
-	else if (mod2->nid < mod1->nid)
+	else if (lib2->nid < lib1->nid)
 		return -1;
 	return 0;
 }
@@ -88,15 +88,15 @@ static int _module_sort(const void *el1, const void *el2)
 static int _module_search(const void *key, const void *element)
 {
 	const uint32_t *nid = key;
-	const import_module *module = element;
-	if (module->nid > *nid)
+	const import_library  *library = element;
+	if (library->nid > *nid)
 		return 1;
-	else if (module->nid < *nid)
+	else if (library->nid < *nid)
 		return -1;
 	return 0;
 }
 
-static int get_function_by_symbol(const char *symbol, vita_elf_t *ve, Elf32_Addr *vaddr) {
+static int get_function_by_symbol(const char *symbol, const vita_elf_t *ve, Elf32_Addr *vaddr) {
 	int i;
 	
 	for (i = 0; i < ve->num_symbols; ++i) {
@@ -112,7 +112,7 @@ static int get_function_by_symbol(const char *symbol, vita_elf_t *ve, Elf32_Addr
 	return i != ve->num_symbols;
 }
 
-static int get_variable_by_symbol(const char *symbol, vita_elf_t *ve, Elf32_Addr *vaddr) {
+int get_variable_by_symbol(const char *symbol, const vita_elf_t *ve, Elf32_Addr *vaddr) {
 	int i;
 	
 	for (i = 0; i < ve->num_symbols; ++i) {
@@ -129,19 +129,19 @@ static int get_variable_by_symbol(const char *symbol, vita_elf_t *ve, Elf32_Addr
 }
 
 typedef union {
-	import_module *modules;
+	import_library  *libs;
 	varray va;
-} import_module_list;
+} import_library_list;
 
 static int set_module_export(vita_elf_t *ve, sce_module_exports_t *export, vita_library_export *lib)
 {
 	export->size = sizeof(sce_module_exports_raw);
-	export->version = 1;
+	export->version = lib->version;
 	export->flags = lib->syscall ? 0x4001 : 0x0001;
 	export->num_syms_funcs = lib->function_n;
 	export->num_syms_vars = lib->variable_n;
-	export->module_name = strdup(lib->name);
-	export->module_nid = lib->nid; 
+	export->library_name = strdup(lib->name);
+	export->library_nid = lib->nid; 
 	
 	int total_exports = export->num_syms_funcs + export->num_syms_vars;
 	export->nid_table = calloc(total_exports, sizeof(uint32_t));
@@ -181,71 +181,93 @@ failure:
 	return -1;
 }
 
-static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, sce_module_info_t *module_info, vita_export_t *export_spec)
+static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, sce_module_info_t *module_info, vita_export_t *export_spec, sce_process_param_t *process_param)
 {
 	export->size = sizeof(sce_module_exports_raw);
 	export->version = 0;
 	export->flags = 0x8000;
-	export->num_syms_funcs = 1;
-	export->num_syms_vars = 2;
-	
-	if (export_spec->stop)
-		++export->num_syms_funcs;
-	
-	if (export_spec->exit)
-		++export->num_syms_funcs;
+	export->num_syms_funcs = (export_spec->is_image_module == 0) ? 1 : 0;
+	export->num_syms_vars = 3;
+
+	if (export_spec->is_image_module == 0) {
+		if (export_spec->bootstart)
+			++export->num_syms_funcs;
+
+		if (export_spec->stop)
+			++export->num_syms_funcs;
+
+		if (export_spec->exit)
+			++export->num_syms_funcs;
+	}
 	
 	int total_exports = export->num_syms_funcs + export->num_syms_vars;
 	export->nid_table = calloc(total_exports, sizeof(uint32_t));
 	export->entry_table = calloc(total_exports, sizeof(void*));
 	
 	int cur_nid = 0;
-	
-	if (export_spec->start) {
-		Elf32_Addr vaddr = 0;
-		if (!get_function_by_symbol(export_spec->start, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'start'", export_spec->start);
+	if (export_spec->is_image_module == 0) {
+		if (export_spec->start) {
+			Elf32_Addr vaddr = 0;
+			if (!get_function_by_symbol(export_spec->start, ve, &vaddr)) {
+				FAILX("Could not find symbol '%s' for main export 'start'", export_spec->start);
+			}
+
+			module_info->module_start = vita_elf_vaddr_to_host(ve, vaddr);
+		} else {
+			module_info->module_start = vita_elf_vaddr_to_host(ve, elf32_getehdr(ve->elf)->e_entry);
 		}
-		
-		module_info->module_start = vita_elf_vaddr_to_host(ve, vaddr);
-	}
-	else
-		module_info->module_start = vita_elf_vaddr_to_host(ve, elf32_getehdr(ve->elf)->e_entry);
-	
-	export->nid_table[cur_nid] = NID_MODULE_START;
-	export->entry_table[cur_nid] = module_info->module_start;
-	++cur_nid;
-	
-	if (export_spec->stop) {
-		Elf32_Addr vaddr = 0;
-		
-		if (!get_function_by_symbol(export_spec->stop, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'stop'", export_spec->stop);
-		}
-		
-		export->nid_table[cur_nid] = NID_MODULE_STOP;
-		export->entry_table[cur_nid] = module_info->module_stop = vita_elf_vaddr_to_host(ve, vaddr);
+
+		export->nid_table[cur_nid] = NID_MODULE_START;
+		export->entry_table[cur_nid] = module_info->module_start;
 		++cur_nid;
-	}
-	
-	if (export_spec->exit) {
-		Elf32_Addr vaddr = 0;
+
+		if (export_spec->bootstart) {
+			Elf32_Addr vaddr = 0;
+
+			if (!get_function_by_symbol(export_spec->bootstart, ve, &vaddr)) {
+				FAILX("Could not find symbol '%s' for main export 'bootstart'", export_spec->bootstart);
+			}
 		
-		if (!get_function_by_symbol(export_spec->exit, ve, &vaddr)) {
-			FAILX("Could not find symbol '%s' for main export 'exit'", export_spec->exit);
+			export->nid_table[cur_nid] = NID_MODULE_BOOTSTART;
+			export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
+			++cur_nid;
 		}
-		
-		export->nid_table[cur_nid] = NID_MODULE_EXIT;
-		export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
-		++cur_nid;
+
+		if (export_spec->stop) {
+			Elf32_Addr vaddr = 0;
+
+			if (!get_function_by_symbol(export_spec->stop, ve, &vaddr)) {
+				FAILX("Could not find symbol '%s' for main export 'stop'", export_spec->stop);
+			}
+
+			export->nid_table[cur_nid] = NID_MODULE_STOP;
+			export->entry_table[cur_nid] = module_info->module_stop = vita_elf_vaddr_to_host(ve, vaddr);
+			++cur_nid;
+		}
+
+		if (export_spec->exit) {
+			Elf32_Addr vaddr = 0;
+
+			if (!get_function_by_symbol(export_spec->exit, ve, &vaddr)) {
+				FAILX("Could not find symbol '%s' for main export 'exit'", export_spec->exit);
+			}
+
+			export->nid_table[cur_nid] = NID_MODULE_EXIT;
+			export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, vaddr);
+			++cur_nid;
+		}
 	}
-	
+
 	export->nid_table[cur_nid] = NID_MODULE_INFO;
 	export->entry_table[cur_nid] = module_info;
 	++cur_nid;
 	
 	export->nid_table[cur_nid] = NID_PROCESS_PARAM;
-	export->entry_table[cur_nid] = &module_info->process_param_size;
+	export->entry_table[cur_nid] = process_param;
+	++cur_nid;
+
+	export->nid_table[cur_nid] = NID_MODULE_SDK_VERSION;
+	export->entry_table[cur_nid] = &module_info->module_sdk_version;
 	++cur_nid;
 	
 	return 0;
@@ -254,64 +276,117 @@ failure:
 	return -1;
 }
 
-static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, const import_module *module)
+static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, const import_library *library)
 {
 	int i;
 
 	import->size = sizeof(sce_module_imports_raw);
-	import->version = 1;
-	import->num_syms_funcs = module->functions_va.count;
-	import->num_syms_vars = module->variables_va.count;
-	import->module_nid = module->nid;
-	import->flags = module->module->flags;
 
-	if (module->module) {
-		import->module_name = module->module->name;
+	if (((library->library->flags >> 16) & 0xFFFF) <= 1) {
+		import->version = 1;
+	} else {
+		import->version = ((library->library->flags >> 16) & 0xFFFF);
+	}
+	import->num_syms_funcs = library->functions_va.count;
+	import->num_syms_vars = library->variables_va.count;
+	import->library_nid = library->nid;
+	import->flags = library->library->flags & 0xFFFF;
+
+	if (library->library) {
+		import->library_name = library->library->name;
 	}
 
-	import->func_nid_table = calloc(module->functions_va.count, sizeof(uint32_t));
-	import->func_entry_table = calloc(module->functions_va.count, sizeof(void *));
-	for (i = 0; i < module->functions_va.count; i++) {
-		import->func_nid_table[i] = module->functions[i].target_nid;
-		import->func_entry_table[i] = vita_elf_vaddr_to_host(ve, module->functions[i].addr);
+	import->func_nid_table = calloc(library->functions_va.count, sizeof(uint32_t));
+	import->func_entry_table = calloc(library->functions_va.count, sizeof(void *));
+	for (i = 0; i < library->functions_va.count; i++) {
+		import->func_nid_table[i] = library->functions[i].target_nid;
+		import->func_entry_table[i] = vita_elf_vaddr_to_host(ve, library->functions[i].addr);
 	}
 
-	import->var_nid_table = calloc(module->variables_va.count, sizeof(uint32_t));
-	import->var_entry_table = calloc(module->variables_va.count, sizeof(void *));
-	for (i = 0; i < module->variables_va.count; i++) {
-		import->var_nid_table[i] = module->variables[i].target_nid;
-		import->var_entry_table[i] = vita_elf_vaddr_to_host(ve, module->variables[i].addr);
+	import->var_nid_table = calloc(library->variables_va.count, sizeof(uint32_t));
+	import->var_entry_table = calloc(library->variables_va.count, sizeof(void *));
+	for (i = 0; i < library->variables_va.count; i++) {
+		import->var_nid_table[i] = library->variables[i].target_nid;
+		import->var_entry_table[i] = vita_elf_vaddr_to_host(ve, library->variables[i].addr);
 	}
 }
 
-sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exports)
+sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, int have_libc) 
+{
+	sce_module_params_t *params = calloc(1, sizeof(sce_module_params_t));
+	ASSERT(params != NULL);
+
+	params->process_param = calloc(1, sizeof(sce_process_param_t));
+	ASSERT(params->process_param != NULL);
+	params->process_param->size = 0x34;
+	memcpy(&params->process_param->magic, "PSP2", 4);
+	params->process_param->version = 6;
+	params->process_param->fw_version = PSP2_SDK_VERSION;
+
+	if (have_libc) {
+		params->libc_param = calloc(1, sizeof(sce_libc_param_t));
+		ASSERT(params->libc_param != NULL);
+		params->libc_param->size = 0x38;
+		params->libc_param->unk_0x1C = 9;
+		params->libc_param->fw_version = PSP2_SDK_VERSION;
+		params->libc_param->_default_heap_size = 0x40000;
+	}
+
+	return params;
+
+failure:
+	if (params->process_param != NULL)
+		free(params->process_param);
+
+	if (params->libc_param != NULL)
+		free(params->libc_param);
+
+	if (params != NULL)
+		free(params);
+
+	return NULL;
+}
+
+void sce_elf_module_params_free(sce_module_params_t *params)
+{
+	if (params == NULL)
+		return;
+
+	if (params->libc_param)
+		free(params->libc_param);
+	free(params->process_param);
+	free(params);
+}
+
+sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exports, sce_process_param_t* process_param)
 {
 	int i;
 	sce_module_info_t *module_info;
-	import_module_list modlist = {0};
+	import_library_list liblist = {0};
 	vita_elf_stub_t *curstub;
-	import_module *curmodule;
+	import_library  *curlib;
 
 	module_info = calloc(1, sizeof(sce_module_info_t));
 	ASSERT(module_info != NULL);
 
 	module_info->type = 6;
 	module_info->version = (exports->ver_major << 8) | exports->ver_minor;
+	module_info->module_sdk_version = PSP2_SDK_VERSION;
 	
 	strncpy(module_info->name, exports->name, sizeof(module_info->name) - 1);
 	
 	// allocate memory for all libraries + main
-	module_info->export_top = calloc(exports->module_n + 1, sizeof(sce_module_exports_t));
+	module_info->export_top = calloc(exports->lib_n + 1, sizeof(sce_module_exports_t));
 	ASSERT(module_info->export_top != NULL);
-	module_info->export_end = module_info->export_top + exports->module_n + 1;
+	module_info->export_end = module_info->export_top + exports->lib_n + 1;
 
-	if (set_main_module_export(ve, module_info->export_top, module_info, exports) < 0) {
+	if (set_main_module_export(ve, module_info->export_top, module_info, exports, process_param) < 0) {
 		goto sce_failure;
 	}
 
 	// populate rest of exports
-	for (i = 0; i < exports->module_n; ++i) {
-		vita_library_export *lib = exports->modules[i];
+	for (i = 0; i < exports->lib_n; ++i) {
+		vita_library_export *lib = exports->libs[i];
 		sce_module_exports_t *exp = (sce_module_exports_t *)(module_info->export_top + i + 1);
 		
 		// TODO: improve cleanup
@@ -320,46 +395,46 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 		}
 	}
 	
-	ASSERT(varray_init(&modlist.va, sizeof(import_module), 8));
-	modlist.va.init_func = _module_init;
-	modlist.va.destroy_func = _module_destroy;
-	modlist.va.sort_compar = _module_sort;
-	modlist.va.search_compar = _module_search;
+	ASSERT(varray_init(&liblist.va, sizeof(import_library ), 8));
+	liblist.va.init_func = _module_init;
+	liblist.va.destroy_func = _module_destroy;
+	liblist.va.sort_compar = _module_sort;
+	liblist.va.search_compar = _module_search;
 
 	for (i = 0; i < ve->num_fstubs; i++) {
 		curstub = ve->fstubs + i;
-		curmodule = varray_sorted_search_or_insert(&modlist.va, &curstub->module_nid, NULL);
-		ASSERT(curmodule);
-		curmodule->nid = curstub->module_nid;
-		if (curstub->module)
-			curmodule->module = curstub->module;
+		curlib = varray_sorted_search_or_insert(&liblist.va, &curstub->library_nid, NULL);
+		ASSERT(curlib);
+		curlib->nid = curstub->library_nid;
+		if (curstub->library)
+			curlib->library = curstub->library;
 
-		varray_sorted_insert_ex(&curmodule->functions_va, curstub, 0);
+		varray_sorted_insert_ex(&curlib->functions_va, curstub, 0);
 	}
 
 	for (i = 0; i < ve->num_vstubs; i++) {
 		curstub = ve->vstubs + i;
-		curmodule = varray_sorted_search_or_insert(&modlist.va, &curstub->module_nid, NULL);
-		ASSERT(curmodule);
-		curmodule->nid = curstub->module_nid;
-		if (curstub->module)
-			curmodule->module = curstub->module;
+		curlib = varray_sorted_search_or_insert(&liblist.va, &curstub->library_nid, NULL);
+		ASSERT(curlib);
+		curlib->nid = curstub[i].library_nid;
+		if (curstub[i].library)
+			curlib->library = curstub[i].library;
 
-		varray_sorted_insert_ex(&curmodule->variables_va, curstub, 0);
+		varray_sorted_insert_ex(&curlib->variables_va, curstub, 0);
 	}
 
-	module_info->import_top = calloc(modlist.va.count, sizeof(sce_module_imports_t));
+	module_info->import_top = calloc(liblist.va.count, sizeof(sce_module_imports_t));
 	ASSERT(module_info->import_top != NULL);
-	module_info->import_end = module_info->import_top + modlist.va.count;
+	module_info->import_end = module_info->import_top + liblist.va.count;
 
-	for (i = 0; i < modlist.va.count; i++) {
-		set_module_import(ve, module_info->import_top + i, modlist.modules + i);
+	for (i = 0; i < liblist.va.count; i++) {
+		set_module_import(ve, module_info->import_top + i, liblist.libs + i);
 	}
 
 	return module_info;
 
 failure:
-	varray_destroy(&modlist.va);
+	varray_destroy(&liblist.va);
 	
 sce_failure:
 	sce_elf_module_info_free(module_info);
@@ -370,7 +445,7 @@ sce_failure:
 	sizes->section += (size); \
 	total_size += (size); \
 } while (0)
-int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes)
+int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, int have_libc)
 {
 	int total_size = 0;
 	sce_module_exports_t *export;
@@ -379,24 +454,28 @@ int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_siz
 	memset(sizes, 0, sizeof(*sizes));
 
 	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
+	INCR(sceModuleInfo_rodata, sizeof(sce_process_param_raw));
+	if (have_libc)
+		INCR(sceModuleInfo_rodata, sizeof(sce_libc_param_raw));
+
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		INCR(sceLib_ent, sizeof(sce_module_exports_raw));
-		if (export->module_name != NULL) {
-			INCR(sceExport_rodata, ALIGN_4(strlen(export->module_name) + 1));
+		if (export->library_name != NULL) {
+			INCR(sceExport_rodata, ALIGN_4(strlen(export->library_name) + 1));
 		}
-		INCR(sceExport_rodata, (export->num_syms_funcs + export->num_syms_vars + export->num_syms_unk) * 8);
+		INCR(sceExport_rodata, (export->num_syms_funcs + export->num_syms_vars + export->num_syms_tls_vars) * 8);
 	}
 
 	for (import = module_info->import_top; import < module_info->import_end; import++) {
 		INCR(sceLib_stubs, sizeof(sce_module_imports_raw));
-		if (import->module_name != NULL) {
-			INCR(sceImport_rodata, ALIGN_4(strlen(import->module_name) + 1));
+		if (import->library_name != NULL) {
+			INCR(sceImport_rodata, ALIGN_4(strlen(import->library_name) + 1));
 		}
 		INCR(sceFNID_rodata, import->num_syms_funcs * 4);
 		INCR(sceFStub_rodata, import->num_syms_funcs * 4);
 		INCR(sceVNID_rodata, import->num_syms_vars * 4);
 		INCR(sceVStub_rodata, import->num_syms_vars * 4);
-		INCR(sceImport_rodata, import->num_syms_unk * 8);
+		INCR(sceImport_rodata, import->num_syms_tls_vars * 8);
 	}
 
 	return total_size;
@@ -422,8 +501,8 @@ void sce_elf_module_info_free(sce_module_info_t *module_info)
 		free(import->func_entry_table);
 		free(import->var_nid_table);
 		free(import->var_entry_table);
-		free(import->unk_nid_table);
-		free(import->unk_entry_table);
+		free(import->tls_var_nid_table);
+		free(import->tls_var_entry_table);
 	}
 
 	free(module_info->import_top);
@@ -459,7 +538,7 @@ void sce_elf_module_info_free(sce_module_info_t *module_info)
 } while(0)
 void *sce_elf_module_info_encode(
 		const sce_module_info_t *module_info, const vita_elf_t *ve, const sce_section_sizes_t *sizes,
-		vita_elf_rela_table_t *rtable)
+		vita_elf_rela_table_t *rtable, sce_module_params_t *params)
 {
 	void *data;
 	sce_section_sizes_t cur_sizes = {0};
@@ -467,11 +546,17 @@ void *sce_elf_module_info_encode(
 	int total_size = 0;
 	Elf32_Addr segment_base;
 	Elf32_Word start_offset;
+	uint32_t process_param_offset = sizeof(sce_module_info_raw);
+	uint32_t libc_param_offset = process_param_offset + sizeof(sce_process_param_raw);
 	int segndx;
 	int i;
 	sce_module_exports_t *export;
 	sce_module_imports_t *import;
 	sce_module_info_raw *module_info_raw;
+	sce_process_param_t *process_param = params->process_param;
+	sce_process_param_raw *process_param_raw;
+	sce_libc_param_t *libc_param = params->libc_param;
+	sce_libc_param_raw *libc_param_raw;
 	sce_module_exports_raw *export_raw;
 	sce_module_imports_raw *import_raw;
 	varray relas;
@@ -483,7 +568,7 @@ void *sce_elf_module_info_encode(
 		total_size += ((Elf32_Word *)sizes)[i];
 	}
 
-	segndx = vita_elf_host_to_segndx(ve, module_info->module_start);
+	segndx = (module_info->module_start != NULL) ? vita_elf_host_to_segndx(ve, module_info->module_start) : 0;
 
 	segment_base = ve->segments[segndx].vaddr;
 	start_offset = ve->segments[segndx].memsz;
@@ -501,8 +586,114 @@ void *sce_elf_module_info_encode(
 	data = calloc(1, total_size);
 	ASSERT(data != NULL);
 
+	if (libc_param != NULL) {
+		libc_param_raw = (sce_libc_param_raw *)(ADDR(sceModuleInfo_rodata) + libc_param_offset);
+		CONVERT32(libc_param, size);
+		CONVERT32(libc_param, fw_version);
+		CONVERT32(libc_param, unk_0x1C);
+		CONVERT32(libc_param, _default_heap_size);
+		libc_param_raw->default_heap_size = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _default_heap_size);
+		get_variable_by_symbol("sceLibcHeapSize", ve, &libc_param_raw->heap_size);
+		libc_param_raw->malloc_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _malloc_replace);
+		libc_param_raw->new_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _new_replace);
+		libc_param_raw->malloc_for_tls_replace = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, _malloc_for_tls_replace);
+		ADDRELA(&libc_param_raw->default_heap_size);
+		ADDRELA(&libc_param_raw->heap_size);
+		ADDRELA(&libc_param_raw->malloc_replace);
+		ADDRELA(&libc_param_raw->new_replace);
+		ADDRELA(&libc_param_raw->malloc_for_tls_replace);
+		{
+			libc_param_raw->_malloc_replace.size = 0x34;
+			libc_param_raw->_malloc_replace.unk_0x4 = 1;
+			libc_param_raw->_new_replace.size = 0x28;
+			libc_param_raw->_new_replace.unk_0x4 = 1;
+			libc_param_raw->_malloc_for_tls_replace.size = 0x18;
+			libc_param_raw->_malloc_for_tls_replace.unk_0x4 = 0x1;
+
+			// Memory allocation function names were found here: https://github.com/Olde-Skuul/burgerlib/blob/master/source/vita/brvitamemory.h
+			// Credit to Rebecca Ann Heineman <becky@burgerbecky.com>
+			get_function_by_symbol("user_malloc_init", ve, &libc_param_raw->_malloc_replace.malloc_init);
+			get_function_by_symbol("user_malloc_finalize", ve, &libc_param_raw->_malloc_replace.malloc_term);
+			get_function_by_symbol("user_malloc", ve, &libc_param_raw->_malloc_replace.malloc);
+			get_function_by_symbol("user_free", ve, &libc_param_raw->_malloc_replace.free);
+			get_function_by_symbol("user_calloc", ve, &libc_param_raw->_malloc_replace.calloc);
+			get_function_by_symbol("user_realloc", ve, &libc_param_raw->_malloc_replace.realloc);
+			get_function_by_symbol("user_memalign", ve, &libc_param_raw->_malloc_replace.memalign);
+			get_function_by_symbol("user_reallocalign", ve, &libc_param_raw->_malloc_replace.reallocalign);
+			get_function_by_symbol("user_malloc_stats", ve, &libc_param_raw->_malloc_replace.malloc_stats);
+			get_function_by_symbol("user_malloc_stats_fast", ve, &libc_param_raw->_malloc_replace.malloc_stats_fast);
+			get_function_by_symbol("user_malloc_usable_size", ve, &libc_param_raw->_malloc_replace.malloc_usable_size);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_init);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_term);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc);
+			ADDRELA(&libc_param_raw->_malloc_replace.free);
+			ADDRELA(&libc_param_raw->_malloc_replace.calloc);
+			ADDRELA(&libc_param_raw->_malloc_replace.realloc);
+			ADDRELA(&libc_param_raw->_malloc_replace.memalign);
+			ADDRELA(&libc_param_raw->_malloc_replace.reallocalign);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_stats);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_stats_fast);
+			ADDRELA(&libc_param_raw->_malloc_replace.malloc_usable_size);
+
+			get_function_by_symbol("user_malloc_for_tls_init", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_init_for_tls);
+			get_function_by_symbol("user_malloc_for_tls_finalize", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_term_for_tls);
+			get_function_by_symbol("user_malloc_for_tls", ve, &libc_param_raw->_malloc_for_tls_replace.malloc_for_tls);
+			get_function_by_symbol("user_free_for_tls", ve, &libc_param_raw->_malloc_for_tls_replace.free_for_tls);
+			ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_init_for_tls);
+			ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_term_for_tls);
+			ADDRELA(&libc_param_raw->_malloc_for_tls_replace.malloc_for_tls);
+			ADDRELA(&libc_param_raw->_malloc_for_tls_replace.free_for_tls);
+
+			// user_new(std::size_t) throw(std::badalloc)
+			get_function_by_symbol("_Z8user_newj", ve, &libc_param_raw->_new_replace.operator_new);
+			// user_new(std::size_t, std::nothrow_t const&)
+			get_function_by_symbol("_Z8user_newjRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_new_nothrow);
+			// user_new_array(std::size_t) throw(std::badalloc)
+			get_function_by_symbol("_Z14user_new_arrayj", ve, &libc_param_raw->_new_replace.operator_new_arr);
+			// user_new_array(std::size_t, std::nothrow_t const&)
+			get_function_by_symbol("_Z14user_new_arrayjRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_new_arr_nothrow);
+			// user_delete(void*)
+			get_function_by_symbol("_Z11user_deletePv", ve, &libc_param_raw->_new_replace.operator_delete);
+			// user_delete(void*, std::nothrow_t const&)
+			get_function_by_symbol("_Z11user_deletePvRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_delete_nothrow);
+			// user_delete_array(void*)
+			get_function_by_symbol("_Z17user_delete_arrayPv", ve, &libc_param_raw->_new_replace.operator_delete_arr);
+			// user_delete_array(void*, std::nothrow_t const&)
+			get_function_by_symbol("_Z17user_delete_arrayPvRKSt9nothrow_t", ve, &libc_param_raw->_new_replace.operator_delete_arr_nothrow);
+			ADDRELA(&libc_param_raw->_new_replace.operator_new);
+			ADDRELA(&libc_param_raw->_new_replace.operator_new_nothrow);
+			ADDRELA(&libc_param_raw->_new_replace.operator_new_arr);
+			ADDRELA(&libc_param_raw->_new_replace.operator_new_arr_nothrow);
+			ADDRELA(&libc_param_raw->_new_replace.operator_delete);
+			ADDRELA(&libc_param_raw->_new_replace.operator_delete_nothrow);
+			ADDRELA(&libc_param_raw->_new_replace.operator_delete_arr);
+			ADDRELA(&libc_param_raw->_new_replace.operator_delete_arr_nothrow);
+		}
+	}
+
+	process_param_raw = (sce_process_param_raw *)(ADDR(sceModuleInfo_rodata) + process_param_offset);
+	CONVERT32(process_param, size);
+	CONVERT32(process_param, magic);
+	CONVERT32(process_param, version);
+	CONVERT32(process_param, fw_version);
+	get_variable_by_symbol("sceUserMainThreadName", ve, &process_param_raw->main_thread_name);
+	get_variable_by_symbol("sceUserMainThreadPriority", ve, &process_param_raw->main_thread_priority);
+	get_variable_by_symbol("sceUserMainThreadStackSize", ve, &process_param_raw->main_thread_stacksize);
+	get_variable_by_symbol("sceUserMainThreadCpuAffinityMask", ve, &process_param_raw->main_thread_cpu_affinity_mask);
+	get_variable_by_symbol("sceUserMainThreadAttribute", ve, &process_param_raw->main_thread_attribute);
+	get_variable_by_symbol("sceKernelPreloadModuleInhibit", ve, &process_param_raw->process_preload_disabled);
+	ADDRELA(&process_param_raw->main_thread_name);
+	ADDRELA(&process_param_raw->main_thread_priority);
+	ADDRELA(&process_param_raw->main_thread_stacksize);
+	ADDRELA(&process_param_raw->main_thread_cpu_affinity_mask);
+	ADDRELA(&process_param_raw->main_thread_attribute);
+	ADDRELA(&process_param_raw->process_preload_disabled);
+	if (libc_param != NULL) {
+		process_param_raw->sce_libc_param = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, size);
+		ADDRELA(&process_param_raw->sce_libc_param);
+	}
+
 	module_info_raw = (sce_module_info_raw *)ADDR(sceModuleInfo_rodata);
-	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
 	CONVERT16(module_info, attributes);
 	CONVERT16(module_info, version);
 	memcpy(module_info_raw->name, module_info->name, 27);
@@ -511,18 +702,27 @@ void *sce_elf_module_info_encode(
 	module_info_raw->export_end = htole32(OFFSET(sceLib_ent) + sizes->sceLib_ent);
 	module_info_raw->import_top = htole32(OFFSET(sceLib_stubs));
 	module_info_raw->import_end = htole32(OFFSET(sceLib_stubs) + sizes->sceLib_stubs);
-	CONVERT32(module_info, library_nid);
-	CONVERT32(module_info, field_38);
-	CONVERT32(module_info, field_3C);
-	CONVERT32(module_info, field_40);
-	CONVERTOFFSET(module_info, module_start);
-	CONVERTOFFSET(module_info, module_stop);
+	CONVERT32(module_info, module_nid);
+	CONVERT32(module_info, tls_start);
+	CONVERT32(module_info, tls_filesz);
+	CONVERT32(module_info, tls_memsz);
+	if(module_info->module_start != NULL){
+		CONVERTOFFSET(module_info, module_start);
+	}else{
+		module_info_raw->module_start = 0xFFFFFFFF;
+		module_info_raw->import_top = 0;
+		module_info_raw->import_end = 0;
+	}
+	if(module_info->module_stop != NULL){
+		CONVERTOFFSET(module_info, module_stop);
+	}else{
+		module_info_raw->module_stop = 0xFFFFFFFF;
+	}
 	CONVERTOFFSET(module_info, exidx_top);
 	CONVERTOFFSET(module_info, exidx_end);
 	CONVERTOFFSET(module_info, extab_top);
 	CONVERTOFFSET(module_info, extab_end);
-	module_info_raw->process_param_size = 0x34;
-	memcpy(&module_info_raw->process_param_magic, "PSP2", 4);
+	CONVERT32(module_info, module_sdk_version);
 
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		int num_syms;
@@ -536,15 +736,15 @@ void *sce_elf_module_info_encode(
 		CONVERT16(export, flags);
 		CONVERT16(export, num_syms_funcs);
 		CONVERT32(export, num_syms_vars);
-		CONVERT32(export, num_syms_unk);
-		CONVERT32(export, module_nid);
-		if (export->module_name != NULL) {
-			SETLOCALPTR(export_raw->module_name, sceExport_rodata);
+		CONVERT32(export, num_syms_tls_vars);
+		CONVERT32(export, library_nid);
+		if (export->library_name != NULL) {
+			SETLOCALPTR(export_raw->library_name, sceExport_rodata);
 			void *dst = ADDR(sceExport_rodata);
-			INCR(sceExport_rodata, ALIGN_4(strlen(export->module_name) + 1));
-			strcpy(dst, export->module_name);
+			INCR(sceExport_rodata, ALIGN_4(strlen(export->library_name) + 1));
+			strcpy(dst, export->library_name);
 		}
-		num_syms = export->num_syms_funcs + export->num_syms_vars + export->num_syms_unk;
+		num_syms = export->num_syms_funcs + export->num_syms_vars + export->num_syms_tls_vars;
 		SETLOCALPTR(export_raw->nid_table, sceExport_rodata);
 		raw_nids = (uint32_t *)ADDR(sceExport_rodata);
 		INCR(sceExport_rodata, num_syms * 4);
@@ -555,8 +755,10 @@ void *sce_elf_module_info_encode(
 			raw_nids[i] = htole32(export->nid_table[i]);
 			if (export->entry_table[i] == module_info) { /* Special case */
 				raw_entries[i] = htole32(segment_base + start_offset);
-			} else if (export->entry_table[i] == &module_info->process_param_size) {
-				raw_entries[i] = htole32(segment_base + start_offset + offsetof(sce_module_info_raw, process_param_size));
+			} else if (export->entry_table[i] == process_param) {
+				raw_entries[i] = htole32(VADDR(sceModuleInfo_rodata) + process_param_offset);
+			} else if (export->entry_table[i] == &module_info->module_sdk_version) {
+				raw_entries[i] = htole32(VADDR(sceModuleInfo_rodata) + offsetof(sce_module_info_raw, module_sdk_version));
 			} else {
 				raw_entries[i] = htole32(vita_elf_host_to_vaddr(ve, export->entry_table[i]));
 			}
@@ -573,16 +775,16 @@ void *sce_elf_module_info_encode(
 		CONVERT16(import, flags);
 		CONVERT16(import, num_syms_funcs);
 		CONVERT16(import, num_syms_vars);
-		CONVERT16(import, num_syms_unk);
+		CONVERT16(import, num_syms_tls_vars);
 		CONVERT32(import, reserved1);
 		CONVERT32(import, reserved2);
-		CONVERT32(import, module_nid);
+		CONVERT32(import, library_nid);
 
-		if (import->module_name != NULL) {
-			SETLOCALPTR(import_raw->module_name, sceImport_rodata);
+		if (import->library_name != NULL) {
+			SETLOCALPTR(import_raw->library_name, sceImport_rodata);
 			void *dst = ADDR(sceImport_rodata);
-			INCR(sceImport_rodata, ALIGN_4(strlen(import->module_name) + 1));
-			strcpy(dst, import->module_name);
+			INCR(sceImport_rodata, ALIGN_4(strlen(import->library_name) + 1));
+			strcpy(dst, import->library_name);
 		}
 		if (import->num_syms_funcs) {
 			SETLOCALPTR(import_raw->func_nid_table, sceFNID_rodata);
@@ -606,20 +808,25 @@ void *sce_elf_module_info_encode(
 				INCR(sceVStub_rodata, 4);
 			}
 		}
-		if (import->num_syms_unk) {
-			SETLOCALPTR(import_raw->unk_nid_table, sceImport_rodata);
-			for (i = 0; i < import->num_syms_unk; i++) {
+		if (import->num_syms_tls_vars) {
+			SETLOCALPTR(import_raw->tls_var_nid_table, sceImport_rodata);
+			for (i = 0; i < import->num_syms_tls_vars; i++) {
 				INTADDR(sceImport_rodata) = htole32(import->var_nid_table[i]);
 				INCR(sceImport_rodata, 4);
 			}
-			SETLOCALPTR(import_raw->unk_entry_table, sceImport_rodata);
-			for (i = 0; i < import->num_syms_unk; i++) {
+			SETLOCALPTR(import_raw->tls_var_entry_table, sceImport_rodata);
+			for (i = 0; i < import->num_syms_tls_vars; i++) {
 				INTADDR(sceImport_rodata) = htole32(vita_elf_host_to_vaddr(ve, import->var_entry_table[i]));
 				ADDRELA(ADDR(sceImport_rodata));
 				INCR(sceImport_rodata, 4);
 			}
 		}
 	}
+
+	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
+	INCR(sceModuleInfo_rodata, sizeof(sce_process_param_raw));
+	if (libc_param != NULL)
+		INCR(sceModuleInfo_rodata, sizeof(sce_libc_param_raw));
 
 	for (i = 0; i < sizeof(sce_section_sizes_t) / sizeof(Elf32_Word); i++) {
 		if (((Elf32_Word *)&cur_sizes)[i] != ((Elf32_Word *)sizes)[i])
@@ -939,7 +1146,7 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 	ELF_ASSERT(data = elf_getdata(scn, NULL));
 	shstrtab = data->d_buf;
 
-	for(j=0;j<ve->fstubs_va.count;j++){
+	for(j=0;j<ve->fstubs_va.count;j++) {
 		cur_ndx = VARRAY_ELEMENT(&ve->fstubs_va,j);
 		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));
@@ -968,7 +1175,7 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		return 1;
 	}
 	
-	for(j=0;j<ve->vstubs_va.count;j++){
+	for(j=0;j<ve->vstubs_va.count;j++) {
 		cur_ndx = VARRAY_ELEMENT(&ve->vstubs_va,j);
 		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));

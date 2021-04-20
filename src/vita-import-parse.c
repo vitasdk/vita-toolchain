@@ -5,7 +5,7 @@
 #include "yamltreeutil.h"
 #include "sha256.h"
 
-int process_import_functions(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+int process_import_functions(yaml_node *parent, yaml_node *child, vita_imports_lib_t *library) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting function to be scalar, got '%s'.\n"
 			, parent->position.line
@@ -40,7 +40,7 @@ int process_import_functions(yaml_node *parent, yaml_node *child, vita_imports_m
 	return 0;
 }
 
-int process_import_variables(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+int process_import_variables(yaml_node *parent, yaml_node *child, vita_imports_lib_t *library) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting variable to be scalar, got '%s'.\n"
 			, parent->position.line
@@ -75,7 +75,7 @@ int process_import_variables(yaml_node *parent, yaml_node *child, vita_imports_m
 	return 0;
 }
 
-int process_library(yaml_node *parent, yaml_node *child, vita_imports_module_t *library) {
+int process_library(yaml_node *parent, yaml_node *child, vita_imports_lib_t *library) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting library key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
 		return -1;
@@ -113,6 +113,27 @@ int process_library(yaml_node *parent, yaml_node *child, vita_imports_module_t *
 			return -1;
 		}
 	}
+	else if (strcmp(key->value, "version") == 0) {
+
+		uint32_t version;
+
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting library version to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+		
+		if (process_32bit_integer(child, &version) < 0) {
+			fprintf(stderr, "error: line: %zd, column: %zd, could not convert library version '%s' to 32 bit integer.\n", child->position.line, child->position.column, child->data.scalar.value);
+			return -1;
+		}
+
+		if (version > 0xFFFF) {
+			fprintf(stderr, "error: line: %zd, column: %zd, Library version must be 65535 or lower.\n", child->position.line, child->position.column);
+			return -1;
+		}
+
+		library->flags |= (version << 16);
+	}
 	else {
 		fprintf(stderr, "error: line: %zd, column: %zd, unrecognised library key '%s'.\n", child->position.line, child->position.column, key->value);
 		return -1;
@@ -121,7 +142,7 @@ int process_library(yaml_node *parent, yaml_node *child, vita_imports_module_t *
 	return 0;
 }
 
-int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_lib_t *import) {
+int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_module_t *import) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting library key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
 		return -1;
@@ -129,7 +150,7 @@ int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_lib_t *i
 	
 	yaml_scalar *key = &parent->data.scalar;
 	
-	vita_imports_module_t *library = vita_imports_module_new("",false,0,0,0);
+	vita_imports_lib_t *library = vita_imports_lib_new("",false,0,0,0);
 	
 	// default values
 	library->name = strdup(key->value);
@@ -137,13 +158,13 @@ int process_libraries(yaml_node *parent, yaml_node *child, vita_imports_lib_t *i
 	if (yaml_iterate_mapping(child, (mapping_functor)process_library, library) < 0)
 		return -1;
 
-	import->modules = realloc(import->modules, (import->n_modules+1)*sizeof(vita_imports_module_t*));
-	import->modules[import->n_modules++] = library;
+	import->libs = realloc(import->libs, (import->n_libs+1)*sizeof(vita_imports_module_t*));
+	import->libs[import->n_libs++] = library;
 		
 	return 0;
 }
 
-int process_import(yaml_node *parent, yaml_node *child, vita_imports_lib_t *import) {
+int process_import(yaml_node *parent, yaml_node *child, vita_imports_module_t *import) {
 	if (!is_scalar(parent)) {
 		fprintf(stderr, "error: line: %zd, column: %zd, expecting module key to be scalar, got '%s'.\n", parent->position.line, parent->position.column, node_type_str(parent));
 		return -1;
@@ -184,13 +205,13 @@ int process_import_list(yaml_node *parent, yaml_node *child, vita_imports_t *imp
 	
 	yaml_scalar *key = &parent->data.scalar;
 	
-	vita_imports_lib_t *import = vita_imports_lib_new(key->value,0,0);
+	vita_imports_module_t *import = vita_imports_module_new(key->value,0,0);
 	
 	if (yaml_iterate_mapping(child, (mapping_functor)process_import, import) < 0)
 		return -1;
 	
-	imports->libs = realloc(imports->libs, (imports->n_libs+1)*sizeof(vita_imports_lib_t*));
-	imports->libs[imports->n_libs++] = import;
+	imports->modules = realloc(imports->modules, (imports->n_modules+1)*sizeof(vita_imports_lib_t*));
+	imports->modules[imports->n_modules++] = import;
 	return 0;
 }
 
@@ -213,17 +234,33 @@ vita_imports_t *read_vita_imports(yaml_document *doc) {
 	for(int n = 0; n < root->count; n++){
 		// check lhs is a scalar
 		if (is_scalar(root->pairs[n]->lhs)) {
-		
-			if (strcmp(root->pairs[n]->lhs->data.scalar.value, "modules")==0) {
+			const char *root_value = root->pairs[n]->lhs->data.scalar.value;
+			if (strcmp(root_value, "firmware") == 0) {
+				if (!is_scalar(root->pairs[n]->rhs))
+					return NULL;
+				const char *firm = root->pairs[n]->rhs->data.scalar.value;
+				// skip default firmware
+				if (strcmp(firm, "3.60") == 0)
+					continue;
+				imports->firmware = strdup(firm);
+				int i = 0;
+				int j = 0;
+				imports->postfix[j++] = '_';
+				while (firm[i]) {
+					const char v = firm[i++];
+					if (v == '.')
+						continue;
+					imports->postfix[j++] = v;
+				}
+			}
+			else if (strcmp(root_value, "modules") == 0) {
 				if (yaml_iterate_mapping(root->pairs[n]->rhs, (mapping_functor)process_import_list, imports) < 0)
 					return NULL;
-				continue;
 			}
-			
-			fprintf(stderr, "warning: line: %zd, column: %zd, unknow tag '%s'.\n", root->pairs[n]->lhs->position.line, root->pairs[n]->lhs->position.column, root->pairs[n]->lhs->data.scalar.value);
-
+			else {
+				fprintf(stderr, "warning: line: %zd, column: %zd, unknow tag '%s'.\n", root->pairs[n]->lhs->position.line, root->pairs[n]->lhs->position.column, root->pairs[n]->lhs->data.scalar.value);
+			}
 		}
-
 	}
 	
 	return imports;

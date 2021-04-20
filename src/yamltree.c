@@ -170,7 +170,9 @@ static yaml_node *process_scalar(parser_context *ctx)
 
 static yaml_node *process_sequence(parser_context *ctx) 
 {
-	yaml_node *sequence = malloc(sizeof(yaml_node));
+	yaml_node *sequence = (yaml_node *)malloc(sizeof(yaml_node));
+	if (!sequence)
+		return NULL;
 	yaml_sequence *seq = &sequence->data.sequence;
 	
 	sequence->type = NODE_SEQUENCE;
@@ -186,7 +188,10 @@ static yaml_node *process_sequence(parser_context *ctx)
 		yaml_node *node = process_node(ctx);
 		
 		if (!node)
+		{
+			free(sequence);
 			return NULL;
+		}
 		
 		// extend space
 		seq->nodes = realloc(seq->nodes, (seq->count+1)*sizeof(yaml_node*));
@@ -194,14 +199,19 @@ static yaml_node *process_sequence(parser_context *ctx)
 	}
 	
 	if (process_event(ctx) < 0)
+	{
+		free(sequence);
 		return NULL;
+	}
 	
 	return sequence;
 }
 
 static yaml_node *process_mapping(parser_context *ctx)
 {
-	yaml_node *mapping = malloc(sizeof(yaml_node));
+	yaml_node *mapping = (yaml_node *)malloc(sizeof(yaml_node));
+	if (!mapping)
+		return NULL;
 	yaml_mapping *map = &mapping->data.mapping;
 	
 	mapping->type = NODE_MAPPING;
@@ -219,12 +229,18 @@ static yaml_node *process_mapping(parser_context *ctx)
 		pair->lhs = process_node(ctx);
 		
 		if (!pair->lhs)
+		{
+			free(mapping);
 			return NULL;
+		}
 		
 		pair->rhs = process_node(ctx);
 		
 		if (!pair->rhs)
+		{
+			free(mapping);
 			return NULL;
+		}
 		
 		// extend space as needed
 		map->pairs = realloc(map->pairs, (map->count+1)*sizeof(yaml_node_pair*));
@@ -232,7 +248,10 @@ static yaml_node *process_mapping(parser_context *ctx)
 	}
 	
 	if (process_event(ctx) < 0)
+	{
+		free(mapping);
 		return NULL;
+	}
 	
 	return mapping;
 }

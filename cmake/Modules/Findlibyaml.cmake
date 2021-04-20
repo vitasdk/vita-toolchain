@@ -1,5 +1,5 @@
 find_package(PkgConfig)
-pkg_check_modules(PC_libyaml libyaml>=0.1.6)
+pkg_check_modules(PC_libyaml yaml-0.1>=0.1.6)
 
 find_path(libyaml_INCLUDE_DIR yaml.h
           HINTS ${PC_libyaml_INCLUDEDIR} ${PC_libyaml_INCLUDE_DIRS})

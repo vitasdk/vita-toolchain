@@ -7,6 +7,14 @@
 
 #define KERNEL_LIBS_STUB "SceKernel"
 
+typedef struct {
+	int num;
+	struct {
+		const char *name;
+		const char *postfix;
+	} names[1024];
+} libs_t;
+
 void usage();
 int generate_assembly(vita_imports_t **imports, int imports_count);
 int generate_makefile(vita_imports_t **imports, int imports_count);
@@ -92,44 +100,47 @@ int generate_assembly(vita_imports_t **imports, int imports_count)
 
 	for (h = 0; h < imports_count; h++) {
 		vita_imports_t *imp = imports[h];
-		for (i = 0; i < imp->n_libs; i++) {
-			vita_imports_lib_t *library = imp->libs[i];
-			for (j = 0; j < library->n_modules; j++) {
-				vita_imports_module_t *module = library->modules[j];
 
-				for (k = 0; k < module->n_functions; k++) {
-					vita_imports_stub_t *function = module->functions[k];
+		for (i = 0; i < imp->n_modules; i++) {
+			vita_imports_module_t *module = imp->modules[i];
+			for (j = 0; j < module->n_libs; j++) {
+				vita_imports_lib_t *library = module->libs[j];
+
+				for (k = 0; k < library->n_functions; k++) {
+					vita_imports_stub_t *function = library->functions[k];
 					const char *fname = function->name;
 					char filename[4096];
-					snprintf(filename, sizeof(filename), "%s_%s_%s.S", library->name, module->name, fname);
+					snprintf(filename, sizeof(filename), "%s_%s_%s%s.S", module->name, library->name, fname, imp->postfix);
 					if ((fp = fopen(filename, "w")) == NULL)
 						return 0;
 					fprintf(fp, ".arch armv7a\n\n");
-					fprintf(fp, ".section .vitalink.fstubs.%s,\"ax\",%%progbits\n\n", module->name);
+					fprintf(fp, ".section .vitalink.fstubs.%s,\"ax\",%%progbits\n\n", library->name);
 					fprintf(fp,
 						"\t.align 4\n"
 						"\t.global %s\n"
 						"\t.type %s, %%function\n"
 						"%s:\n"
 						".if GEN_WEAK_EXPORTS\n"
-						"\t.word 0x00000008\n"
+						"\t.word 0x%04X0008\n"
 						".else\n"
-						"\t.word 0x00000000\n"
+						"\t.word 0x%04X0000\n"
 						".endif //GEN_WEAK_EXPORTS\n"
 						"\t.word 0x%08X\n"
 						"\t.word 0x%08X\n"
 						"\t.align 4\n\n",
 						fname, fname, fname,
-						module->NID,
+						((library->flags >> 16) & 0xFFFF),
+						((library->flags >> 16) & 0xFFFF),
+						library->NID,
 						function->NID);
 					fclose(fp);
 				}
 
-				for (k = 0; k < module->n_variables; k++) {
-					vita_imports_stub_t *variable = module->variables[k];
+				for (k = 0; k < library->n_variables; k++) {
+					vita_imports_stub_t *variable = library->variables[k];
 					const char *vname = variable->name;
 					char filename[4096];
-					snprintf(filename, sizeof(filename), "%s_%s_%s.S", library->name, module->name, vname);
+					snprintf(filename, sizeof(filename), "%s_%s_%s%s.S", module->name, library->name, vname, imp->postfix);
 					if ((fp = fopen(filename, "w")) == NULL)
 						return 0;
 					fprintf(fp, ".arch armv7a\n\n");
@@ -140,15 +151,17 @@ int generate_assembly(vita_imports_t **imports, int imports_count)
 						"\t.type %s, %%object\n"
 						"%s:\n"
 						".if GEN_WEAK_EXPORTS\n"
-						"\t.word 0x00000008\n"
+						"\t.word 0x%04X0008\n"
 						".else\n"
-						"\t.word 0x00000000\n"
+						"\t.word 0x%04X0000\n"
 						".endif //GEN_WEAK_EXPORTS\n"
 						"\t.word 0x%08X\n"
 						"\t.word 0x%08X\n"
 						"\t.align 4\n\n",
 						vname, vname, vname,
-						module->NID,
+						((library->flags >> 16) & 0xFFFF),
+						((library->flags >> 16) & 0xFFFF),
+						library->NID,
 						variable->NID);
 					fclose(fp);
 				}
@@ -177,28 +190,28 @@ void write_symbol(const char *symbol, int is_kernel)
 	fprintf(fp, "%s", symbol); // write regardless if its kernel or not
 }
 
-void write_cmake_sources(FILE *fp, const char *modname, vita_imports_module_t *library)
+void write_cmake_sources(FILE *fp, const char *modname, const char *postfix, vita_imports_lib_t *library)
 {
 	int k;
 
 	for (k = 0; k < library->n_functions; k++) {
 		vita_imports_stub_t *function = library->functions[k];
-		fprintf(fp, "\t\"%s_%s_%s.S\"\n", modname, library->name, function->name);
+		fprintf(fp, "\t\"%s_%s_%s%s.S\"\n", modname, library->name, function->name, postfix);
 	}
 	for (k = 0; k < library->n_variables; k++) {
 		vita_imports_stub_t *variable = library->variables[k];
-		fprintf(fp, "\t\"%s_%s_%s.S\"\n", modname, library->name, variable->name);
+		fprintf(fp, "\t\"%s_%s_%s%s.S\"\n", modname, library->name, variable->name, postfix);
 	}
 }
 
-int generate_cmake_user(FILE *fp, vita_imports_lib_t *module)
+int generate_cmake_user(FILE *fp, const char *postfix, vita_imports_module_t *module)
 {
 	int i;
 	int found_libs = 0;
 
-	for (i = 0; i < module->n_modules; i++)
+	for (i = 0; i < module->n_libs; i++)
 	{
-		vita_imports_module_t *library = module->modules[i];
+		vita_imports_lib_t *library = module->libs[i];
 
 		// skip kernel
 		if (library->is_kernel)
@@ -206,11 +219,11 @@ int generate_cmake_user(FILE *fp, vita_imports_lib_t *module)
 
 		if (!found_libs)
 		{
-			fprintf(fp, "set(%s_ASM\n", module->name);
+			fprintf(fp, "set(%s%s_ASM\n", module->name, postfix);
 			found_libs = 1;
 		}
 
-		write_cmake_sources(fp, module->name, library);
+		write_cmake_sources(fp, module->name, postfix, library);
 	}
 
 	if (found_libs)
@@ -221,13 +234,13 @@ int generate_cmake_user(FILE *fp, vita_imports_lib_t *module)
 	return found_libs;
 }
 
-int generate_cmake_kernel(FILE *fp, const char *modname, vita_imports_module_t *library)
+int generate_cmake_kernel(FILE *fp, const char *modname, const char *postfix, vita_imports_lib_t *library)
 {
 	if (!library->n_functions && !library->n_variables)
 		return 0;
 
-	fprintf(fp, "set(%s_ASM\n", library->name);
-	write_cmake_sources(fp, modname, library);
+	fprintf(fp, "set(%s%s_ASM\n", library->name, postfix);
+	write_cmake_sources(fp, modname, postfix, library);
 	fputs(")\n\n", fp);
 
 	return 1;
@@ -239,10 +252,8 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 	int is_special;
 
 	// TODO: something dynamic
-	const char *user_libs[1024];
-	int num_user_libs = 0;
-	const char *kernel_libs[1024];
-	int num_kernel_libs = 0;
+	libs_t user_libs = {0};
+	libs_t kernel_libs = {0};
 
 	if ((fp = fopen("CMakeLists.txt", "w")) == NULL) {
 		return 0;
@@ -264,56 +275,60 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 	{
 		vita_imports_t *imp = imports[h];
 
-		for (i = 0; i < imp->n_libs; i++)
+		for (i = 0; i < imp->n_modules; i++)
 		{
-			vita_imports_lib_t *module = imp->libs[i];
+			vita_imports_module_t *module = imp->modules[i];
 
 			// generate user libs first
-			if (generate_cmake_user(fp, module))
+			if (generate_cmake_user(fp, imp->postfix, module))
 			{
-				user_libs[num_user_libs++] = module->name;
+				user_libs.names[user_libs.num].name = module->name;
+				user_libs.names[user_libs.num].postfix = imp->postfix;
+				user_libs.num++;
 			}
 
-			for (j = 0; j < imp->libs[i]->n_modules; j++)
+			for (j = 0; j < imp->modules[i]->n_libs; j++)
 			{
-				vita_imports_module_t *library = imp->libs[i]->modules[j];
+				vita_imports_lib_t *library = imp->modules[i]->libs[j];
 
 				if (!library->is_kernel)
 					continue;
 
-				if (generate_cmake_kernel(fp, module->name, library))
+				if (generate_cmake_kernel(fp, module->name, imp->postfix, library))
 				{
-					kernel_libs[num_kernel_libs++] = library->name;
+					kernel_libs.names[kernel_libs.num].name = library->name;
+					kernel_libs.names[kernel_libs.num].postfix = imp->postfix;
+					kernel_libs.num++;
 				}
 			}
 		}
 	}
 
-	if (num_user_libs > 0)
+	if (user_libs.num > 0)
 	{
 		fputs("set(USER_LIBRARIES\n", fp);
 
-		for (i = 0; i < num_user_libs; ++i)
+		for (i = 0; i < user_libs.num; ++i)
 		{
-			fprintf(fp, "\t\"%s\"\n", user_libs[i]);
+			fprintf(fp, "\t\"%s%s\"\n", user_libs.names[i].name, user_libs.names[i].postfix);
 		}
 
 		fputs(")\n\n", fp);
 	}
 
-	if (num_kernel_libs > 0)
+	if (kernel_libs.num > 0)
 	{
 		fputs("set(KERNEL_LIBRARIES\n", fp);
 
-		for (i = 0; i < num_kernel_libs; ++i)
+		for (i = 0; i < kernel_libs.num; ++i)
 		{
-			fprintf(fp, "\t\"%s\"\n", kernel_libs[i]);
+			fprintf(fp, "\t\"%s%s\"\n", kernel_libs.names[i].name, kernel_libs.names[i].postfix);
 		}
 
 		fputs(")\n\n", fp);
 	}
 
-	if (num_user_libs > 0)
+	if (user_libs.num > 0)
 	{
 		fputs(
 			"foreach(library ${USER_LIBRARIES})\n"
@@ -324,12 +339,13 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 			"endforeach(library)\n\n", fp);
 	}
 
-	if (num_kernel_libs > 0)
+	if (kernel_libs.num > 0)
 	{
 		fputs(
 			"foreach(library ${KERNEL_LIBRARIES})\n"
 			"\tadd_library(${library}_stub STATIC ${${library}_ASM})\n"
 			"\ttarget_compile_definitions(${library}_stub PRIVATE -DGEN_WEAK_EXPORTS=0)\n"
+			"\tinstall(TARGETS ${library}_stub DESTINATION $ENV{VITASDK}/arm-vita-eabi/lib/)\n"
 			"endforeach(library)\n\n", fp);
 	}
 
@@ -363,16 +379,17 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 	for (h = 0; h < imports_count; h++) {
 		vita_imports_t *imp = imports[h];
-		for (i = 0; i < imp->n_libs; i++) {
-			fprintf(fp, " lib%s_stub.a", imp->libs[i]->name);
 
-			for (j = 0; j < imp->libs[i]->n_modules; j++) {
-				vita_imports_module_t *module = imp->libs[i]->modules[j];
+		for (i = 0; i < imp->n_modules; i++) {
+			fprintf(fp, " lib%s%s_stub.a", imp->modules[i]->name, imp->postfix);
 
-				if (!module->is_kernel)
+			for (j = 0; j < imp->modules[i]->n_libs; j++) {
+				vita_imports_lib_t *library = imp->modules[i]->libs[j];
+
+				if (!library->is_kernel)
 					continue;
 
-				fprintf(fp, " lib%s_stub.a", module->name);
+				fprintf(fp, " lib%s%s_stub.a", library->name, imp->postfix);
 			}
 		}
 	}
@@ -380,8 +397,9 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 	fprintf(fp, "\nTARGETS_WEAK =");
 	for (h = 0; h < imports_count; h++) {
 		vita_imports_t *imp = imports[h];
-		for (i = 0; i < imp->n_libs; i++) {
-			fprintf(fp, " lib%s_stub_weak.a", imp->libs[i]->name);
+
+		for (i = 0; i < imp->n_modules; i++) {
+			fprintf(fp, " lib%s%s_stub_weak.a", imp->modules[i]->name, imp->postfix);
 		}
 	}
 
@@ -389,30 +407,33 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 
 	for (h = 0; h < imports_count; h++) {
 		vita_imports_t *imp = imports[h];
-		for (i = 0; i < imp->n_libs; i++) {
-			vita_imports_lib_t *library = imp->libs[i];
-			is_special = (strcmp(KERNEL_LIBS_STUB, library->name) == 0);
+
+		for (i = 0; i < imp->n_modules; i++) {
+			vita_imports_module_t *module = imp->modules[i];
+			is_special = (strcmp(KERNEL_LIBS_STUB, module->name) == 0);
 
 			for (int weak = 0; weak < 2; weak++) {
 				if (!is_special) {
-					fprintf(fp, "%s%s =", library->name, weak ? "_weak_OBJS" : "_OBJS");
+					fprintf(fp, "%s%s%s =", module->name, imp->postfix, weak ? "_weak_OBJS" : "_OBJS");
 				}
 
-				for (j = 0; j < library->n_modules; j++) {
-					vita_imports_module_t *module = library->modules[j];
+				for (j = 0; j < module->n_libs; j++) {
+					vita_imports_lib_t *library = module->libs[j];
 
-					if(module->is_kernel)
+					if(library->is_kernel)
+						continue;
+					if (!library->n_functions && !library->n_variables)
 						continue;
 
 					char buf[4096];
-					for (k = 0; k < module->n_functions; k++) {
-						vita_imports_stub_t *function = module->functions[k];
-						snprintf(buf, sizeof(buf), " %s_%s_%s.%s", library->name, module->name, function->name, weak ? "wo" : "o");
+					for (k = 0; k < library->n_functions; k++) {
+						vita_imports_stub_t *function = library->functions[k];
+						snprintf(buf, sizeof(buf), " %s_%s_%s%s.%s", module->name, library->name, function->name, imp->postfix, weak ? "wo" : "o");
 						write_symbol(buf, is_special);
 					}
-					for (k = 0; k < module->n_variables; k++) {
-						vita_imports_stub_t *variable = module->variables[k];
-						snprintf(buf, sizeof(buf), " %s_%s_%s.%s", library->name, module->name, variable->name, weak ? "wo" : "o");
+					for (k = 0; k < library->n_variables; k++) {
+						vita_imports_stub_t *variable = library->variables[k];
+						snprintf(buf, sizeof(buf), " %s_%s_%s%s.%s", module->name, library->name, variable->name, imp->postfix, weak ? "wo" : "o");
 						write_symbol(buf, is_special);
 					}
 				}
@@ -422,25 +443,27 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 				}
 			}
 
-			for (j = 0; j < library->n_modules; j++) {
-				vita_imports_module_t *module = library->modules[j];
+			for (j = 0; j < module->n_libs; j++) {
+				vita_imports_lib_t *library = module->libs[j];
 
-				if (!module->is_kernel)
+				if (!library->is_kernel)
+					continue;
+				if (!library->n_functions && !library->n_variables)
 					continue;
 
 				char buf[4096];
 
-				fprintf(fp, "%s_OBJS =", module->name);
+				fprintf(fp, "%s%s_OBJS =", library->name, imp->postfix);
 
-				for (k = 0; k < module->n_functions; k++) {
-					vita_imports_stub_t *function = module->functions[k];
-					snprintf(buf, sizeof(buf), " %s_%s_%s.o", library->name, module->name, function->name);
+				for (k = 0; k < library->n_functions; k++) {
+					vita_imports_stub_t *function = library->functions[k];
+					snprintf(buf, sizeof(buf), " %s_%s_%s%s.o", module->name, library->name, function->name, imp->postfix);
 					write_symbol(buf, 1);
 				}
 
-				for (k = 0; k < module->n_variables; k++) {
-					vita_imports_stub_t *variable = module->variables[k];
-					snprintf(buf, sizeof(buf), " %s_%s_%s.o", library->name, module->name, variable->name);
+				for (k = 0; k < library->n_variables; k++) {
+					vita_imports_stub_t *variable = library->variables[k];
+					snprintf(buf, sizeof(buf), " %s_%s_%s%s.o", module->name, library->name, variable->name, imp->postfix);
 					write_symbol(buf, 1);
 				}
 

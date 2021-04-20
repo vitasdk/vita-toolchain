@@ -27,14 +27,16 @@ int g_log = 0;
 #define TRACEF(lvl, ...) \
 	do { if (g_log >= lvl) printf(__VA_ARGS__); } while (0)
 
+int get_variable_by_symbol(const char *symbol, const vita_elf_t *ve, Elf32_Addr *vaddr);
+
 void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 {
 	int i;
 
 	for (i = 0; i < num_stubs; i++) {
 		TRACEF(VERBOSE, "  0x%06x (%s):\n", stubs[i].addr, stubs[i].symbol ? stubs[i].symbol->name : "unreferenced stub");
-		TRACEF(VERBOSE, "    Flags  : %u\n", stubs[i].module ? stubs[i].module->flags : 0);
-		TRACEF(VERBOSE, "    Library: %u (%s)\n", stubs[i].module_nid, stubs[i].module ? stubs[i].module->name : "not found");
+		TRACEF(VERBOSE, "    Flags  : %u\n", stubs[i].library ? stubs[i].library->flags : 0);
+		TRACEF(VERBOSE, "    Library: %u (%s)\n", stubs[i].library_nid, stubs[i].library ? stubs[i].library->name : "not found");
 		TRACEF(VERBOSE, "    NID    : %u (%s)\n", stubs[i].target_nid, stubs[i].target ? stubs[i].target->name : "not found");
 	}
 }
@@ -108,6 +110,157 @@ void list_segments(vita_elf_t *ve)
 	}
 }
 
+int vita_elf_packing(const char *velf_path, const vita_export_t *exports)
+{
+	int res;
+	char tmp[PATH_MAX];
+
+	int velf_path_length = strnlen(velf_path, PATH_MAX);
+	if (velf_path_length >= (PATH_MAX - 4))
+		return -1;
+
+	snprintf(tmp, sizeof(tmp), "%s.tmp", velf_path);
+
+	FILE *fd_src, *fd_dst;
+
+	fd_src = fopen(velf_path, "rb");
+	if (fd_src == NULL)
+		return -1;
+
+	fd_dst = fopen(tmp, "wb");
+	if (fd_dst == NULL) {
+		res = -1;
+		goto end_io_close_src;
+	}
+
+	void *elf_header = NULL;
+
+	elf_header = malloc(0x100);
+	if (elf_header == NULL) {
+		res = -1;
+		goto end_io_close_dst;
+	}
+
+	/*
+	 * Read elf header
+	 */
+	if (fread(elf_header, 0x100, 1, fd_src) != 1) {
+		res = -1;
+		goto end_free_elf_header;
+	}
+
+	Elf32_Ehdr *pEhdr = (Elf32_Ehdr *)elf_header;
+
+	/*
+	 * Remove section entrys
+	 */
+	pEhdr->e_shoff     = 0;
+	pEhdr->e_shentsize = 0;
+	pEhdr->e_shnum     = 0;
+	pEhdr->e_shstrndx  = 0;
+
+	Elf32_Phdr *pPhdr, *pPhdrTmp;
+
+	pPhdr = (Elf32_Phdr *)(elf_header + pEhdr->e_phoff);
+
+	/*
+	 * Packed ehdr and phdr
+	 */
+	if (pEhdr->e_phoff != pEhdr->e_ehsize) {
+		pPhdrTmp = malloc(pEhdr->e_phentsize * pEhdr->e_phnum);
+
+		memcpy(pPhdrTmp, pPhdr, pEhdr->e_phentsize * pEhdr->e_phnum);
+
+		memset(elf_header + pEhdr->e_ehsize, 0, 0x100 - pEhdr->e_ehsize);
+		memcpy(elf_header + pEhdr->e_ehsize, pPhdrTmp, pEhdr->e_phentsize * pEhdr->e_phnum);
+
+		free(pPhdrTmp);
+
+		pEhdr->e_phoff = pEhdr->e_ehsize;
+		pPhdr = (Elf32_Phdr *)(elf_header + pEhdr->e_phoff);
+	}
+
+	long seg_offset = pEhdr->e_ehsize + (pEhdr->e_phentsize * pEhdr->e_phnum);
+
+	/*
+	 * Write packed elf header
+	 */
+	fseek(fd_dst, 0, SEEK_SET);
+	if (fwrite(elf_header, seg_offset, 1, fd_dst) != 1) {
+		res = -1;
+		goto end_free_elf_header;
+	}
+
+	void *seg_tmp;
+
+	/*
+	 * Write elf segments
+	 */
+	for (int i=0;i<pEhdr->e_phnum;i++) {
+
+		/*
+		 * vita only accepts 0x10 to 0x1000 alignments
+		 */
+		if (pPhdr[i].p_align > 0x1000) {
+			pPhdr[i].p_align = 0x10; // vita elf default align
+		}
+
+		seg_offset = (seg_offset + (pPhdr[i].p_align - 1)) & ~(pPhdr[i].p_align - 1);
+
+		if (pPhdr[i].p_filesz != 0) {
+			seg_tmp = malloc(pPhdr[i].p_filesz);
+
+			fseek(fd_dst, seg_offset, SEEK_SET);
+			fseek(fd_src, pPhdr[i].p_offset, SEEK_SET);
+
+			if (fread(seg_tmp, pPhdr[i].p_filesz, 1, fd_src) != 1) {
+				free(seg_tmp);
+				res = -1;
+				goto end_free_elf_header;
+			}
+
+			if (fwrite(seg_tmp, pPhdr[i].p_filesz, 1, fd_dst) != 1) {
+				free(seg_tmp);
+				res = -1;
+				goto end_free_elf_header;
+			}
+
+			free(seg_tmp);
+			seg_tmp = NULL;
+		}
+
+		pPhdr[i].p_offset = seg_offset;
+		seg_offset += pPhdr[i].p_filesz;
+	}
+
+	seg_offset = pEhdr->e_ehsize + (pEhdr->e_phentsize * pEhdr->e_phnum);
+
+	/*
+	 * Write updated elf header
+	 */
+	fseek(fd_dst, 0, SEEK_SET);
+	if (fwrite(elf_header, seg_offset, 1, fd_dst) != 1) {
+		res = -1;
+		goto end_free_elf_header;
+	}
+
+	remove(velf_path);
+	rename(tmp, velf_path);
+
+	res = 0;
+
+end_free_elf_header:
+	free(elf_header);
+
+end_io_close_dst:
+	fclose(fd_dst);
+
+end_io_close_src:
+	fclose(fd_src);
+
+	return res;
+}
+
 #if defined(_WIN32) && !defined(__CYGWIN__)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -136,12 +289,14 @@ int main(int argc, char *argv[])
 {
 	vita_elf_t *ve;
 	sce_module_info_t *module_info;
+	sce_module_params_t *params;
 	sce_section_sizes_t section_sizes;
 	void *encoded_modinfo;
 	vita_elf_rela_table_t rtable = {};
 	vita_export_t *exports = NULL;
-	
 	int status = EXIT_SUCCESS;
+	int have_libc;
+	uint32_t have_libc_addr;
 
 	elf_create_args args = {};
 	if (parse_arguments(argc, argv, &args) < 0) {
@@ -189,12 +344,18 @@ int main(int argc, char *argv[])
 	TRACEF(VERBOSE, "Segments:\n");
 	list_segments(ve);
 
-	module_info = sce_elf_module_info_create(ve, exports);
+	have_libc = get_variable_by_symbol("sceLibcHeapSize", ve, &have_libc_addr);
+
+	params = sce_elf_module_params_create(ve, have_libc);
+	if (!params)
+		return EXIT_FAILURE;
+
+	module_info = sce_elf_module_info_create(ve, exports, params->process_param);
 
 	if (!module_info)
 		return EXIT_FAILURE;
 	
-	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes);
+	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes, have_libc);
 	int curpos = 0;
 	TRACEF(VERBOSE, "Total SCE data size: %d / %x\n", total_size, total_size);
 #define PRINTSEC(name) TRACEF(VERBOSE, "  .%.*s.%s: %d (%x @ %x)\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name, section_sizes.name, curpos+ve->segments[0].vaddr+ve->segments[0].memsz); curpos += section_sizes.name
@@ -209,7 +370,7 @@ int main(int argc, char *argv[])
 	PRINTSEC(sceVStub_rodata);
 
 	encoded_modinfo = sce_elf_module_info_encode(
-			module_info, ve, &section_sizes, &rtable);
+			module_info, ve, &section_sizes, &rtable, params);
 
 	TRACEF(VERBOSE, "Relocations from encoded modinfo:\n");
 	print_rtable(&rtable);
@@ -228,12 +389,16 @@ int main(int argc, char *argv[])
 	ASSERT(sce_elf_set_headers(outfile, ve));
 	fclose(outfile);
 
+	if (args.is_test_stripping != 0)
+		vita_elf_packing(args.output, exports);
+
 	/* FIXME: restore original segment sizes */
 	for(idx = 0; idx < ve->num_segments; idx++)
 		ve->segments[idx].memsz = segment_sizes[idx];
 	free(segment_sizes);
 
 	sce_elf_module_info_free(module_info);
+	sce_elf_module_params_free(params);
 	vita_elf_free(ve);
 
 	return status;

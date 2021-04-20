@@ -13,6 +13,10 @@
 #  define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#ifndef MAP_NORESERVE
+#  define MAP_NORESERVE 0
+#endif
+
 #ifndef __MINGW32__
 /* This may cause trouble with Windows portability, but there are Windows alternatives
  * to mmap() that we can explore later.  It'll probably work under Cygwin.
@@ -60,9 +64,9 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 				chunk_offset < data->d_size;
 				stub_data += 4, chunk_offset += 16) {
 			curstub->addr = shdr.sh_addr + data->d_off + chunk_offset;
-			curstub->module = vita_imports_module_new(name,false,0,0,0);
-			curstub->module->flags = le32toh(stub_data[0]);
-			curstub->module_nid = le32toh(stub_data[1]);
+			curstub->library = vita_imports_lib_new(name,false,0,0,0);
+			curstub->library->flags = le32toh(stub_data[0]);
+			curstub->library_nid = le32toh(stub_data[1]);
 			curstub->target_nid = le32toh(stub_data[2]);
 			curstub++;
 		}
@@ -241,6 +245,9 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 	for (relndx = 0; relndx < data->d_size / shdr.sh_entsize; relndx++) {
 		if (gelf_getrel(data, relndx, &rel) != &rel)
 			FAILX("gelf_getrel() failed");
+
+		if ((rel.r_offset - text_shdr.sh_addr) >= text_shdr.sh_size)
+			continue;
 
 		currela = rtable->relas + relndx;
 		currela->type = GELF_R_TYPE(rel.r_info);
@@ -566,9 +573,9 @@ static int lookup_stubs(vita_elf_stub_t *stubs, int num_stubs, find_stub_func_pt
 int vita_elf_lookup_imports(vita_elf_t *ve)
 {
 	int found_all = 1;
-	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, &vita_imports_find_function, "function"))
+	if (!lookup_stubs(ve->fstubs, ve->num_fstubs, (find_stub_func_ptr)&vita_imports_find_function, "function"))
 		found_all = 0;
-	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, &vita_imports_find_variable, "variable"))
+	if (!lookup_stubs(ve->vstubs, ve->num_vstubs, (find_stub_func_ptr)&vita_imports_find_variable, "variable"))
 		found_all = 0;
 
 	return found_all;

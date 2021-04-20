@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+command -v pkg-config >/dev/null 2>&1 || { echo >&2 "I require pkg-config but it's not installed.  Aborting."; exit 1; }
+
+# reset pkg-config variables to ensure we're not polluted by host libraries
+
+export PKG_CONFIG_DIR=
+export PKG_CONFIG_PATH=
+export PKG_CONFIG_SYSROOT_DIR=
+
+export PKG_CONFIG_LIBDIR=${VITASDK}/arm-vita-eabi/lib/pkgconfig
+
+[[ "$1" == '--version' ]] && exec pkg-config --version
+exec pkg-config --static "$@"

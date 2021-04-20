@@ -16,6 +16,9 @@ void usage(const char **argv) {
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
 	fprintf(stderr, "\t-a : Authid for more permissions (SceShell: 0x2800000000000001).\n");
 	fprintf(stderr, "\t-c : Enable compression.\n");
+	fprintf(stderr, "\t-m : Memory budget for the application in kilobytes. (Normal app: 0, System mode app: 0x1000 - 0x12800)\n");
+	fprintf(stderr, "\t-pm: Physically contiguous memory budget for the application in kilobytes. (Note: The budget will be subtracted from standard memory budget)\n");
+	fprintf(stderr, "\t-at: ATTRIBUTE word in Control Info section 6.\n");
 	exit(1);
 }
 
@@ -32,6 +35,9 @@ int main(int argc, const char **argv) {
 
 	int safe = 0;
 	int compressed = 0;
+	uint32_t mem_budget = 0;
+	uint32_t phycont_mem_budget = 0;
+	uint32_t attribute_cinfo = 0;
 	uint64_t authid = 0;
 	while (argc > 2) {
 		if (strcmp(*argv, "-s") == 0) {
@@ -46,6 +52,24 @@ int main(int argc, const char **argv) {
 			
 			if (argc > 2)
 				authid = strtoull(*argv, NULL, 0);
+		} else if (strcmp(*argv, "-m") == 0) {
+			argc--;
+			argv++;
+			
+			if (argc > 2)
+				mem_budget = strtoul(*argv, NULL, 0);
+		} else if (strcmp(*argv, "-pm") == 0) {
+			argc--;
+			argv++;
+			
+			if (argc > 2)
+				phycont_mem_budget = strtoul(*argv, NULL, 0);
+		} else if (strcmp(*argv, "-at") == 0) {
+			argc--;
+			argv++;
+			
+			if (argc > 2)
+				attribute_cinfo = strtoul(*argv, NULL, 0);
 		}
 		argc--;
 		argv++;
@@ -89,13 +113,13 @@ int main(int argc, const char **argv) {
 	if (ehdr->e_type == ET_SCE_EXEC) {
 		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff);
 		sce_module_info_raw *info = (sce_module_info_raw *)(input + phdr->p_offset + phdr->p_paddr);
-		info->library_nid = htole32(mod_nid);
+		info->module_nid = htole32(mod_nid);
 	} else if (ehdr->e_type == ET_SCE_RELEXEC) {
 		int seg = ehdr->e_entry >> 30;
 		int off = ehdr->e_entry & 0x3fffffff;
 		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + seg * ehdr->e_phentsize);
 		sce_module_info_raw *info = (sce_module_info_raw *)(input + phdr->p_offset + off);
-		info->library_nid = htole32(mod_nid);
+		info->module_nid = htole32(mod_nid);
 	}
 
 	SCE_header hdr = { 0 };
@@ -151,7 +175,12 @@ int main(int argc, const char **argv) {
 	control_6.common.type = 6;
 	control_6.common.size = sizeof(control_6);
 	control_6.common.unk = 1;
-	control_6.unk1 = 1;
+	control_6.is_used = 1;
+	if (mem_budget) {
+		control_6.attr = attribute_cinfo;
+		control_6.phycont_memsize = phycont_mem_budget;
+		control_6.total_memsize = mem_budget;	
+	}
 	SCE_controlinfo_7 control_7 = { 0 };
 	control_7.common.type = 7;
 	control_7.common.size = sizeof(control_7);
@@ -223,8 +252,9 @@ int main(int argc, const char **argv) {
 	fwrite(&control_6, sizeof(control_6), 1, fout);
 	fwrite(&control_7, sizeof(control_7), 1, fout);
 
+	fseek(fout, HEADER_LEN, SEEK_SET);
+
 	if (!compressed) {
-		fseek(fout, HEADER_LEN, SEEK_SET);
 		if (fwrite(input, sz, 1, fout) != 1) {
 			perror("Failed to write a copy of input ELF");
 			goto error;
@@ -260,6 +290,13 @@ int main(int argc, const char **argv) {
 				goto error;
 			}
 			free(buf);
+
+#define SEGMENT_ALIGNMENT (0x10)
+
+			pad = (ftell(fout) & (SEGMENT_ALIGNMENT - 1));
+			if (((i + 1) != ehdr->e_phnum) && (pad != 0)) {
+				fseek(fout, (ftell(fout) + (SEGMENT_ALIGNMENT - 1)) & ~(SEGMENT_ALIGNMENT - 1), SEEK_SET);
+			}
 		}
 	}
 
@@ -270,7 +307,6 @@ int main(int argc, const char **argv) {
 		perror("Failed to write SCE header");
 		goto error;
 	}
-
 
 	fclose(fout);
 
