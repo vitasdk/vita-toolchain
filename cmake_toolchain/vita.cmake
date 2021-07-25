@@ -259,6 +259,7 @@ macro(vita_create_vpk target titleid eboot)
     COMMAND ${VITA_MKSFOEX} ${VITA_MKSFOEX_FLAGS} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
     COMMENT "Generating param.sfo for ${target}"
+    VERBATIM
   )
 
   set(vpk_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
