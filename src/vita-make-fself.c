@@ -11,7 +11,7 @@
 #include "sha256.h"
 
 void usage(const char **argv) {
-	fprintf(stderr, "usage: %s [-s|-ss|-a 0x2XXXXXXXXXXXXXXX] [-c] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
+	fprintf(stderr, "usage: %s [-s|-ss|-a 0x2XXXXXXXXXXXXXXX] [-c] [-na] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
 	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
 	fprintf(stderr, "\t-a : Authid for more permissions (SceShell: 0x2800000000000001).\n");
@@ -19,6 +19,7 @@ void usage(const char **argv) {
 	fprintf(stderr, "\t-m : Memory budget for the application in kilobytes. (Normal app: 0, System mode app: 0x1000 - 0x12800)\n");
 	fprintf(stderr, "\t-pm: Physically contiguous memory budget for the application in kilobytes. (Note: The budget will be subtracted from standard memory budget)\n");
 	fprintf(stderr, "\t-at: ATTRIBUTE word in Control Info section 6.\n");
+	fprintf(stderr, "\t-na: Disable ASLR.\n");
 	exit(1);
 }
 
@@ -35,6 +36,7 @@ int main(int argc, const char **argv) {
 
 	int safe = 0;
 	int compressed = 0;
+	int noaslr = 0;
 	uint32_t mem_budget = 0;
 	uint32_t phycont_mem_budget = 0;
 	uint32_t attribute_cinfo = 0;
@@ -70,6 +72,8 @@ int main(int argc, const char **argv) {
 			
 			if (argc > 2)
 				attribute_cinfo = strtoul(*argv, NULL, 0);
+		} else if (strcmp(*argv, "-na") == 0) {
+			noaslr = 1;
 		}
 		argc--;
 		argv++;
@@ -192,7 +196,11 @@ int main(int argc, const char **argv) {
 	myhdr.e_version = 1;
 	myhdr.e_entry = ehdr->e_entry;
 	myhdr.e_phoff = 0x34;
-	myhdr.e_flags = 0x05000000U;
+	if (noaslr) {
+		myhdr.e_flags = 0x05001000U;
+	} else {
+		myhdr.e_flags = 0x05000000U;
+	}
 	myhdr.e_ehsize = 0x34;
 	myhdr.e_phentsize = 0x20;
 	myhdr.e_phnum = ehdr->e_phnum;
