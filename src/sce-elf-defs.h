@@ -149,19 +149,19 @@ typedef struct SCE_TYPE(sce_libc_param) {
 		SCE_PTR(void *) free_for_tls;        /* free_for_tls replacement */
 	} _malloc_for_tls_replace;
 
-	uint32_t size;							      /* 0x38 */
-	uint32_t unk_0x4;
+	uint32_t size;                                /* 0x38 */
+	uint32_t unk_0x04;                            /* Unknown */
 	SCE_PTR(uint32_t *) heap_size;                /* Heap size variable */
 	SCE_PTR(uint32_t *) default_heap_size;        /* Default heap size variable */
-	SCE_PTR(uint32_t *) heap_extended_alloc;      /* Unknown */
-	SCE_PTR(uint32_t *) heap_delayed_alloc;       /* Unknown */
+	SCE_PTR(uint32_t *) heap_extended_alloc;      /* Dynamically extend heap size */
+	SCE_PTR(uint32_t *) heap_delayed_alloc;       /* Allocate heap on first call to malloc */
 	uint32_t fw_version;                          /* SDK version */
-	uint32_t unk_0x1C;                            /* Unknown, set to 9 */  
+	uint32_t unk_0x1C;                            /* Unknown, set to 9 */
 	SCE_PTR(const void *) malloc_replace;         /* malloc replacement functions */
 	SCE_PTR(const void *) new_replace;            /* new replacement functions */
-	uint32_t unk_0x28;                            /* Unknown */
-	uint32_t unk_0x2C;                            /* Unknown */
-	uint32_t unk_0x30;							  /* Unknown */
+	SCE_PTR(uint32_t *) heap_initial_size;        /* Dynamically allocated heap initial size */
+	SCE_PTR(uint32_t *) heap_unit_1mb;            /* Change alloc unit size from 64k to 1M */
+	SCE_PTR(uint32_t *) heap_detect_overrun;      /* Detect heap buffer overruns */
 	SCE_PTR(const void *) malloc_for_tls_replace; /* malloc_for_tls replacement functions */
 
 	uint32_t _default_heap_size;                  /* Default SceLibc heap size - 0x40000 (256KiB) */
