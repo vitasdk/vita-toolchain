@@ -11,6 +11,8 @@
 ##   - VITA_MKSFOEX_FLAGS
 ##   - VITA_PACK_VPK_FLAGS
 
+cmake_minimum_required( VERSION 3.2 )
+
 ## add_include_guard() has been added in 3.10, but it's too recent so we don't use it
 if(__VITA_CMAKE_INCLUDED__)
   return()
@@ -145,6 +147,7 @@ macro(vita_create_self target source)
     COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
     DEPENDS ${sourcepath}
     COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
   )
 
   set(self_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
@@ -155,6 +158,7 @@ macro(vita_create_self target source)
     COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
     COMMENT "Creating SELF ${target}"
+    BYPRODUCTS ${self_outfile}
   )
 
   ## SELF target
@@ -162,6 +166,7 @@ macro(vita_create_self target source)
     ALL
     DEPENDS ${self_outfile}
     COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
+    BYPRODUCTS ${target}
   )
 
   if(TARGET ${source})
@@ -328,6 +333,7 @@ macro(vita_create_vpk target titleid eboot)
     DEPENDS ${sourcepath}
     COMMENT "Generating param.sfo for ${target}"
     VERBATIM
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
   )
 
   set(vpk_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
@@ -340,6 +346,7 @@ macro(vita_create_vpk target titleid eboot)
     DEPENDS ${sourcepath}
     DEPENDS ${resources}
     COMMENT "Building vpk ${target}"
+    BYPRODUCTS ${vpk_outfile}
   )
 
   ## VPK target
@@ -347,6 +354,7 @@ macro(vita_create_vpk target titleid eboot)
     ALL
     DEPENDS ${vpk_outfile}
     COMMAND ${CMAKE_COMMAND} -E copy ${vpk_outfile} ${target}
+    BYPRODUCTS ${target}
   )
 
   if(TARGET ${eboot})
