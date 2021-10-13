@@ -296,7 +296,6 @@ int main(int argc, char *argv[])
 	vita_export_t *exports = NULL;
 	int status = EXIT_SUCCESS;
 	int have_libc;
-	uint32_t have_libc_addr;
 
 	elf_create_args args = {};
 	if (parse_arguments(argc, argv, &args) < 0) {
@@ -344,7 +343,12 @@ int main(int argc, char *argv[])
 	TRACEF(VERBOSE, "Segments:\n");
 	list_segments(ve);
 
-	have_libc = get_variable_by_symbol("sceLibcHeapSize", ve, &have_libc_addr);
+	have_libc = get_variable_by_symbol("sceLibcHeapSize", ve, NULL)
+				|| get_variable_by_symbol("sceLibcHeapExtendedAlloc", ve, NULL)
+				|| get_variable_by_symbol("sceLibcHeapDelayedAlloc", ve, NULL)
+				|| get_variable_by_symbol("sceLibcHeapInitialSize", ve, NULL)
+				|| get_variable_by_symbol("sceLibcHeapUnitSize1MiB", ve, NULL)
+				|| get_variable_by_symbol("sceLibcHeapDetectOverrun", ve, NULL);
 
 	params = sce_elf_module_params_create(ve, have_libc);
 	if (!params)
