@@ -104,7 +104,9 @@ static int get_function_by_symbol(const char *symbol, const vita_elf_t *ve, Elf3
 			continue;
 		
 		if (strcmp(ve->symtab[i].name, symbol) == 0) {
-			*vaddr = ve->symtab[i].value;
+			if (vaddr) {
+				*vaddr = ve->symtab[i].value;
+			}
 			break;
 		}
 	}
@@ -120,7 +122,9 @@ int get_variable_by_symbol(const char *symbol, const vita_elf_t *ve, Elf32_Addr 
 			continue;
 		
 		if (strcmp(ve->symtab[i].name, symbol) == 0) {
-			*vaddr = ve->symtab[i].value;
+			if (vaddr) {
+				*vaddr = ve->symtab[i].value;
+			}
 			break;
 		}
 	}
