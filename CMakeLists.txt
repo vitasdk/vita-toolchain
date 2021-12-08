@@ -8,5 +8,6 @@ endif()
 set(ENV{PKG_CONFIG_PATH} "${TOOLCHAIN_DEPS_DIR}/lib/pkgconfig:${TOOLCHAIN_DEPS_DIR}/share/pkgconfig")
 
 add_subdirectory(src)
+add_subdirectory(psp2rela)
 add_subdirectory(cmake_toolchain)
 add_subdirectory(pkgconfig)

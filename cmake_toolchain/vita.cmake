@@ -20,6 +20,70 @@ set(__VITA_CMAKE_INCLUDED__ TRUE)
 include(CMakeParseArguments)
 
 ##################################################
+## MACRO: psp2rela
+##
+## Generate a SELF from an ARM EABI ELF
+##   psp2rela(source
+##            [LOG_LEVEL_TRACE]
+##            [LOG_LEVEL_DEBUG]
+##            [LOG_LEVEL_INFO]
+##            [LOG_LEVEL_WARN]
+##            [LOG_LEVEL_ERROR])
+##
+## @param source
+##   The ARM EABI ELF target (from add_executable for example)
+##   or path to a provided ELF file
+## @param[opt] LOG_LEVEL_***
+##   The output log level
+##
+macro(psp2rela source)
+
+  set(options LOG_LEVEL_TRACE LOG_LEVEL_DEBUG LOG_LEVEL_INFO LOG_LEVEL_WARN LOG_LEVEL_ERROR)
+
+  ## check source for being a target, otherwise it is a file path
+  if(TARGET ${source})
+    set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${source})
+  else()
+    set(sourcepath ${source})
+  endif()
+  get_filename_component(sourcefile ${sourcepath} NAME)
+
+  set(PSP2RELA_FLAGS "n")
+
+  if(psp2rela_LOG_LEVEL_TRACE)
+    set(PSP2RELA_FLAGS "vvvvv")
+  endif()
+  if(psp2rela_LOG_LEVEL_DEBUG)
+    set(PSP2RELA_FLAGS "vvvv")
+  endif()
+  if(psp2rela_LOG_LEVEL_INFO)
+    set(PSP2RELA_FLAGS "vvv")
+  endif()
+  if(psp2rela_LOG_LEVEL_WARN)
+    set(PSP2RELA_FLAGS "vv")
+  endif()
+  if(psp2rela_LOG_LEVEL_ERROR)
+    set(PSP2RELA_FLAGS "v")
+  endif()
+
+  add_custom_command(OUTPUT psp2rela_target
+    COMMAND psp2rela -src=${sourcepath} -dst=${sourcepath} -flags=${PSP2RELA_FLAGS}
+    DEPENDS ${sourcepath}
+    COMMENT "Optimize the psp2rela" VERBATIM
+  )
+
+  add_custom_target(psp2rela
+    ALL
+    DEPENDS psp2rela_target
+    # COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
+  )
+
+  if(TARGET ${source})
+    add_dependencies(psp2rela ${source})
+  endif()
+endmacro(psp2rela)
+
+##################################################
 ## MACRO: vita_create_self
 ##
 ## Generate a SELF from an ARM EABI ELF
