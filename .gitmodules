@@ -1,0 +1,3 @@
+[submodule "psp2rela"]
+	path = psp2rela
+	url = https://github.com/Princess-of-Sleeping/psp2rela.git
