@@ -22,70 +22,6 @@ set(__VITA_CMAKE_INCLUDED__ TRUE)
 include(CMakeParseArguments)
 
 ##################################################
-## MACRO: psp2rela
-##
-## Generate a SELF from an ARM EABI ELF
-##   psp2rela(source
-##            [LOG_LEVEL_TRACE]
-##            [LOG_LEVEL_DEBUG]
-##            [LOG_LEVEL_INFO]
-##            [LOG_LEVEL_WARN]
-##            [LOG_LEVEL_ERROR])
-##
-## @param source
-##   The ARM EABI ELF target (from add_executable for example)
-##   or path to a provided ELF file
-## @param[opt] LOG_LEVEL_***
-##   The output log level
-##
-macro(psp2rela source)
-
-  set(options LOG_LEVEL_TRACE LOG_LEVEL_DEBUG LOG_LEVEL_INFO LOG_LEVEL_WARN LOG_LEVEL_ERROR)
-
-  ## check source for being a target, otherwise it is a file path
-  if(TARGET ${source})
-    set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${source})
-  else()
-    set(sourcepath ${source})
-  endif()
-  get_filename_component(sourcefile ${sourcepath} NAME)
-
-  set(PSP2RELA_FLAGS "n")
-
-  if(psp2rela_LOG_LEVEL_TRACE)
-    set(PSP2RELA_FLAGS "vvvvv")
-  endif()
-  if(psp2rela_LOG_LEVEL_DEBUG)
-    set(PSP2RELA_FLAGS "vvvv")
-  endif()
-  if(psp2rela_LOG_LEVEL_INFO)
-    set(PSP2RELA_FLAGS "vvv")
-  endif()
-  if(psp2rela_LOG_LEVEL_WARN)
-    set(PSP2RELA_FLAGS "vv")
-  endif()
-  if(psp2rela_LOG_LEVEL_ERROR)
-    set(PSP2RELA_FLAGS "v")
-  endif()
-
-  add_custom_command(OUTPUT psp2rela_target
-    COMMAND psp2rela -src=${sourcepath} -dst=${sourcepath} -flags=${PSP2RELA_FLAGS}
-    DEPENDS ${sourcepath}
-    COMMENT "Optimize the psp2rela" VERBATIM
-  )
-
-  add_custom_target(psp2rela
-    ALL
-    DEPENDS psp2rela_target
-    # COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
-  )
-
-  if(TARGET ${source})
-    add_dependencies(psp2rela ${source})
-  endif()
-endmacro(psp2rela)
-
-##################################################
 ## MACRO: vita_create_self
 ##
 ## Generate a SELF from an ARM EABI ELF
@@ -93,7 +29,8 @@ endmacro(psp2rela)
 ##                    [CONFIG file]
 ##                    [UNCOMPRESSED]
 ##                    [UNSAFE]
-##                    [STRIPPED])
+##                    [STRIPPED]
+##                    [REL_OPTIMIZE])
 ##
 ## @param target
 ##   A CMake custom target of this given name
@@ -111,7 +48,7 @@ macro(vita_create_self target source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
-  set(options UNCOMPRESSED UNSAFE STRIPPED NOASLR)
+  set(options UNCOMPRESSED UNSAFE STRIPPED NOASLR REL_OPTIMIZE)
   set(oneValueArgs CONFIG)
   cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
 
@@ -143,21 +80,41 @@ macro(vita_create_self target source)
 
   ## VELF command
   separate_arguments(VITA_ELF_CREATE_FLAGS)
-  add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-    COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-    DEPENDS ${sourcepath}
-    COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
-  )
+
+  if(vita_create_self_REL_OPTIMIZE)
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+      COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+      COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+      DEPENDS ${sourcepath}
+      COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+    )
+  else()
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+      COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+      DEPENDS ${sourcepath}
+      COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+    )
+  endif()
 
   set(self_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
 
   ## SELF command
   separate_arguments(VITA_MAKE_FSELF_FLAGS)
-  add_custom_command(OUTPUT ${self_outfile}
-    COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-    COMMENT "Creating SELF ${target}"
-  )
+
+  if(vita_create_self_REL_OPTIMIZE)
+    add_custom_command(OUTPUT ${self_outfile}
+      COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
+      COMMAND psp2rela -src=${self_outfile} -dst=${self_outfile}
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+      COMMENT "Creating SELF ${target}"
+    )
+  else()
+    add_custom_command(OUTPUT ${self_outfile}
+      COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
+      DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+      COMMENT "Creating SELF ${target}"
+    )
+  endif()
 
   ## SELF target
   add_custom_target(${target}-self
