@@ -160,15 +160,27 @@ macro(vita_create_self target source)
   )
 
   ## SELF target
-  add_custom_target(${target}-self
-    ALL
-    DEPENDS ${self_outfile}
-    COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
-    BYPRODUCTS ${target}
-  )
+  if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
+    add_custom_target(${target}
+      ALL
+      DEPENDS ${self_outfile}
+      COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
+    )
+  else()
+    add_custom_target(${target}-self
+      ALL
+      DEPENDS ${self_outfile}
+      COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
+      BYPRODUCTS ${target}
+    )
+  endif()
 
   if(TARGET ${source})
-    add_dependencies(${target}-self ${source})
+    if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
+      add_dependencies(${target} ${source})
+    else()
+      add_dependencies(${target}-self ${source})
+    endif()
   endif()
 endmacro(vita_create_self)
 ##################################################
@@ -348,15 +360,27 @@ macro(vita_create_vpk target titleid eboot)
   )
 
   ## VPK target
-  add_custom_target(${target}-vpk
-    ALL
-    DEPENDS ${vpk_outfile}
-    COMMAND ${CMAKE_COMMAND} -E copy ${vpk_outfile} ${target}
-    BYPRODUCTS ${target}
-  )
+  if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
+    add_custom_target(${target}
+      ALL
+      DEPENDS ${vpk_outfile}
+      COMMAND ${CMAKE_COMMAND} -E copy ${vpk_outfile} ${target}
+    )
+  else()
+    add_custom_target(${target}-vpk
+      ALL
+      DEPENDS ${vpk_outfile}
+      COMMAND ${CMAKE_COMMAND} -E copy ${vpk_outfile} ${target}
+      BYPRODUCTS ${target}
+    )
+  endif()
 
   if(TARGET ${eboot})
-    add_dependencies(${target}-vpk ${eboot})
+    if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
+      add_dependencies(${target} ${eboot})
+    else()
+      add_dependencies(${target}-vpk ${eboot})
+    endif()
   endif()
 endmacro(vita_create_vpk)
 ##################################################
