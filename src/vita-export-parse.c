@@ -45,7 +45,7 @@ static void print_module_tree(vita_export_t *export)
 	}
 }
 
-uint32_t exported_func_count = 0;
+#define EXPORT_NID_DATA_NUMBER (3)
 
 int process_functions(yaml_node *entry, vita_library_export *export) {
 	if (is_scalar(entry)) {
@@ -55,11 +55,27 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 		vita_export_symbol *symbol = malloc(sizeof(vita_export_symbol));
 		symbol->name = strdup(key->value);
 
-		// Hacky logic to protect against nid conflicts.
-		char *func_name_for_nid = malloc(key->len + 11);
-		int outlen = snprintf(func_name_for_nid, key->len + 10, "%s_%08X", key->value, exported_func_count++);
-		symbol->nid = sha256_32_vector(1, (uint8_t **)&func_name_for_nid, (size_t *)&outlen);
-		free(func_name_for_nid);
+		if (export->version == 0 || export->version == 1 || export->syscall != 0) {
+			symbol->nid = sha256_32_vector(1, (uint8_t **)&key->value, (size_t *)&key->len);
+		}
+		else {
+			uint32_t ver;
+			uint8_t **data_ptr[EXPORT_NID_DATA_NUMBER];
+			size_t size_ptr[EXPORT_NID_DATA_NUMBER];
+
+			ver = htonl(export->version);
+
+			data_ptr[0] = (uint8_t *)&ver;
+			size_ptr[0] = sizeof(ver);
+
+			data_ptr[1] = (uint8_t *)export->name;
+			size_ptr[1] = strlen(export->name);
+
+			data_ptr[2] = (uint8_t *)key->value;
+			size_ptr[2] = key->len;
+
+			symbol->nid = sha256_32_vector(EXPORT_NID_DATA_NUMBER, data_ptr, size_ptr);
+		}
 
 		// append to list
 		export->functions = realloc(export->functions, (export->function_n+1)*sizeof(const char*));
@@ -102,8 +118,6 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 			return -1;
 		}
 
-		exported_func_count++;
-
 		// append to list
 		export->functions = realloc(export->functions, (export->function_n+1)*sizeof(const char*));
 		export->functions[export->function_n++] = symbol;
@@ -119,8 +133,6 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 	return -1;
 }
 
-uint32_t exported_vars_count = 0;
-
 int process_variables(yaml_node *entry, vita_library_export *export) {
 	if (is_scalar(entry)) {
 		yaml_scalar *key = &entry->data.scalar;
@@ -129,11 +141,27 @@ int process_variables(yaml_node *entry, vita_library_export *export) {
 		vita_export_symbol *symbol = malloc(sizeof(vita_export_symbol));
 		symbol->name = strdup(key->value);
 
-		// Hacky logic to protect against nid conflicts.
-		char *func_name_for_nid = malloc(key->len + 11);
-		int outlen = snprintf(func_name_for_nid, key->len + 10, "%s_%08X", key->value, exported_vars_count++);
-		symbol->nid = sha256_32_vector(1, (uint8_t **)&func_name_for_nid, (size_t *)&outlen);
-		free(func_name_for_nid);
+		if (export->version == 0 || export->version == 1 || export->syscall != 0) {
+			symbol->nid = sha256_32_vector(1, (uint8_t **)&key->value, (size_t *)&key->len);
+		}
+		else {
+			uint32_t ver;
+			uint8_t **data_ptr[EXPORT_NID_DATA_NUMBER];
+			size_t size_ptr[EXPORT_NID_DATA_NUMBER];
+
+			ver = htonl(export->version);
+
+			data_ptr[0] = (uint8_t *)&ver;
+			size_ptr[0] = sizeof(ver);
+
+			data_ptr[1] = (uint8_t *)export->name;
+			size_ptr[1] = strlen(export->name);
+
+			data_ptr[2] = (uint8_t *)key->value;
+			size_ptr[2] = key->len;
+
+			symbol->nid = sha256_32_vector(EXPORT_NID_DATA_NUMBER, data_ptr, size_ptr);
+		}
 
 		// append to list
 		export->variables = realloc(export->variables, (export->variable_n+1)*sizeof(const char*));
@@ -175,8 +203,6 @@ int process_variables(yaml_node *entry, vita_library_export *export) {
 
 			return -1;
 		}
-
-		exported_vars_count++;
 
 		// append to list
 		export->variables = realloc(export->variables, (export->variable_n+1)*sizeof(const char*));
@@ -304,6 +330,20 @@ int process_export(yaml_node *parent, yaml_node *child, vita_library_export *exp
 			fprintf(stderr, "error: line: %zd, column: %zd, Library version must be 65535 or lower.\n", child->position.line, child->position.column);
 			return -1;
 		}
+
+		uint32_t ver;
+		uint8_t **data_ptr[2];
+		size_t size_ptr[2];
+
+		ver = htonl(export->version);
+
+		data_ptr[0] = (uint8_t *)&ver;
+		size_ptr[0] = sizeof(ver);
+
+		data_ptr[1] = (uint8_t *)export->name;
+		size_ptr[1] = strlen(export->name);
+
+		export->nid = sha256_32_vector(2, data_ptr, size_ptr);
 	}
 	else {
 		fprintf(stderr, "error: line: %zd, column: %zd, unrecognised library key '%s'.\n", child->position.line, child->position.column, key->value);
