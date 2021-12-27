@@ -121,13 +121,13 @@ macro(vita_create_self target source)
     add_custom_target(${target}
       ALL
       DEPENDS ${self_outfile}
-      COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
+      COMMAND ${CMAKE_COMMAND} -E copy "${self_outfile}" "${target}"
     )
   else()
     add_custom_target(${target}-self
       ALL
       DEPENDS ${self_outfile}
-      COMMAND ${CMAKE_COMMAND} -E copy ${self_outfile} ${target}
+      COMMAND ${CMAKE_COMMAND} -E copy "${self_outfile}" "${target}"
       BYPRODUCTS ${target}
     )
   endif()
@@ -205,11 +205,11 @@ macro(vita_create_stubs target-dir source config)
     COMMAND ${VITA_LIBS_GEN} ${VITA_LIBS_GEN_FLAGS} ${target_yml} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
     COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
     COMMAND ${CMAKE_COMMAND} -E copy
-      ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_lib}
-      ${CMAKE_CURRENT_BINARY_DIR}/${stub_lib}
+      "${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_lib}"
+      "${CMAKE_CURRENT_BINARY_DIR}/${stub_lib}"
     COMMAND ${CMAKE_COMMAND} -E copy
-      ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_weak_lib}
-      ${CMAKE_CURRENT_BINARY_DIR}/${stub_weak_lib}
+      "${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_weak_lib}"
+      "${CMAKE_CURRENT_BINARY_DIR}/${stub_weak_lib}"
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
     COMMENT "Building stubs ${target-dir}"
   )
@@ -321,13 +321,13 @@ macro(vita_create_vpk target titleid eboot)
     add_custom_target(${target}
       ALL
       DEPENDS ${vpk_outfile}
-      COMMAND ${CMAKE_COMMAND} -E copy ${vpk_outfile} ${target}
+      COMMAND ${CMAKE_COMMAND} -E copy "${vpk_outfile}" "${target}"
     )
   else()
     add_custom_target(${target}-vpk
       ALL
       DEPENDS ${vpk_outfile}
-      COMMAND ${CMAKE_COMMAND} -E copy ${vpk_outfile} ${target}
+      COMMAND ${CMAKE_COMMAND} -E copy "${vpk_outfile}" "${target}"
       BYPRODUCTS ${target}
     )
   endif()
