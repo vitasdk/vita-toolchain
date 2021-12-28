@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
 			else
 			{
 				fprintf(stderr, "error: got syscall flag for user module. did you mean to pass as kernel module?");
-				return EXIT_FAILURE;
+				goto error;
 			}
 		}
 		
