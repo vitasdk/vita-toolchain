@@ -8,6 +8,11 @@
 #include "yamltree.h"
 #include "yamltreeutil.h"
 #include "sha256.h"
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#endif
 
 static void print_module_tree(vita_export_t *export)
 {
