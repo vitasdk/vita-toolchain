@@ -257,6 +257,8 @@ vita_imports_t *read_vita_imports(yaml_document *doc) {
 				if (yaml_iterate_mapping(root->pairs[n]->rhs, (mapping_functor)process_import_list, imports) < 0)
 					return NULL;
 			}
+			else if (strcmp(root_value, "version") == 0) {
+			}
 			else {
 				fprintf(stderr, "warning: line: %zd, column: %zd, unknow tag '%s'.\n", root->pairs[n]->lhs->position.line, root->pairs[n]->lhs->position.column, root->pairs[n]->lhs->data.scalar.value);
 			}
