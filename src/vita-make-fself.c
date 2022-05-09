@@ -11,8 +11,8 @@
 #include "sha256.h"
 
 void usage(const char **argv) {
-	fprintf(stderr, "usage: %s [-s|-ss|-a 0x2XXXXXXXXXXXXXXX] [-c] [-na] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
-	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
+	fprintf(stderr, "usage:\t%s [-s|-ss|-a 0x2XXXXXXXXXXXXXXX] [-c] [-na] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
+	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\t     to restricted APIs and important parts of the filesystem.\n");
 	fprintf(stderr, "\t-ss: Generate a secret-safe eboot.bin. Do not use this option if you don't know what it does.\n");
 	fprintf(stderr, "\t-a : Authid for more permissions (SceShell: 0x2800000000000001).\n");
 	fprintf(stderr, "\t-c : Enable compression.\n");
@@ -20,6 +20,7 @@ void usage(const char **argv) {
 	fprintf(stderr, "\t-pm: Physically contiguous memory budget for the application in kilobytes. (Note: The budget will be subtracted from standard memory budget)\n");
 	fprintf(stderr, "\t-at: ATTRIBUTE word in Control Info section 6.\n");
 	fprintf(stderr, "\t-na: Disable ASLR.\n");
+	fprintf(stderr, "\t-e:  Enable elf digest.\n");
 	exit(1);
 }
 
@@ -37,6 +38,7 @@ int main(int argc, const char **argv) {
 	int safe = 0;
 	int compressed = 0;
 	int noaslr = 0;
+	int enable_digest = 0;
 	uint32_t mem_budget = 0;
 	uint32_t phycont_mem_budget = 0;
 	uint32_t attribute_cinfo = 0;
@@ -74,6 +76,8 @@ int main(int argc, const char **argv) {
 				attribute_cinfo = strtoul(*argv, NULL, 0);
 		} else if (strcmp(*argv, "-na") == 0) {
 			noaslr = 1;
+		} else if (strcmp(*argv, "-e") == 0) {
+			enable_digest = 1;
 		}
 		argc--;
 		argv++;
@@ -144,7 +148,10 @@ int main(int argc, const char **argv) {
 	hdr.section_info_offset = hdr.phdr_offset + sizeof(Elf32_Phdr) * ehdr->e_phnum;
 	hdr.sceversion_offset = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum;
 	hdr.controlinfo_offset = hdr.sceversion_offset + sizeof(SCE_version);
-	hdr.controlinfo_size = sizeof(SCE_controlinfo_5) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7);
+	hdr.controlinfo_size = sizeof(PSVita_npdrm_info) + sizeof(PSVita_boot_param_info) + sizeof(PSVita_shared_secret_info);
+	if(enable_digest) {
+		hdr.controlinfo_size += sizeof(PSVita_elf_digest_info);
+	}
 	hdr.self_filesize = 0;
 
 	uint32_t offset_to_real_elf = HEADER_LEN;
@@ -171,23 +178,36 @@ int main(int argc, const char **argv) {
 	ver.unk3 = 16;
 	ver.unk4 = 0;
 
-	SCE_controlinfo_5 control_5 = { 0 };
-	control_5.common.type = 5;
-	control_5.common.size = sizeof(control_5);
-	control_5.common.unk = 1;
-	SCE_controlinfo_6 control_6 = { 0 };
-	control_6.common.type = 6;
-	control_6.common.size = sizeof(control_6);
-	control_6.common.unk = 1;
-	control_6.is_used = 1;
-	if (mem_budget) {
-		control_6.attr = attribute_cinfo;
-		control_6.phycont_memsize = phycont_mem_budget;
-		control_6.total_memsize = mem_budget;	
+	PSVita_elf_digest_info control_info_digest = { 0 };
+	control_info_digest.head.type = 4;
+	control_info_digest.head.size = sizeof(PSVita_elf_digest_info);
+	control_info_digest.head.has_next = true;
+	memcpy(control_info_digest.constant, digest_constant, sizeof(digest_constant));
+	SHA256_CTX ctx;
+	sha256_init(&ctx);
+	sha256_update(&ctx, input, sz);
+	sha256_final(&ctx, control_info_digest.elf_digest);
+
+	PSVita_npdrm_info control_info_npdrm = { 0 };
+	control_info_npdrm.head.type = 5;
+	control_info_npdrm.head.size = sizeof(PSVita_npdrm_info);
+	control_info_npdrm.head.has_next = true;
+
+	PSVita_boot_param_info control_info_boot_param = { 0 };
+	control_info_boot_param.head.type = 6;
+	control_info_boot_param.head.size = sizeof(PSVita_boot_param_info);
+	control_info_boot_param.head.has_next = true;
+	if(mem_budget) {
+		control_info_boot_param.attr = attribute_cinfo;
+		control_info_boot_param.phycont_memsize = phycont_mem_budget;
+		control_info_boot_param.total_memsize = mem_budget;
 	}
-	SCE_controlinfo_7 control_7 = { 0 };
-	control_7.common.type = 7;
-	control_7.common.size = sizeof(control_7);
+	
+	PSVita_shared_secret_info control_info_shared_secret = { 0 };
+	control_info_shared_secret.head.type = 7;
+	control_info_shared_secret.head.size = sizeof(PSVita_shared_secret_info);
+	control_info_shared_secret.head.has_next = false;
+
 
 	Elf32_Ehdr myhdr = { 0 };
 	memcpy(myhdr.e_ident, "\177ELF\1\1\1", 8);
@@ -256,9 +276,12 @@ int main(int argc, const char **argv) {
 	}
 
 	fseek(fout, hdr.controlinfo_offset, SEEK_SET);
-	fwrite(&control_5, sizeof(control_5), 1, fout);
-	fwrite(&control_6, sizeof(control_6), 1, fout);
-	fwrite(&control_7, sizeof(control_7), 1, fout);
+	if(enable_digest) {
+		fwrite(&control_info_digest, sizeof(control_info_digest), 1, fout);
+	}
+	fwrite(&control_info_npdrm, sizeof(control_info_npdrm), 1, fout);
+	fwrite(&control_info_boot_param, sizeof(control_info_boot_param), 1, fout);
+	fwrite(&control_info_shared_secret, sizeof(control_info_shared_secret), 1, fout);
 
 	fseek(fout, HEADER_LEN, SEEK_SET);
 
