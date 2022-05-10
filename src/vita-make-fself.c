@@ -184,10 +184,10 @@ int main(int argc, const char **argv) {
 	control_info_digest.head.size = sizeof(SCE_elf_digest_info);
 	control_info_digest.head.has_next = true;
 	memcpy(control_info_digest.constant, digest_constant, sizeof(digest_constant));
-	SHA256_CTX ctx;
-	sha256_init(&ctx);
-	sha256_update(&ctx, input, sz);
-	sha256_final(&ctx, control_info_digest.elf_digest);
+	if(sha256_file(input_path, control_info_digest.elf_digest) != 0) {
+		perror("Cannot generate ELF digest");
+		goto error;
+	}
 	control_info_digest.min_required_fw = 0x360;
 
 	SCE_npdrm_info control_info_npdrm = { 0 };
