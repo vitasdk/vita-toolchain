@@ -4,7 +4,7 @@
 
 // some info taken from the wiki, see http://vitadevwiki.com/index.php?title=SELF_File_Format
 
-const char digest_constant[] =  {0x62, 0x7C, 0xB1, 0x80, 0x8A, 0xB9, 0x38, 0xE3, 0x2C, 0x8C, 0x09, 0x17, 0x08, 0x72, 0x6A, 0x57, 0x9E, 0x25, 0x86, 0xE4};
+const uint8_t digest_constant[0x14] =  {0x62, 0x7C, 0xB1, 0x80, 0x8A, 0xB9, 0x38, 0xE3, 0x2C, 0x8C, 0x09, 0x17, 0x08, 0x72, 0x6A, 0x57, 0x9E, 0x25, 0x86, 0xE4};
 
 #pragma pack(push, 1)
 typedef struct {
@@ -51,30 +51,35 @@ typedef struct {
 	uint32_t pad;
 } SCE_controlinfo;
 
-// (from fagdec)
 
-// type 4, 0x50 bytes
-typedef struct { // 0x40 bytes of data
+typedef enum {
+	SCE_ELF_DIGEST_INFO = 4,
+	SCE_NPDRM_INFO = 5,
+	SCE_BOOTPARAM_INFO = 6,
+	SCE_SHAREDSECRET_INFO = 7,
+} SCE_controlinfo_type;
+
+typedef struct {
 	SCE_controlinfo head;
-	uint8_t constant[0x14]; // same for every PSVita/PS3 SELF, hardcoded in make_fself.exe: 627CB1808AB938E32C8C091708726A579E2586E4
-	uint8_t elf_digest[0x20]; // on PSVita: SHA-256 of source ELF file, on PS3: SHA-1
+	uint8_t constant[0x14];   /* same for every PSVita/PS3 SELF, hardcoded as: 627CB1808AB938E32C8C091708726A579E2586E4 */
+	uint8_t elf_digest[0x20]; /* on PSVita: SHA-256 of source ELF file, on PS3: SHA-1 */
 	uint8_t padding[8];
-	uint32_t min_required_fw; // ex: 0x363 for 3.63
-} PSVita_elf_digest_info;
-// type 5, 0x110 bytes
-typedef struct { // 0x80 bytes of data
+	uint32_t min_required_fw; /* ex: 0x363 for 3.63, seems to be ignored */
+} SCE_elf_digest_info;
+
+typedef struct {
 	SCE_controlinfo head;
-	uint32_t magic;               // 7F 44 52 4D (".DRM")
-	uint32_t finalized_flag;      // ex: 80 00 00 01
-	uint32_t drm_type;            // license_type ex: 2 local, 0XD free with license
+	uint32_t magic;               /* 7F 44 52 4D (".DRM") */
+	uint32_t finalized_flag;      /* ex: 80 00 00 01 */
+	uint32_t drm_type;            /* license_type ex: 2 local, 0xD free with license */
 	uint32_t padding;
 	uint8_t content_id[0x30];
-	uint8_t digest[0x10];         // ?sha-1 hash of debug self/sprx created using make_fself_npdrm?
+	uint8_t digest[0x10];         /* ?sha-1 hash of debug self/sprx created using make_fself_npdrm? */
 	uint8_t padding_78[0x78];
-	uint8_t hash_signature[0x38]; // unknown hash/signature
-} PSVita_npdrm_info;
-// type 6, 0x110 bytes
-typedef struct { // 0x100 bytes of data
+	uint8_t hash_signature[0x38]; /* unknown hash/signature */
+} SCE_npdrm_info;
+
+typedef struct {
 	SCE_controlinfo head;
 	uint32_t is_used;               /* always set to 1 */
 	uint32_t attr;                  /* controls several app settings */
@@ -85,15 +90,16 @@ typedef struct { // 0x100 bytes of data
 	uint32_t encrypt_mount_max;     /* UNKNOWN */
 	uint32_t redirect_mount_max;    /* UNKNOWN */
 	char unk[0xE0];
-} PSVita_boot_param_info;
-// type 7, 0x50 bytes
-typedef struct { // 0x40 bytes of data
+} SCE_boot_param_info;
+
+typedef struct {
 	SCE_controlinfo head;
-	uint8_t shared_secret_0[0x10]; // ex: 0x7E7FD126A7B9614940607EE1BF9DDF5E or full of zeroes
-	uint8_t shared_secret_1[0x10]; // ex: full of zeroes
-	uint8_t shared_secret_2[0x10]; // ex: full of zeroes
-	uint8_t shared_secret_3[0x10]; // ex: full of zeroes
-} PSVita_shared_secret_info;
+	uint8_t shared_secret_0[0x10]; /* ex: 0x7E7FD126A7B9614940607EE1BF9DDF5E or full of zeroes */
+	uint8_t shared_secret_1[0x10]; /* ex: full of zeroes */
+	uint8_t shared_secret_2[0x10]; /* ex: full of zeroes */
+	uint8_t shared_secret_3[0x10]; /* ex: full of zeroes */
+} SCE_shared_secret_info;
+
 
 typedef struct {
 	uint64_t offset;

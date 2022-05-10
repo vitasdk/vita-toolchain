@@ -148,9 +148,9 @@ int main(int argc, const char **argv) {
 	hdr.section_info_offset = hdr.phdr_offset + sizeof(Elf32_Phdr) * ehdr->e_phnum;
 	hdr.sceversion_offset = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum;
 	hdr.controlinfo_offset = hdr.sceversion_offset + sizeof(SCE_version);
-	hdr.controlinfo_size = sizeof(PSVita_npdrm_info) + sizeof(PSVita_boot_param_info) + sizeof(PSVita_shared_secret_info);
+	hdr.controlinfo_size = sizeof(SCE_npdrm_info) + sizeof(SCE_boot_param_info) + sizeof(SCE_shared_secret_info);
 	if(enable_digest) {
-		hdr.controlinfo_size += sizeof(PSVita_elf_digest_info);
+		hdr.controlinfo_size += sizeof(SCE_elf_digest_info);
 	}
 	hdr.self_filesize = 0;
 
@@ -178,34 +178,37 @@ int main(int argc, const char **argv) {
 	ver.unk3 = 16;
 	ver.unk4 = 0;
 
-	PSVita_elf_digest_info control_info_digest = { 0 };
-	control_info_digest.head.type = 4;
-	control_info_digest.head.size = sizeof(PSVita_elf_digest_info);
+
+	SCE_elf_digest_info control_info_digest = { 0 };
+	control_info_digest.head.type = SCE_ELF_DIGEST_INFO;
+	control_info_digest.head.size = sizeof(SCE_elf_digest_info);
 	control_info_digest.head.has_next = true;
 	memcpy(control_info_digest.constant, digest_constant, sizeof(digest_constant));
 	SHA256_CTX ctx;
 	sha256_init(&ctx);
 	sha256_update(&ctx, input, sz);
 	sha256_final(&ctx, control_info_digest.elf_digest);
+	control_info_digest.min_required_fw = 0x360;
 
-	PSVita_npdrm_info control_info_npdrm = { 0 };
-	control_info_npdrm.head.type = 5;
-	control_info_npdrm.head.size = sizeof(PSVita_npdrm_info);
+	SCE_npdrm_info control_info_npdrm = { 0 };
+	control_info_npdrm.head.type = SCE_NPDRM_INFO;
+	control_info_npdrm.head.size = sizeof(SCE_npdrm_info);
 	control_info_npdrm.head.has_next = true;
 
-	PSVita_boot_param_info control_info_boot_param = { 0 };
-	control_info_boot_param.head.type = 6;
-	control_info_boot_param.head.size = sizeof(PSVita_boot_param_info);
+	SCE_boot_param_info control_info_boot_param = { 0 };
+	control_info_boot_param.head.type = SCE_BOOTPARAM_INFO;
+	control_info_boot_param.head.size = sizeof(SCE_boot_param_info);
 	control_info_boot_param.head.has_next = true;
+	control_info_boot_param.is_used = 1;
 	if(mem_budget) {
 		control_info_boot_param.attr = attribute_cinfo;
 		control_info_boot_param.phycont_memsize = phycont_mem_budget;
 		control_info_boot_param.total_memsize = mem_budget;
 	}
 	
-	PSVita_shared_secret_info control_info_shared_secret = { 0 };
-	control_info_shared_secret.head.type = 7;
-	control_info_shared_secret.head.size = sizeof(PSVita_shared_secret_info);
+	SCE_shared_secret_info control_info_shared_secret = { 0 };
+	control_info_shared_secret.head.type = SCE_SHAREDSECRET_INFO;
+	control_info_shared_secret.head.size = sizeof(SCE_shared_secret_info);
 	control_info_shared_secret.head.has_next = false;
 
 
