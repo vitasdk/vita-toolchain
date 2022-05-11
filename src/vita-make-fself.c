@@ -148,7 +148,7 @@ int main(int argc, const char **argv) {
 	hdr.section_info_offset = hdr.phdr_offset + sizeof(Elf32_Phdr) * ehdr->e_phnum;
 	hdr.sceversion_offset = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum;
 	hdr.controlinfo_offset = hdr.sceversion_offset + sizeof(SCE_version);
-	hdr.controlinfo_size = sizeof(SCE_npdrm_info) + sizeof(SCE_boot_param_info) + sizeof(SCE_shared_secret_info);
+	hdr.controlinfo_size = sizeof(SCE_boot_param_info) + sizeof(SCE_shared_secret_info);
 	if(enable_digest) {
 		hdr.controlinfo_size += sizeof(SCE_elf_digest_info);
 	}
@@ -189,11 +189,6 @@ int main(int argc, const char **argv) {
 		goto error;
 	}
 	control_info_digest.min_required_fw = 0x360;
-
-	SCE_npdrm_info control_info_npdrm = { 0 };
-	control_info_npdrm.head.type = SCE_NPDRM_INFO;
-	control_info_npdrm.head.size = sizeof(SCE_npdrm_info);
-	control_info_npdrm.head.has_next = true;
 
 	SCE_boot_param_info control_info_boot_param = { 0 };
 	control_info_boot_param.head.type = SCE_BOOTPARAM_INFO;
@@ -282,7 +277,6 @@ int main(int argc, const char **argv) {
 	if(enable_digest) {
 		fwrite(&control_info_digest, sizeof(control_info_digest), 1, fout);
 	}
-	fwrite(&control_info_npdrm, sizeof(control_info_npdrm), 1, fout);
 	fwrite(&control_info_boot_param, sizeof(control_info_boot_param), 1, fout);
 	fwrite(&control_info_shared_secret, sizeof(control_info_shared_secret), 1, fout);
 

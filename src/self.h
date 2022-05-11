@@ -67,6 +67,7 @@ typedef struct {
 	uint32_t min_required_fw; /* ex: 0x363 for 3.63, seems to be ignored */
 } SCE_elf_digest_info;
 
+// npdrm info is only needed for selfs, not fselfs
 typedef struct {
 	SCE_controlinfo head;
 	uint32_t magic;               /* 7F 44 52 4D (".DRM") */
@@ -76,7 +77,7 @@ typedef struct {
 	uint8_t content_id[0x30];
 	uint8_t digest[0x10];         /* ?sha-1 hash of debug self/sprx created using make_fself_npdrm? */
 	uint8_t padding_78[0x78];
-	uint8_t hash_signature[0x38]; /* unknown hash/signature */
+	uint8_t hash_signature[0x38]; /* unknown ECDSA224 signature */
 } SCE_npdrm_info;
 
 typedef struct {
@@ -89,7 +90,7 @@ typedef struct {
 	uint32_t dir_max_level;         /* max depth for directories support */
 	uint32_t encrypt_mount_max;     /* UNKNOWN */
 	uint32_t redirect_mount_max;    /* UNKNOWN */
-	char unk[0xE0];
+	uint8_t unk[0xE0];
 } SCE_boot_param_info;
 
 typedef struct {
