@@ -2,7 +2,7 @@
 
 #include <inttypes.h>
 
-// some info taken from the wiki, see http://vitadevwiki.com/index.php?title=SELF_File_Format
+// some info taken from the wiki, see https://www.psdevwiki.com/ps3/SELF_-_SPRX
 
 #pragma pack(push, 1)
 typedef struct {
