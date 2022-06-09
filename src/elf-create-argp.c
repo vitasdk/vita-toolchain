@@ -12,7 +12,7 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 	arguments->check_stub_count = 1;
 	arguments->is_test_stripping = 0;
 
-	while ((c = getopt(argc, argv, "vne:s")) != -1)
+	while ((c = getopt(argc, argv, "vne:sg:")) != -1)
 	{
 		switch (c)
 		{
@@ -28,6 +28,9 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 		case 's':
 			arguments->is_test_stripping = 1;
 			break;
+		case 'g':
+			arguments->exports_output = optarg;
+			break;
 		case '?':
 			fprintf(stderr, "unknown option -%c\n", optopt);
 			return -1;
@@ -39,6 +42,12 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 	if (argc - optind < 2)
 	{
 		printf("too few arguments\n");
+		return -1;
+	}
+
+	if (arguments->exports && arguments->exports_output)
+	{
+		printf("Options -a and -e cannot be used together\n");
 		return -1;
 	}
 	

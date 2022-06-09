@@ -6,15 +6,19 @@
 #include <stdint.h>
 
 #include "vita-import.h"
+#include "vita-export.h"
 #include "varray.h"
 
+struct vita_elf_stub_t;
 /* Convenience representation of a symtab entry */
 typedef struct vita_elf_symbol_t {
 	const char *name;
 	Elf32_Addr value;
 	uint8_t type;
 	uint8_t binding;
+	uint8_t visibility;
 	int shndx;
+	struct vita_elf_stub_t *stub;
 } vita_elf_symbol_t;
 
 typedef struct vita_elf_rela_t {
@@ -81,6 +85,8 @@ typedef struct vita_elf_t {
 
 vita_elf_t *vita_elf_load(const char *filename, int check_stub_count);
 void vita_elf_free(vita_elf_t *ve);
+
+void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports);
 
 int vita_elf_lookup_imports(vita_elf_t *ve);
 

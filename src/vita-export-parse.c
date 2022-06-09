@@ -65,7 +65,7 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 		}
 		else {
 			uint32_t ver;
-			uint8_t **data_ptr[EXPORT_NID_DATA_NUMBER];
+			uint8_t *data_ptr[EXPORT_NID_DATA_NUMBER];
 			size_t size_ptr[EXPORT_NID_DATA_NUMBER];
 
 			ver = htonl(export->version);
@@ -79,7 +79,7 @@ int process_functions(yaml_node *entry, vita_library_export *export) {
 			data_ptr[2] = (uint8_t *)key->value;
 			size_ptr[2] = key->len;
 
-			symbol->nid = sha256_32_vector(EXPORT_NID_DATA_NUMBER, data_ptr, size_ptr);
+			symbol->nid = sha256_32_vector(EXPORT_NID_DATA_NUMBER, (uint8_t **)data_ptr, size_ptr);
 		}
 
 		// append to list
@@ -151,7 +151,7 @@ int process_variables(yaml_node *entry, vita_library_export *export) {
 		}
 		else {
 			uint32_t ver;
-			uint8_t **data_ptr[EXPORT_NID_DATA_NUMBER];
+			uint8_t *data_ptr[EXPORT_NID_DATA_NUMBER];
 			size_t size_ptr[EXPORT_NID_DATA_NUMBER];
 
 			ver = htonl(export->version);
@@ -165,7 +165,7 @@ int process_variables(yaml_node *entry, vita_library_export *export) {
 			data_ptr[2] = (uint8_t *)key->value;
 			size_ptr[2] = key->len;
 
-			symbol->nid = sha256_32_vector(EXPORT_NID_DATA_NUMBER, data_ptr, size_ptr);
+			symbol->nid = sha256_32_vector(EXPORT_NID_DATA_NUMBER, (uint8_t **)data_ptr, size_ptr);
 		}
 
 		// append to list
@@ -337,7 +337,7 @@ int process_export(yaml_node *parent, yaml_node *child, vita_library_export *exp
 		}
 
 		uint32_t ver;
-		uint8_t **data_ptr[2];
+		uint8_t *data_ptr[2];
 		size_t size_ptr[2];
 
 		ver = htonl(export->version);
@@ -348,7 +348,7 @@ int process_export(yaml_node *parent, yaml_node *child, vita_library_export *exp
 		data_ptr[1] = (uint8_t *)export->name;
 		size_ptr[1] = strlen(export->name);
 
-		export->nid = sha256_32_vector(2, data_ptr, size_ptr);
+		export->nid = sha256_32_vector(2, (uint8_t **)data_ptr, size_ptr);
 	}
 	else {
 		fprintf(stderr, "error: line: %zd, column: %zd, unrecognised library key '%s'.\n", child->position.line, child->position.column, key->value);
@@ -670,4 +670,41 @@ vita_export_t *vita_export_generate_default(const char *elf)
 	exports->lib_n = 0;
 	exports->libs = NULL;
 	return exports;
+}
+
+void vita_exports_free(vita_export_t *exp)
+{
+	vita_library_export *curlib;
+	vita_export_symbol *cursym;
+	int i, j;
+
+	for (i = 0; i < exp->lib_n; i++) 
+	{
+		curlib = exp->libs[i];
+		for (j = 0; j < curlib->function_n; j++)
+		{
+			cursym = curlib->functions[j];
+			free((void *)cursym->name);
+			free(cursym);
+		}
+		for (j = 0; j < curlib->variable_n; j++)
+		{
+			cursym = curlib->variables[j];
+			free((void *)cursym->name);
+			free(cursym);
+		}
+
+		free(curlib->functions);
+		free(curlib->variables);
+		free((void *)curlib->name);
+
+		free(curlib);
+	}
+
+	free(exp->libs);
+	free((void *)exp->exit);
+	free((void *)exp->stop);
+	free((void *)exp->bootstart);
+	free((void *)exp->start);
+	free(exp);
 }
