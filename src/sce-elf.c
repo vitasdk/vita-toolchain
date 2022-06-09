@@ -55,7 +55,7 @@ static int _stub_nid_search(const void *key, const void *element) {
 	return 0;
 }
 
-static void * _module_init(void *element)
+static void * _library_init(void *element)
 {
 	import_library  *library = element;
 	if (!varray_init(&library->functions_va, sizeof(vita_elf_stub_t), 8)) return NULL;
@@ -68,14 +68,14 @@ static void * _module_init(void *element)
 
 	return library;
 }
-static void _module_destroy(void *element)
+static void _library_destroy(void *element)
 {
 	import_library  *library = element;
 	varray_destroy(&library->functions_va);
 	varray_destroy(&library->variables_va);
 }
 
-static int _module_sort(const void *el1, const void *el2)
+static int _library_sort(const void *el1, const void *el2)
 {
 	const import_library  *lib1 = el1, *lib2 = el2;
 	if (lib2->nid > lib1->nid)
@@ -85,7 +85,7 @@ static int _module_sort(const void *el1, const void *el2)
 	return 0;
 }
 
-static int _module_search(const void *key, const void *element)
+static int _library_search(const void *key, const void *element)
 {
 	const uint32_t *nid = key;
 	const import_library  *library = element;
@@ -400,10 +400,10 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 	}
 	
 	ASSERT(varray_init(&liblist.va, sizeof(import_library ), 8));
-	liblist.va.init_func = _module_init;
-	liblist.va.destroy_func = _module_destroy;
-	liblist.va.sort_compar = _module_sort;
-	liblist.va.search_compar = _module_search;
+	liblist.va.init_func = _library_init;
+	liblist.va.destroy_func = _library_destroy;
+	liblist.va.sort_compar = _library_sort;
+	liblist.va.search_compar = _library_search;
 
 	for (i = 0; i < ve->num_fstubs; i++) {
 		curstub = ve->fstubs + i;
