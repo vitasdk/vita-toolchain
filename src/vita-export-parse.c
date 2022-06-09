@@ -525,6 +525,11 @@ int process_module_info(yaml_node *parent, yaml_node *child, vita_export_t *info
 	}
 	
 	else if (strcmp(key->value, "modules") == 0) {
+		fprintf(stderr, "warning: line: %zd, column: %zd, use of 'modules' is deprecated, 'libraries' should be used instead.\n", child->position.line, child->position.column);
+		if (yaml_iterate_mapping(child, (mapping_functor)process_export_list, info) < 0)
+			return -1;
+	}
+	else if (strcmp(key->value, "libraries") == 0) {
 		if (yaml_iterate_mapping(child, (mapping_functor)process_export_list, info) < 0)
 			return -1;
 	}
