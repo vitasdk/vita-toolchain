@@ -39,9 +39,9 @@ typedef struct {
 
 static int _stub_sort(const void *el1, const void *el2) {
 	const vita_elf_stub_t *stub1 = el1, *stub2 = el2;
-	if (stub2->target_nid > stub1->target_nid)
+	if (stub1->target_nid > stub2->target_nid)
 		return 1;
-	else if (stub2->target_nid < stub1->target_nid)
+	else if (stub1->target_nid < stub2->target_nid)
 		return -1;
 	return 0;
 }

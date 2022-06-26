@@ -559,6 +559,19 @@ void vita_elf_free(vita_elf_t *ve)
 	free(ve);
 }
 
+static int compar_export_symbols(const void * a, const void *b)
+{
+	vita_export_symbol *symA = (*(vita_export_symbol **)a);
+	vita_export_symbol *symB = (*(vita_export_symbol **)b);
+
+	if (symA->nid > symB->nid)
+		return 1;
+	if (symA->nid < symB->nid)
+		return -1;
+
+	return 0;
+}
+
 void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports)
 {
 	int i;
@@ -601,7 +614,7 @@ void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports)
 			exportlib->syscall = 0;
 			exportlib->version = 1;
 
-			exports->libs = realloc(exports->libs, sizeof(vita_library_export *) * exports->lib_n + 1);
+			exports->libs = realloc(exports->libs, sizeof(vita_library_export *) * (exports->lib_n + 1));
 			exports->libs[exports->lib_n++] = exportlib;
 		}
 
@@ -620,6 +633,10 @@ void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports)
 			exportlib->variables[exportlib->variable_n++] = exportSym;
 		}
 	}
+
+	// Sort exports by NID
+	qsort(exportlib->variables, exportlib->variable_n, sizeof(vita_export_symbol *), compar_export_symbols);
+	qsort(exportlib->functions, exportlib->function_n, sizeof(vita_export_symbol *), compar_export_symbols);
 }
 
 typedef vita_imports_stub_t *(*find_stub_func_ptr)(vita_imports_module_t *, uint32_t);
