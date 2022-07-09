@@ -131,7 +131,7 @@ int main(int argc, const char **argv) {
 	hdr.version = 3;
 	hdr.sdk_type = 0xC0;
 	hdr.header_type = 1;
-	hdr.metadata_offset = 0x600; // ???
+	hdr.metadata_offset = 0x30;
 	hdr.header_len = HEADER_LEN;
 	hdr.elf_filesize = sz;
 	// self_filesize
