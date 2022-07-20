@@ -29,9 +29,11 @@
 
 #include "vita-elf.h"
 #include "vita-import.h"
+#include "vita-export.h"
 #include "elf-defs.h"
 #include "fail-utils.h"
 #include "endian-utils.h"
+#include "sha256.h"
 #include "vita-export.h"
 #include "sce-elf.h"
 
@@ -254,6 +256,7 @@ static int load_symbols(vita_elf_t *ve, Elf_Scn *scn)
 			cursym->type = GELF_ST_TYPE(sym.st_info);
 			cursym->binding = GELF_ST_BIND(sym.st_info);
 			cursym->shndx = sym.st_shndx;
+			cursym->visibility = ELF32_ST_VISIBILITY(sym.st_other);
 		}
 
 		total_bytes += data->d_size;
@@ -484,6 +487,7 @@ static int lookup_stub_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *s
 				FAILX("Stub at %06x in section %d has duplicate symbols: %s, %s",
 						cursym->value, stubs_ndx, stubs[stub].symbol->name, cursym->name);
 			stubs[stub].symbol = cursym;
+			cursym->stub = &stubs[stub];
 			break;
 		}
 
@@ -700,6 +704,86 @@ void vita_elf_free(vita_elf_t *ve)
 	if (ve->file != NULL)
 		fclose(ve->file);
 	free(ve);
+}
+
+static int compar_export_symbols(const void * a, const void *b)
+{
+	vita_export_symbol *symA = (*(vita_export_symbol **)a);
+	vita_export_symbol *symB = (*(vita_export_symbol **)b);
+
+	if (symA->nid > symB->nid)
+		return 1;
+	if (symA->nid < symB->nid)
+		return -1;
+
+	return 0;
+}
+
+void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports)
+{
+	int i;
+	vita_elf_symbol_t *cursym;
+	vita_library_export *exportlib = NULL;
+	vita_export_symbol *exportSym;
+	size_t strLen;
+
+	for (i = 0; i < ve->num_symbols; i++) {
+		cursym = &ve->symtab[i];
+		if (cursym->stub != NULL)
+			continue;
+		if (cursym->type != STT_FUNC && cursym->type != STT_OBJECT)
+			continue;
+		if (cursym->binding != STB_GLOBAL)
+			continue;
+
+		if (strcmp(cursym->name, "module_start") == 0 && exports->start == NULL) {
+			exports->start = strdup(cursym->name);
+			continue;
+		}
+		if (strcmp(cursym->name, "module_stop") == 0 && exports->stop == NULL) {
+			exports->stop = strdup(cursym->name);
+			continue;
+		}
+		if (strcmp(cursym->name, "module_exit") == 0 && exports->exit == NULL) {
+			exports->exit = strdup(cursym->name);
+			continue;
+		}
+
+		if (cursym->visibility != STV_DEFAULT)
+			continue;
+
+		if (exportlib == NULL) {
+			exportlib = calloc(1, sizeof(vita_library_export));
+
+			strLen = strlen(exports->name);
+			exportlib->name = strdup(exports->name);
+			exportlib->nid = sha256_32_vector(1, (uint8_t **)&exportlib->name, &strLen);
+			exportlib->syscall = 0;
+			exportlib->version = 1;
+
+			exports->libs = realloc(exports->libs, sizeof(vita_library_export *) * (exports->lib_n + 1));
+			exports->libs[exports->lib_n++] = exportlib;
+		}
+
+		exportSym = malloc(sizeof(vita_export_symbol));
+
+		strLen = strlen(cursym->name);
+		exportSym->name = strdup(cursym->name);
+		exportSym->nid = sha256_32_vector(1, (uint8_t **)&exportSym->name, &strLen);
+
+		if (cursym->type == STT_FUNC) {
+			exportlib->functions = realloc(exportlib->functions, sizeof(vita_export_symbol *) * (exportlib->function_n + 1));
+			exportlib->functions[exportlib->function_n++] = exportSym;
+		}
+		else {
+			exportlib->variables = realloc(exportlib->variables, sizeof(vita_export_symbol *) * (exportlib->variable_n + 1));
+			exportlib->variables[exportlib->variable_n++] = exportSym;
+		}
+	}
+
+	// Sort exports by NID
+	qsort(exportlib->variables, exportlib->variable_n, sizeof(vita_export_symbol *), compar_export_symbols);
+	qsort(exportlib->functions, exportlib->function_n, sizeof(vita_export_symbol *), compar_export_symbols);
 }
 
 typedef vita_imports_stub_t *(*find_stub_func_ptr)(vita_imports_module_t *, uint32_t);

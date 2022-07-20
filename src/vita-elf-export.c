@@ -213,6 +213,8 @@ error:
 	fclose(fp);
 	/* Destroy the Emitter object. */
 	yaml_emitter_delete(&emitter);
-	// TODO: free exports, free json
+	/* Free exports */
+	vita_exports_free(exports);
+
 	return 0;
 }
