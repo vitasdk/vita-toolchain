@@ -46,6 +46,12 @@ typedef struct vita_elf_stub_t {
 
 	vita_imports_lib_t *library;
 	vita_imports_stub_t *target;
+
+	size_t shndx;
+
+	void *rel_info; /* Relocation info for variable stubs */
+	size_t rel_count; /* Number of relocations in rel_info */
+	uint32_t rel_info_size; /* Size of the relocation info */
 } vita_elf_stub_t;
 
 typedef struct vita_elf_segment_info_t {

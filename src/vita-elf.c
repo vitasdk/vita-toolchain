@@ -34,8 +34,145 @@
 #include "fail-utils.h"
 #include "endian-utils.h"
 #include "sha256.h"
+#include "vita-export.h"
+#include "sce-elf.h"
 
 static void free_rela_table(vita_elf_rela_table_t *rtable);
+
+static int fixup_vstub_rela(vita_elf_t *ve, uint8_t *code, Elf32_Addr rel_vaddr)
+{
+	Elf_Scn *scn = NULL;
+	Elf_Data *data = NULL;
+	GElf_Shdr shdr;
+	union {
+		Elf32_Word arm;
+		Elf32_Half thumb[2];
+	} instr;
+	void *rel_addr = NULL;
+	Elf32_Word rel_offset;
+
+	while ((scn = elf_nextscn(ve->elf, scn)) != NULL) {
+		ELF_ASSERT(gelf_getshdr(scn, &shdr) == &shdr);
+		if ((shdr.sh_addr <= rel_vaddr) && (rel_vaddr < shdr.sh_addr + shdr.sh_size)) {
+			rel_offset = rel_vaddr - shdr.sh_addr;
+			while ((data = elf_getdata(scn, data)) != NULL) {
+				if ((data->d_off <= rel_offset) && (rel_offset < data->d_off + data->d_size)) {
+					rel_addr = data->d_buf + (rel_offset - data->d_off);
+					break;
+				}
+			}
+			break;
+		}
+	}
+
+	if (rel_addr == NULL)
+		FAILX("Failed to find address of relocatable");
+
+	/* Data relocations will be stubbed NULL access */
+	switch (*code) {
+	case R_ARM_TARGET1: /* Target 1 is handled like ABS32 on Vita*/
+	case R_ARM_ABS32:
+		*(Elf32_Word *)rel_addr = 0;
+
+		*code = R_ARM_NONE;
+		break;
+	case R_ARM_TARGET2: /* Target 2 is handled like REL32 on Vita*/
+	case R_ARM_REL32:
+		*(Elf32_Word *)rel_addr = 0 - rel_vaddr;
+
+		*code = R_ARM_NONE;
+		break;
+	case R_ARM_MOVW_ABS_NC:
+	case R_ARM_MOVT_ABS:
+		instr.arm = le32toh(*(Elf32_Word *)rel_addr);
+		instr.arm &= 0xFFF0F000; /* Mask out the immediate */
+
+		*(Elf32_Word *)rel_addr = htole32(instr.arm);
+
+		*code = R_ARM_NONE;
+		break;
+	case R_ARM_THM_MOVW_ABS_NC:
+	case R_ARM_THM_MOVT_ABS:
+		instr.thumb[0] = le16toh(*(Elf32_Half *)rel_addr);
+		instr.thumb[1] = le16toh(*(Elf32_Half *)(rel_addr + 2));
+		instr.thumb[0] &= 0xFBF0;
+		instr.thumb[1] &= 0x8F00; /* Mask out the immediate */
+
+		*(Elf32_Half *)rel_addr = htole16(instr.thumb[0]);
+		*(Elf32_Half *)(rel_addr + 2) = htole16(instr.thumb[1]);
+
+		*code = R_ARM_NONE;
+		break;
+	default: /* Other relocations will be left as is */
+		break;
+	}
+
+	return 1;
+failure:
+	return 0;
+}
+
+static void create_vstub_short_rel(vita_elf_t *ve, vita_elf_stub_t *vstub, vita_elf_rela_t *rela)
+{
+	SCE_Rel *rel;
+
+	vstub->rel_info_size += sizeof(Elf32_Word) * 2;
+	vstub->rel_info = realloc(vstub->rel_info, (vstub->rel_count + 1) * sizeof(SCE_Rel));
+
+	rel = (SCE_Rel *)vstub->rel_info + vstub->rel_count++;
+	rel->r_short = 1;
+	rel->r_variable_short_entry.r_code = rela->type;
+	rel->r_variable_short_entry.r_datseg = vita_elf_vaddr_to_segndx(ve, rela->offset);
+	rel->r_variable_short_entry.r_offset = vita_elf_vaddr_to_segoffset(ve, rela->offset, rel->r_variable_short_entry.r_datseg);
+	rel->r_variable_short_entry.r_addend = *(Elf32_Word *)(&rela->addend);
+}
+
+static void create_vstub_long_rel(vita_elf_t *ve, vita_elf_stub_t *vstub, vita_elf_rela_t *rela)
+{
+	SCE_Rel *rel;
+
+	vstub->rel_info_size += sizeof(Elf32_Word) * 3;
+	vstub->rel_info = realloc(vstub->rel_info, (vstub->rel_count + 1) * sizeof(SCE_Rel));
+
+	rel = ((SCE_Rel *)vstub->rel_info) + vstub->rel_count++;
+	rel->r_short = 2;
+	rel->r_variable_long_entry.r_code = rela->type;
+	rel->r_variable_long_entry.r_datseg = vita_elf_vaddr_to_segndx(ve, rela->offset);
+	rel->r_variable_long_entry.r_offset = vita_elf_vaddr_to_segoffset(ve, rela->offset, rel->r_variable_short_entry.r_datseg);
+	rel->r_variable_long_entry.r_addend = *(Elf32_Word *)(&rela->addend);
+}
+
+static int lookup_vstub_relas(vita_elf_t *ve)
+{
+	vita_elf_stub_t *vstub;
+	vita_elf_rela_table_t *rtable;
+	vita_elf_rela_t *rela;
+
+	for (int i = 0; i < ve->num_vstubs; i++) {
+		vstub = &(ve->vstubs[i]);
+		rtable = ve->rela_tables;
+		while (rtable != NULL) {
+			for (int j = 0; j < rtable->num_relas; j++) {
+				rela = &(rtable->relas[j]);
+				if (rela->symbol == vstub->symbol) {
+					if ((rela->addend >= -32768) && (rela->addend < 32768)) /* Addend is fully representable with 16 signed bits */
+						create_vstub_short_rel(ve, vstub, rela);
+					else
+						create_vstub_long_rel(ve, vstub, rela);
+
+					if (fixup_vstub_rela(ve, &rela->type, rela->offset) == 0)
+						FAILX("Failed to fixup vstub relocations");
+				}
+			}
+			rtable = rtable->next;
+		}
+	}
+
+	return 1;
+
+failure:
+	return 0;
+}
 
 static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, char *name)
 {
@@ -45,8 +182,10 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 	int chunk_offset, total_bytes;
 	vita_elf_stub_t *curstub;
 	int old_num;
+	size_t shndx;
 
 	gelf_getshdr(scn, &shdr);
+	shndx = elf_ndxscn(scn);
 
 	old_num = *num_stubs;
 	*num_stubs = old_num + shdr.sh_size / 16;
@@ -70,6 +209,7 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 			curstub->library->flags = le32toh(stub_data[0]);
 			curstub->library_nid = le32toh(stub_data[1]);
 			curstub->target_nid = le32toh(stub_data[2]);
+			curstub->shndx = shndx;
 			curstub++;
 		}
 
@@ -341,7 +481,7 @@ static int lookup_stub_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *s
 					cursym->name, stubs_ndx, elf_decode_st_type(sym_type), elf_decode_st_type(cursym->type));
 		
 		for (stub = 0; stub < num_stubs; stub++) {
-			if (stubs[stub].addr != cursym->value)
+			if (stubs[stub].addr != cursym->value || stubs[stub].shndx != cursym->shndx)
 				continue;
 			if (stubs[stub].symbol != NULL)
 				FAILX("Stub at %06x in section %d has duplicate symbols: %s, %s",
@@ -523,6 +663,10 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 	}
 	ve->num_segments = loaded_segments;
 
+	/* This part can only be done after the segments have been loaded */
+	if (lookup_vstub_relas(ve) == 0)
+		FAILX("Failed to lookup the vstub relocations");
+
 	return ve;
 
 failure:
@@ -547,6 +691,9 @@ void vita_elf_free(vita_elf_t *ve)
 		if (ve->segments[i].vaddr_top != NULL)
 			munmap((void *)ve->segments[i].vaddr_top, ve->segments[i].memsz);
 	}
+
+	for (i = 0; i < ve->num_vstubs; i++)
+		free(ve->vstubs[i].rel_info);
 
 	/* free() is safe to call on NULL */
 	free(ve->fstubs);

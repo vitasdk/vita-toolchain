@@ -552,7 +552,7 @@ int main(int argc, char *argv[])
 	if (!module_info)
 		return EXIT_FAILURE;
 	
-	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes, have_libc);
+	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes, have_libc, ve->vstubs, ve->num_vstubs);
 	int curpos = 0;
 	TRACEF(VERBOSE, "Total SCE data size: %d / %x\n", total_size, total_size);
 #define PRINTSEC(name) TRACEF(VERBOSE, "  .%.*s.%s: %d (%x @ %x)\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name, section_sizes.name, curpos+ve->segments[0].vaddr+ve->segments[0].memsz); curpos += section_sizes.name
