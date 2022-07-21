@@ -47,7 +47,7 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 
 	if (arguments->exports && arguments->exports_output)
 	{
-		printf("Options -a and -e cannot be used together\n");
+		printf("Options -g and -e cannot be used together\n");
 		return -1;
 	}
 	
