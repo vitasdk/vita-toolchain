@@ -55,7 +55,7 @@ target_include_directories(vita-import PUBLIC
 add_executable(vita-libs-gen vita-libs-gen.c)
 add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c elf-defs.c sce-elf.c varray.c elf-utils.c yamlemitter.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
-add_executable(vita-make-fself vita-make-fself.c sha256.c)
+add_executable(vita-make-fself vita-make-fself.c)
 add_executable(vita-pack-vpk vita-pack-vpk.c)
 add_executable(vita-elf-export vita-elf-export.c yamlemitter.c)
 
