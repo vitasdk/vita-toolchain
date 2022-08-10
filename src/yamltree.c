@@ -22,6 +22,7 @@ DEALINGS IN THE SOFTWARE.
 
 */
 
+#define _GNU_SOURCE
 #include "yamltree.h"
 #include <yaml.h>
 #include <stdio.h>
