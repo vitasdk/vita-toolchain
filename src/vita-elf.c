@@ -658,8 +658,9 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 				FAIL("Could not allocate address space for segment %d", (int)segndx);
 			curseg->vaddr_bottom = curseg->vaddr_top + curseg->memsz;
 
+			memset(curseg->vaddr_top, 0, curseg->memsz);
 			fseek(ve->file, phdr.p_offset, SEEK_SET);
-			if(fread((void *)(curseg->vaddr_top), curseg->memsz, 1, ve->file) != 1){
+			if(fread((void *)(curseg->vaddr_top), phdr.p_filesz, 1, ve->file) != 1){
 				FAIL("Could not read for segment %d", (int)segndx);
 			}
 		}
