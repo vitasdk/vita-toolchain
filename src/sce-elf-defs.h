@@ -15,7 +15,7 @@
 struct SCE_TYPE(sce_module_exports);
 struct SCE_TYPE(sce_module_imports);
 
-typedef struct SCE_TYPE(sce_module_info) {
+typedef struct SCE_TYPE(sce_module_info) { // size is 0x5C-bytes
 	uint16_t attributes;
 	uint16_t version;			/* Set to 0x0101 */
 	char name[27];				/* Name of the library */
@@ -39,9 +39,6 @@ typedef struct SCE_TYPE(sce_module_info) {
 	SCE_PTR(const void *) exidx_end;	/* Offset to end of ARM EXIDX (optional) */
 	SCE_PTR(const void *) extab_top;	/* Offset to start of ARM EXTAB (optional) */
 	SCE_PTR(const void *) extab_end;	/* Offset to end of ARM EXTAB (optional */
-
-	// Included module_sdk_version export in module_info
-	uint32_t module_sdk_version;        /* SDK version */
 } SCE_TYPE(sce_module_info);
 
 typedef struct SCE_TYPE(sce_module_exports) {

@@ -536,6 +536,22 @@ int main(int argc, char *argv[])
 	TRACEF(VERBOSE, "Segments:\n");
 	list_segments(ve);
 
+	// Enter module module_sdk_version
+	{
+		Elf32_Addr module_sdk_version_address = 0xFFFFFFFF;
+		if (get_variable_by_symbol("module_sdk_version", ve, &module_sdk_version_address) == 1) {
+			const uint32_t *module_sdk_version_ptr = vita_elf_vaddr_to_host(ve, module_sdk_version_address);
+			ASSERT(module_sdk_version_ptr != NULL);
+
+			ve->module_sdk_version = *module_sdk_version_ptr;
+			ve->module_sdk_version_ptr = module_sdk_version_address;
+		}
+		else { // failback
+			ve->module_sdk_version = PSP2_SDK_VERSION;
+			ve->module_sdk_version_ptr = 0xFFFFFFFF;
+		}
+	}
+
 	have_libc = get_variable_by_symbol("sceLibcHeapSize", ve, NULL)
 				|| get_variable_by_symbol("sceLibcHeapExtendedAlloc", ve, NULL)
 				|| get_variable_by_symbol("sceLibcHeapDelayedAlloc", ve, NULL)

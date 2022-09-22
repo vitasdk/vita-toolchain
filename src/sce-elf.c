@@ -189,9 +189,9 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 {
 	export->size = sizeof(sce_module_exports_raw);
 	export->version = 0;
-	export->flags = 0x8000;
-	export->num_syms_funcs = (export_spec->is_image_module == 0) ? 1 : 0;
-	export->num_syms_vars = 3;
+	export->flags = 0x8000; // for syslib
+	export->num_syms_funcs = (export_spec->is_image_module == 0) ? 1 : 0; // Really all modules have module_start?
+	export->num_syms_vars = 2; // module_info/process_param for default
 
 	if (export_spec->is_image_module == 0) {
 		if (export_spec->bootstart)
@@ -203,7 +203,11 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 		if (export_spec->exit)
 			++export->num_syms_funcs;
 	}
-	
+
+	if (ve->module_sdk_version_ptr != 0xFFFFFFFF) {
+		++export->num_syms_vars;
+	}
+
 	int total_exports = export->num_syms_funcs + export->num_syms_vars;
 	export->nid_table = calloc(total_exports, sizeof(uint32_t));
 	export->entry_table = calloc(total_exports, sizeof(void*));
@@ -270,10 +274,12 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	export->entry_table[cur_nid] = process_param;
 	++cur_nid;
 
-	export->nid_table[cur_nid] = NID_MODULE_SDK_VERSION;
-	export->entry_table[cur_nid] = &module_info->module_sdk_version;
-	++cur_nid;
-	
+	if (ve->module_sdk_version_ptr != 0xFFFFFFFF) {
+		export->nid_table[cur_nid] = NID_MODULE_SDK_VERSION;
+		export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, ve->module_sdk_version_ptr);
+		++cur_nid;
+	}
+
 	return 0;
 	
 failure:
@@ -325,14 +331,14 @@ sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, int have_libc)
 	params->process_param->size = 0x34;
 	memcpy(&params->process_param->magic, "PSP2", 4);
 	params->process_param->version = 6;
-	params->process_param->fw_version = PSP2_SDK_VERSION;
+	params->process_param->fw_version = ve->module_sdk_version;
 
 	if (have_libc) {
 		params->libc_param = calloc(1, sizeof(sce_libc_param_t));
 		ASSERT(params->libc_param != NULL);
 		params->libc_param->size = 0x38;
 		params->libc_param->unk_0x1C = 9;
-		params->libc_param->fw_version = PSP2_SDK_VERSION;
+		params->libc_param->fw_version = ve->module_sdk_version;
 		params->libc_param->_default_heap_size = 0x40000;
 	}
 
@@ -375,7 +381,6 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 
 	module_info->type = 6;
 	module_info->version = (exports->ver_major << 8) | exports->ver_minor;
-	module_info->module_sdk_version = PSP2_SDK_VERSION;
 	
 	strncpy(module_info->name, exports->name, sizeof(module_info->name) - 1);
 	
@@ -744,7 +749,6 @@ void *sce_elf_module_info_encode(
 	CONVERTOFFSET(module_info, exidx_end);
 	CONVERTOFFSET(module_info, extab_top);
 	CONVERTOFFSET(module_info, extab_end);
-	CONVERT32(module_info, module_sdk_version);
 
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		int num_syms;
@@ -779,8 +783,6 @@ void *sce_elf_module_info_encode(
 				raw_entries[i] = htole32(segment_base + start_offset);
 			} else if (export->entry_table[i] == process_param) {
 				raw_entries[i] = htole32(VADDR(sceModuleInfo_rodata) + process_param_offset);
-			} else if (export->entry_table[i] == &module_info->module_sdk_version) {
-				raw_entries[i] = htole32(VADDR(sceModuleInfo_rodata) + offsetof(sce_module_info_raw, module_sdk_version));
 			} else {
 				raw_entries[i] = htole32(vita_elf_host_to_vaddr(ve, export->entry_table[i]));
 			}
