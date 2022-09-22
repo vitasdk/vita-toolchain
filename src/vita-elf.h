@@ -71,6 +71,9 @@ typedef struct vita_elf_t {
 	int mode;
 	Elf *elf;
 
+	uint32_t module_sdk_version;
+	Elf32_Addr module_sdk_version_ptr;
+
 	varray fstubs_va;
 	varray vstubs_va;
 
