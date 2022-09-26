@@ -662,7 +662,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 			if (phdr.p_filesz != 0) {
 				fseek(ve->file, phdr.p_offset, SEEK_SET);
 				if (fread((void *)(curseg->vaddr_top), phdr.p_filesz, 1, ve->file) != 1) {
-					FAIL("Could not read for segment %d", (int)segndx);
+					FAIL("Could not read segment %d", (int)segndx);
 				}
 			}
 		}
