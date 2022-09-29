@@ -39,9 +39,9 @@ typedef struct {
 
 static int _stub_sort(const void *el1, const void *el2) {
 	const vita_elf_stub_t *stub1 = el1, *stub2 = el2;
-	if (stub2->target_nid > stub1->target_nid)
+	if (stub1->target_nid > stub2->target_nid)
 		return 1;
-	else if (stub2->target_nid < stub1->target_nid)
+	else if (stub1->target_nid < stub2->target_nid)
 		return -1;
 	return 0;
 }
@@ -55,7 +55,7 @@ static int _stub_nid_search(const void *key, const void *element) {
 	return 0;
 }
 
-static void * _module_init(void *element)
+static void * _library_init(void *element)
 {
 	import_library  *library = element;
 	if (!varray_init(&library->functions_va, sizeof(vita_elf_stub_t), 8)) return NULL;
@@ -68,14 +68,14 @@ static void * _module_init(void *element)
 
 	return library;
 }
-static void _module_destroy(void *element)
+static void _library_destroy(void *element)
 {
 	import_library  *library = element;
 	varray_destroy(&library->functions_va);
 	varray_destroy(&library->variables_va);
 }
 
-static int _module_sort(const void *el1, const void *el2)
+static int _library_sort(const void *el1, const void *el2)
 {
 	const import_library  *lib1 = el1, *lib2 = el2;
 	if (lib2->nid > lib1->nid)
@@ -85,7 +85,7 @@ static int _module_sort(const void *el1, const void *el2)
 	return 0;
 }
 
-static int _module_search(const void *key, const void *element)
+static int _library_search(const void *key, const void *element)
 {
 	const uint32_t *nid = key;
 	const import_library  *library = element;
@@ -189,9 +189,9 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 {
 	export->size = sizeof(sce_module_exports_raw);
 	export->version = 0;
-	export->flags = 0x8000;
-	export->num_syms_funcs = (export_spec->is_image_module == 0) ? 1 : 0;
-	export->num_syms_vars = 3;
+	export->flags = 0x8000; // for syslib
+	export->num_syms_funcs = (export_spec->is_image_module == 0) ? 1 : 0; // Really all modules have module_start?
+	export->num_syms_vars = 2; // module_info/process_param for default
 
 	if (export_spec->is_image_module == 0) {
 		if (export_spec->bootstart)
@@ -203,7 +203,11 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 		if (export_spec->exit)
 			++export->num_syms_funcs;
 	}
-	
+
+	if (ve->module_sdk_version_ptr != 0xFFFFFFFF) {
+		++export->num_syms_vars;
+	}
+
 	int total_exports = export->num_syms_funcs + export->num_syms_vars;
 	export->nid_table = calloc(total_exports, sizeof(uint32_t));
 	export->entry_table = calloc(total_exports, sizeof(void*));
@@ -270,10 +274,12 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	export->entry_table[cur_nid] = process_param;
 	++cur_nid;
 
-	export->nid_table[cur_nid] = NID_MODULE_SDK_VERSION;
-	export->entry_table[cur_nid] = &module_info->module_sdk_version;
-	++cur_nid;
-	
+	if (ve->module_sdk_version_ptr != 0xFFFFFFFF) {
+		export->nid_table[cur_nid] = NID_MODULE_SDK_VERSION;
+		export->entry_table[cur_nid] = vita_elf_vaddr_to_host(ve, ve->module_sdk_version_ptr);
+		++cur_nid;
+	}
+
 	return 0;
 	
 failure:
@@ -325,14 +331,14 @@ sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, int have_libc)
 	params->process_param->size = 0x34;
 	memcpy(&params->process_param->magic, "PSP2", 4);
 	params->process_param->version = 6;
-	params->process_param->fw_version = PSP2_SDK_VERSION;
+	params->process_param->fw_version = ve->module_sdk_version;
 
 	if (have_libc) {
 		params->libc_param = calloc(1, sizeof(sce_libc_param_t));
 		ASSERT(params->libc_param != NULL);
 		params->libc_param->size = 0x38;
 		params->libc_param->unk_0x1C = 9;
-		params->libc_param->fw_version = PSP2_SDK_VERSION;
+		params->libc_param->fw_version = ve->module_sdk_version;
 		params->libc_param->_default_heap_size = 0x40000;
 	}
 
@@ -375,7 +381,6 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 
 	module_info->type = 6;
 	module_info->version = (exports->ver_major << 8) | exports->ver_minor;
-	module_info->module_sdk_version = PSP2_SDK_VERSION;
 	
 	strncpy(module_info->name, exports->name, sizeof(module_info->name) - 1);
 	
@@ -400,10 +405,10 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 	}
 	
 	ASSERT(varray_init(&liblist.va, sizeof(import_library ), 8));
-	liblist.va.init_func = _module_init;
-	liblist.va.destroy_func = _module_destroy;
-	liblist.va.sort_compar = _module_sort;
-	liblist.va.search_compar = _module_search;
+	liblist.va.init_func = _library_init;
+	liblist.va.destroy_func = _library_destroy;
+	liblist.va.sort_compar = _library_sort;
+	liblist.va.search_compar = _library_search;
 
 	for (i = 0; i < ve->num_fstubs; i++) {
 		curstub = ve->fstubs + i;
@@ -420,9 +425,9 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 		curstub = ve->vstubs + i;
 		curlib = varray_sorted_search_or_insert(&liblist.va, &curstub->library_nid, NULL);
 		ASSERT(curlib);
-		curlib->nid = curstub[i].library_nid;
-		if (curstub[i].library)
-			curlib->library = curstub[i].library;
+		curlib->nid = curstub->library_nid;
+		if (curstub->library)
+			curlib->library = curstub->library;
 
 		varray_sorted_insert_ex(&curlib->variables_va, curstub, 0);
 	}
@@ -449,7 +454,7 @@ sce_failure:
 	sizes->section += (size); \
 	total_size += (size); \
 } while (0)
-int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, int have_libc)
+int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, int have_libc, vita_elf_stub_t *vstubs, uint32_t num_vstubs)
 {
 	int total_size = 0;
 	sce_module_exports_t *export;
@@ -481,6 +486,9 @@ int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_siz
 		INCR(sceVStub_rodata, import->num_syms_vars * 4);
 		INCR(sceImport_rodata, import->num_syms_tls_vars * 8);
 	}
+
+	for (int i = 0; i < num_vstubs; i++)
+		INCR(sceVStub_rodata, sizeof(Elf32_Word) + vstubs[i].rel_info_size);
 
 	return total_size;
 }
@@ -553,7 +561,7 @@ void *sce_elf_module_info_encode(
 	uint32_t process_param_offset = sizeof(sce_module_info_raw);
 	uint32_t libc_param_offset = process_param_offset + sizeof(sce_process_param_raw);
 	int segndx;
-	int i;
+	int i, j;
 	sce_module_exports_t *export;
 	sce_module_imports_t *import;
 	sce_module_info_raw *module_info_raw;
@@ -564,6 +572,11 @@ void *sce_elf_module_info_encode(
 	sce_module_exports_raw *export_raw;
 	sce_module_imports_raw *import_raw;
 	varray relas;
+	Elf32_Word *vstub_addr;
+	Elf32_Addr vstub_vaddr;
+	SCE_Rel *vstub_rel;
+	uint32_t vstubs_size;
+	vita_elf_stub_t *import_vstub;
 
 	ASSERT(varray_init(&relas, sizeof(vita_elf_rela_t), 16));
 
@@ -736,7 +749,6 @@ void *sce_elf_module_info_encode(
 	CONVERTOFFSET(module_info, exidx_end);
 	CONVERTOFFSET(module_info, extab_top);
 	CONVERTOFFSET(module_info, extab_end);
-	CONVERT32(module_info, module_sdk_version);
 
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		int num_syms;
@@ -771,8 +783,6 @@ void *sce_elf_module_info_encode(
 				raw_entries[i] = htole32(segment_base + start_offset);
 			} else if (export->entry_table[i] == process_param) {
 				raw_entries[i] = htole32(VADDR(sceModuleInfo_rodata) + process_param_offset);
-			} else if (export->entry_table[i] == &module_info->module_sdk_version) {
-				raw_entries[i] = htole32(VADDR(sceModuleInfo_rodata) + offsetof(sce_module_info_raw, module_sdk_version));
 			} else {
 				raw_entries[i] = htole32(vita_elf_host_to_vaddr(ve, export->entry_table[i]));
 			}
@@ -814,13 +824,50 @@ void *sce_elf_module_info_encode(
 		if (import->num_syms_vars) {
 			SETLOCALPTR(import_raw->var_nid_table, sceVNID_rodata);
 			SETLOCALPTR(import_raw->var_entry_table, sceVStub_rodata);
+			vstub_vaddr = VADDR(sceVStub_rodata) + import->num_syms_vars * 4;
+			vstub_addr = ADDR(sceVStub_rodata) + import->num_syms_vars * 4;
+			vstubs_size = 0;
 			for (i = 0; i < import->num_syms_vars; i++) {
 				INTADDR(sceVNID_rodata) = htole32(import->var_nid_table[i]);
-				INTADDR(sceVStub_rodata) = htole32(vita_elf_host_to_vaddr(ve, import->var_entry_table[i]));
-				ADDRELA(ADDR(sceVStub_rodata));
 				INCR(sceVNID_rodata, 4);
+				INTADDR(sceVStub_rodata) = htole32(vstub_vaddr);
+				ADDRELA(ADDR(sceVStub_rodata));
 				INCR(sceVStub_rodata, 4);
+
+				for (import_vstub = ve->vstubs, j = 0; j < ve->num_vstubs; import_vstub++, j++) {
+					if (import_vstub->library_nid == import->library_nid && import_vstub->target_nid == import->var_nid_table[i])
+						break;
+				}
+				if (j == ve->num_vstubs)
+					FAILX("Cannot find stub for variable import NID 0x%08X in library %s", import->var_nid_table[i], import->library_name);
+
+				vstub_vaddr += import_vstub->rel_info_size + sizeof(Elf32_Word);
+				vstubs_size += import_vstub->rel_info_size + sizeof(Elf32_Word);
+				*vstub_addr++ = (import_vstub->rel_info_size + sizeof(Elf32_Word)) << 4; /* Write the header for the relocation info (size of relocation info + 4 bytes for the header itself) */
+
+				if ((vstub_addr[-1] >> 4) > 0xFFFFFF)
+					FAILX("Relocation info for variable import NID 0x%08X in library %s is too large (%u bytes)", import_vstub->target_nid, import->library_name, import_vstub->rel_info_size + 4);
+
+				for (j = 0; j < import_vstub->rel_count; j++) {
+					vstub_rel = (SCE_Rel *)(import_vstub->rel_info) + j;
+					if (vstub_rel->r_short == 1) {
+						*vstub_addr++ = htole32(vstub_rel->r_variable_short_entry.r_short |
+												(vstub_rel->r_variable_short_entry.r_datseg << 4) | 
+												(vstub_rel->r_variable_short_entry.r_code << 8) |
+												(vstub_rel->r_variable_short_entry.r_addend << 16));
+						*vstub_addr++ = htole32(vstub_rel->r_variable_short_entry.r_offset);
+					}
+					else {
+						*vstub_addr++ = htole32(vstub_rel->r_variable_long_entry.r_short |
+												(vstub_rel->r_variable_long_entry.r_datseg << 4) |
+												(vstub_rel->r_variable_long_entry.r_code << 8));
+						*vstub_addr++ = htole32(vstub_rel->r_variable_long_entry.r_offset);
+						*vstub_addr++ = htole32(vstub_rel->r_variable_long_entry.r_addend);
+					}
+				}
 			}
+
+			INCR(sceVStub_rodata, vstubs_size);
 		}
 		if (import->num_syms_tls_vars) {
 			SETLOCALPTR(import_raw->tls_var_nid_table, sceImport_rodata);
@@ -1143,20 +1190,58 @@ failure:
 	return 0;
 }
 
-int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
+static int update_symtab_entries(Elf_Scn *scn, int cur_ndx)
 {
-	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	Elf_Data *data;
+	GElf_Sym sym;
+	int total_bytes;
+	int data_beginsym, symndx;
+	vita_elf_symbol_t *cursym;
+
+	gelf_getshdr(scn, &shdr);
+
+	data = NULL; total_bytes = 0;
+	while (total_bytes < shdr.sh_size &&
+			(data = elf_getdata(scn, data)) != NULL) {
+
+		data_beginsym = data->d_off / shdr.sh_entsize;
+		for (symndx = 0; symndx < data->d_size / shdr.sh_entsize; symndx++) {
+			if (gelf_getsym(data, symndx, &sym) != &sym)
+				FAILE("gelf_getsym() failed");
+
+			/* Symbol is for the deleted section, so invalidate it */
+			if (sym.st_shndx == cur_ndx)
+				sym.st_shndx = 0;
+			else if (sym.st_shndx > cur_ndx)
+				sym.st_shndx--;
+
+			ELF_ASSERT(gelf_update_sym(data, symndx, &sym));
+		}
+
+		total_bytes += data->d_size;
+	}
+
+	return 1;
+failure:
+	return 0;
+}
+
+int sce_elf_rewrite_stubs(Elf *dest, vita_elf_t *ve)
+{
+	Elf_Scn *scn, *symtab_scn;
 	GElf_Shdr shdr;
 	Elf_Data *data;
 	size_t shstrndx;
 	void *shstrtab;
 	uint32_t *stubdata;
-	int j;
+	int j, i;
 	int *cur_ndx;
 	char *sh_name, *stub_name;
 
 	ELF_ASSERT(elf_getshdrstrndx(dest, &shstrndx) == 0);
 	ELF_ASSERT(scn = elf_getscn(dest, shstrndx));
+	ELF_ASSERT(symtab_scn = elf_getscn(dest, ve->symtab_ndx));
 	ELF_ASSERT(data = elf_getdata(scn, NULL));
 	shstrtab = data->d_buf;
 
@@ -1189,24 +1274,44 @@ int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve)
 		return 1;
 	}
 	
-	for(j=0;j<ve->vstubs_va.count;j++) {
+	for (j = ve->vstubs_va.count - 1; j >= 0; j--) {
 		cur_ndx = VARRAY_ELEMENT(&ve->vstubs_va,j);
 		ELF_ASSERT(scn = elf_getscn(dest, *cur_ndx));
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));
+
+		/* Remove vstub section */
+		elfx_remscn(dest, scn);
+
+		/* Fixup shstrndx */
+		if (shstrndx > *cur_ndx)
+			elfx_update_shstrndx(dest, --shstrndx);
+
+		if (ve->symtab_ndx > *cur_ndx)
+			ve->symtab_ndx--;
 		
-		sh_name = shstrtab + shdr.sh_name;
-		if (strstr(sh_name, ".vitalink.vstubs.") != sh_name)
-			errx(EXIT_FAILURE, "Your ELF file contains a malformed .vitalink.vstubs section. Please make sure all your stub libraries are up-to-date.");
-		stub_name = strrchr(sh_name, '.');
-		snprintf(sh_name, strlen(sh_name) + 1, ".data.vstubs%s", stub_name);
-		
-		data = NULL;
-		while ((data = elf_getdata(scn, data)) != NULL) {
-			for (stubdata = (uint32_t *)data->d_buf;
-					(void *)stubdata < data->d_buf + data->d_size - 11; stubdata += 4) {
-				memset(stubdata, 0, 16);
-			}
+		/* Fixup section index references */
+		scn = NULL;
+		while ((scn = elf_nextscn(dest, scn)) != NULL)
+		{
+			ELF_ASSERT(gelf_getshdr(scn, &shdr));
+
+			if (shdr.sh_link > *cur_ndx)
+				shdr.sh_link--;
+			if (shdr.sh_info > *cur_ndx)
+				shdr.sh_info--;
+
+			gelf_update_shdr(scn, &shdr);
 		}
+
+		/* Fixup symbol table section indices */
+		update_symtab_entries(symtab_scn, *cur_ndx);
+
+		for (i = j + 1; i < ve->vstubs_va.count; i++) {
+			cur_ndx = VARRAY_ELEMENT(&ve->vstubs_va, i);
+			(*cur_ndx)--;
+		}
+
+		varray_remove(&ve->vstubs_va, j);
 	}
 
 	return 1;

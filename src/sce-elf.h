@@ -58,6 +58,21 @@ typedef union {
 		Elf32_Word r_offset;
 	} r_long_entry;
 	struct {
+		Elf32_Word r_short     : 4; /* 0x1 */
+		Elf32_Word r_datseg    : 4;
+		Elf32_Word r_code      : 8;
+		Elf32_Word r_addend    : 16;
+		Elf32_Word r_offset;
+	} r_variable_short_entry;
+	struct {
+		Elf32_Word r_short     : 4; /* 0x2 */
+		Elf32_Word r_datseg    : 4;
+		Elf32_Word r_code      : 8;
+		Elf32_Word r_pad       : 16;
+		Elf32_Word r_offset;
+		Elf32_Word r_addend;
+	} r_variable_long_entry;
+	struct {
 		Elf32_Word r_word1;
 		Elf32_Word r_word2;
 		Elf32_Word r_word3;
@@ -96,7 +111,7 @@ void sce_elf_module_params_free(sce_module_params_t *params);
 
 sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exports, sce_process_param_t *process_param);
 
-int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, int have_libc);
+int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, int have_libc, vita_elf_stub_t *vstubs, uint32_t num_vstubs);
 
 void sce_elf_module_info_free(sce_module_info_t *module_info);
 
@@ -112,7 +127,7 @@ int sce_elf_discard_invalid_relocs(const vita_elf_t *ve, vita_elf_rela_table_t *
 int sce_elf_write_rela_sections(
 		Elf *dest, const vita_elf_t *ve, const vita_elf_rela_table_t *rtable);
 
-int sce_elf_rewrite_stubs(Elf *dest, const vita_elf_t *ve);
+int sce_elf_rewrite_stubs(Elf *dest, vita_elf_t *ve);
 
 int sce_elf_set_headers(FILE *outfile, const vita_elf_t *ve);
 

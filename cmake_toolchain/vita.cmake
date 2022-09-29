@@ -26,7 +26,7 @@ include(CMakeParseArguments)
 ##
 ## Generate a SELF from an ARM EABI ELF
 ##   vita_create_self(target source
-##                    [CONFIG file]
+##                    [CONFIG file | GEN_EXPORTS file]
 ##                    [UNCOMPRESSED]
 ##                    [UNSAFE]
 ##                    [STRIPPED]
@@ -43,18 +43,28 @@ include(CMakeParseArguments)
 ##   The homebrew uses private/system APIs and requires extended permissions
 ## @param[opt] CONFIG file
 ##   Path to a YAML config file defining exports and other optional information
+## @param[opt] GEN_EXPORTS file
+##   Path to the auto-generated YAML config file defining exports and other information
 ##
 macro(vita_create_self target source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
   set(options UNCOMPRESSED UNSAFE STRIPPED NOASLR REL_OPTIMIZE DIGEST)
-  set(oneValueArgs CONFIG)
+  set(oneValueArgs CONFIG GEN_EXPORTS)
   cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
+
+  if(vita_create_self_CONFIG AND vita_create_self_GEN_EXPORTS)
+    message( FATAL_ERROR "vita_create_self: GEN_EXPORTS and CONFIG cannot be used together")
+  endif()
 
   if(vita_create_self_CONFIG)
     get_filename_component(fconfig ${vita_create_self_CONFIG} ABSOLUTE)
     set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -e ${fconfig}")
+  endif()
+  if(vita_create_self_GEN_EXPORTS)
+    get_filename_component(fconfig ${vita_create_self_GEN_EXPORTS} ABSOLUTE)
+    set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -g ${fconfig}")
   endif()
   if(vita_create_self_STRIPPED)
     set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -s")
@@ -85,18 +95,78 @@ macro(vita_create_self target source)
   separate_arguments(VITA_ELF_CREATE_FLAGS)
 
   if(vita_create_self_REL_OPTIMIZE)
-    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-      COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-      COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-      DEPENDS ${sourcepath}
-      COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
-    )
+    if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
+      add_custom_target(${sourcefile}-velf ALL
+        COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        DEPENDS ${sourcepath}
+        COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+      )
+      # Little hack to ensure proper dependencies in the absence of BYPRODUCTS
+      add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        DEPENDS ${sourcefile}-velf
+      )
+      if (vita_create_self_GEN_EXPORTS)
+        add_custom_command(OUTPUT ${fconfig}
+          COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${fconfig}
+          DEPENDS ${sourcefile}-velf
+        )
+      endif()
+    else()
+      if(vita_create_self_GEN_EXPORTS)
+        add_custom_target(${sourcefile}-velf ALL
+          COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          DEPENDS ${sourcepath}
+          BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${fconfig}
+          COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+        )
+      else()
+        add_custom_target(${sourcefile}-velf ALL
+          COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          DEPENDS ${sourcepath}
+          BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+        )
+      endif()
+    endif()
   else()
-    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-      COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-      DEPENDS ${sourcepath}
-      COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
-    )
+    if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
+      add_custom_target(${sourcefile}-velf ALL
+        COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        DEPENDS ${sourcepath}
+        COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+      )
+      # Little hack to ensure proper dependencies in the absence of BYPRODUCTS
+      add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        DEPENDS ${sourcefile}-velf
+      )
+      if (vita_create_self_GEN_EXPORTS)
+        add_custom_command(OUTPUT ${fconfig}
+          COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${fconfig}
+          DEPENDS ${sourcefile}-velf
+        )
+      endif()
+    else()
+      if(vita_create_self_GEN_EXPORTS)
+        add_custom_target(${sourcefile}-velf ALL
+          COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          DEPENDS ${sourcepath}
+          BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${fconfig}
+          COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+        )
+      else()
+        add_custom_target(${sourcefile}-velf ALL
+          COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          DEPENDS ${sourcepath}
+          BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
+        )
+      endif()
+    endif()
   endif()
 
   set(self_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
@@ -161,12 +231,14 @@ endmacro(vita_create_self)
 ##   Path to a YAML config file defining exports
 ## @param[opt] KERNEL
 ##   Specifies that this module makes kernel exports
+## @param[opt] GEN_EXPORTS
+##   Specifies that this module's exports have been dynamically generated
 ##
 macro(vita_create_stubs target-dir source config)
   set(VITA_ELF_EXPORT_FLAGS "${VITA_ELF_EXPORT_FLAGS}" CACHE STRING "vita-elf-export flags")
   set(VITA_LIBS_GEN_FLAGS "${VITA_LIBS_GEN_FLAGS}" CACHE STRING "vita-libs-gen flags")
 
-  set(options KERNEL)
+  set(options KERNEL GEN_EXPORTS)
   cmake_parse_arguments(vita_create_stubs "${options}" "" "" ${ARGN})
 
   if(vita_create_stubs_KERNEL)
@@ -188,8 +260,14 @@ macro(vita_create_stubs target-dir source config)
   ## ELF EXPORT command
   separate_arguments(VITA_ELF_EXPORT_FLAGS)
   get_filename_component(fconfig ${config} ABSOLUTE)
-  file(READ ${fconfig} fconfig_content)
-  string(REGEX REPLACE ":.+" "" target-lib ${fconfig_content})
+
+  if (vita_create_stubs_GEN_EXPORTS)
+    get_filename_component(target-lib ${sourcepath} NAME_WE)
+  else()
+    file(READ ${fconfig} fconfig_content)
+    string(REGEX REPLACE ":.+" "" target-lib ${fconfig_content})
+  endif()
+
   add_custom_command(OUTPUT ${target_yml}
     COMMAND ${VITA_ELF_EXPORT} ${kind} ${VITA_ELF_EXPORT_FLAGS} ${sourcepath} ${fconfig} ${target_yml}
     DEPENDS ${sourcepath}

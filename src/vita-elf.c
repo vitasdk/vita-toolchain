@@ -29,11 +29,150 @@
 
 #include "vita-elf.h"
 #include "vita-import.h"
+#include "vita-export.h"
 #include "elf-defs.h"
 #include "fail-utils.h"
 #include "endian-utils.h"
+#include "sha256.h"
+#include "vita-export.h"
+#include "sce-elf.h"
 
 static void free_rela_table(vita_elf_rela_table_t *rtable);
+
+static int fixup_vstub_rela(vita_elf_t *ve, uint8_t *code, Elf32_Addr rel_vaddr)
+{
+	Elf_Scn *scn = NULL;
+	Elf_Data *data = NULL;
+	GElf_Shdr shdr;
+	union {
+		Elf32_Word arm;
+		Elf32_Half thumb[2];
+	} instr;
+	void *rel_addr = NULL;
+	Elf32_Word rel_offset;
+
+	while ((scn = elf_nextscn(ve->elf, scn)) != NULL) {
+		ELF_ASSERT(gelf_getshdr(scn, &shdr) == &shdr);
+		if ((shdr.sh_addr <= rel_vaddr) && (rel_vaddr < shdr.sh_addr + shdr.sh_size)) {
+			rel_offset = rel_vaddr - shdr.sh_addr;
+			while ((data = elf_getdata(scn, data)) != NULL) {
+				if ((data->d_off <= rel_offset) && (rel_offset < data->d_off + data->d_size)) {
+					rel_addr = data->d_buf + (rel_offset - data->d_off);
+					break;
+				}
+			}
+			break;
+		}
+	}
+
+	if (rel_addr == NULL)
+		FAILX("Failed to find address of relocatable");
+
+	/* Data relocations will be stubbed NULL access */
+	switch (*code) {
+	case R_ARM_TARGET1: /* Target 1 is handled like ABS32 on Vita*/
+	case R_ARM_ABS32:
+		*(Elf32_Word *)rel_addr = 0;
+
+		*code = R_ARM_NONE;
+		break;
+	case R_ARM_TARGET2: /* Target 2 is handled like REL32 on Vita*/
+	case R_ARM_REL32:
+		*(Elf32_Word *)rel_addr = 0 - rel_vaddr;
+
+		*code = R_ARM_NONE;
+		break;
+	case R_ARM_MOVW_ABS_NC:
+	case R_ARM_MOVT_ABS:
+		instr.arm = le32toh(*(Elf32_Word *)rel_addr);
+		instr.arm &= 0xFFF0F000; /* Mask out the immediate */
+
+		*(Elf32_Word *)rel_addr = htole32(instr.arm);
+
+		*code = R_ARM_NONE;
+		break;
+	case R_ARM_THM_MOVW_ABS_NC:
+	case R_ARM_THM_MOVT_ABS:
+		instr.thumb[0] = le16toh(*(Elf32_Half *)rel_addr);
+		instr.thumb[1] = le16toh(*(Elf32_Half *)(rel_addr + 2));
+		instr.thumb[0] &= 0xFBF0;
+		instr.thumb[1] &= 0x8F00; /* Mask out the immediate */
+
+		*(Elf32_Half *)rel_addr = htole16(instr.thumb[0]);
+		*(Elf32_Half *)(rel_addr + 2) = htole16(instr.thumb[1]);
+
+		*code = R_ARM_NONE;
+		break;
+	default: /* Other relocations will be left as is */
+		break;
+	}
+
+	return 1;
+failure:
+	return 0;
+}
+
+static void create_vstub_short_rel(vita_elf_t *ve, vita_elf_stub_t *vstub, vita_elf_rela_t *rela)
+{
+	SCE_Rel *rel;
+
+	vstub->rel_info_size += sizeof(Elf32_Word) * 2;
+	vstub->rel_info = realloc(vstub->rel_info, (vstub->rel_count + 1) * sizeof(SCE_Rel));
+
+	rel = (SCE_Rel *)vstub->rel_info + vstub->rel_count++;
+	rel->r_short = 1;
+	rel->r_variable_short_entry.r_code = rela->type;
+	rel->r_variable_short_entry.r_datseg = vita_elf_vaddr_to_segndx(ve, rela->offset);
+	rel->r_variable_short_entry.r_offset = vita_elf_vaddr_to_segoffset(ve, rela->offset, rel->r_variable_short_entry.r_datseg);
+	rel->r_variable_short_entry.r_addend = *(Elf32_Word *)(&rela->addend);
+}
+
+static void create_vstub_long_rel(vita_elf_t *ve, vita_elf_stub_t *vstub, vita_elf_rela_t *rela)
+{
+	SCE_Rel *rel;
+
+	vstub->rel_info_size += sizeof(Elf32_Word) * 3;
+	vstub->rel_info = realloc(vstub->rel_info, (vstub->rel_count + 1) * sizeof(SCE_Rel));
+
+	rel = ((SCE_Rel *)vstub->rel_info) + vstub->rel_count++;
+	rel->r_short = 2;
+	rel->r_variable_long_entry.r_code = rela->type;
+	rel->r_variable_long_entry.r_datseg = vita_elf_vaddr_to_segndx(ve, rela->offset);
+	rel->r_variable_long_entry.r_offset = vita_elf_vaddr_to_segoffset(ve, rela->offset, rel->r_variable_short_entry.r_datseg);
+	rel->r_variable_long_entry.r_addend = *(Elf32_Word *)(&rela->addend);
+}
+
+static int lookup_vstub_relas(vita_elf_t *ve)
+{
+	vita_elf_stub_t *vstub;
+	vita_elf_rela_table_t *rtable;
+	vita_elf_rela_t *rela;
+
+	for (int i = 0; i < ve->num_vstubs; i++) {
+		vstub = &(ve->vstubs[i]);
+		rtable = ve->rela_tables;
+		while (rtable != NULL) {
+			for (int j = 0; j < rtable->num_relas; j++) {
+				rela = &(rtable->relas[j]);
+				if (rela->symbol == vstub->symbol) {
+					if ((rela->addend >= -32768) && (rela->addend < 32768)) /* Addend is fully representable with 16 signed bits */
+						create_vstub_short_rel(ve, vstub, rela);
+					else
+						create_vstub_long_rel(ve, vstub, rela);
+
+					if (fixup_vstub_rela(ve, &rela->type, rela->offset) == 0)
+						FAILX("Failed to fixup vstub relocations");
+				}
+			}
+			rtable = rtable->next;
+		}
+	}
+
+	return 1;
+
+failure:
+	return 0;
+}
 
 static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, char *name)
 {
@@ -43,8 +182,10 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 	int chunk_offset, total_bytes;
 	vita_elf_stub_t *curstub;
 	int old_num;
+	size_t shndx;
 
 	gelf_getshdr(scn, &shdr);
+	shndx = elf_ndxscn(scn);
 
 	old_num = *num_stubs;
 	*num_stubs = old_num + shdr.sh_size / 16;
@@ -68,6 +209,7 @@ static int load_stubs(Elf_Scn *scn, int *num_stubs, vita_elf_stub_t **stubs, cha
 			curstub->library->flags = le32toh(stub_data[0]);
 			curstub->library_nid = le32toh(stub_data[1]);
 			curstub->target_nid = le32toh(stub_data[2]);
+			curstub->shndx = shndx;
 			curstub++;
 		}
 
@@ -114,6 +256,7 @@ static int load_symbols(vita_elf_t *ve, Elf_Scn *scn)
 			cursym->type = GELF_ST_TYPE(sym.st_info);
 			cursym->binding = GELF_ST_BIND(sym.st_info);
 			cursym->shndx = sym.st_shndx;
+			cursym->visibility = ELF32_ST_VISIBILITY(sym.st_other);
 		}
 
 		total_bytes += data->d_size;
@@ -338,12 +481,13 @@ static int lookup_stub_symbols(vita_elf_t *ve, int num_stubs, vita_elf_stub_t *s
 					cursym->name, stubs_ndx, elf_decode_st_type(sym_type), elf_decode_st_type(cursym->type));
 		
 		for (stub = 0; stub < num_stubs; stub++) {
-			if (stubs[stub].addr != cursym->value)
+			if (stubs[stub].addr != cursym->value || stubs[stub].shndx != cursym->shndx)
 				continue;
 			if (stubs[stub].symbol != NULL)
 				FAILX("Stub at %06x in section %d has duplicate symbols: %s, %s",
 						cursym->value, stubs_ndx, stubs[stub].symbol->name, cursym->name);
 			stubs[stub].symbol = cursym;
+			cursym->stub = &stubs[stub];
 			break;
 		}
 
@@ -509,15 +653,27 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 		curseg->memsz = phdr.p_memsz;
 
 		if (curseg->memsz) {
-			curseg->vaddr_top = mmap(NULL, curseg->memsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+			curseg->vaddr_top = mmap(NULL, curseg->memsz, /* PROT_NONE */ PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 			if (curseg->vaddr_top == NULL)
 				FAIL("Could not allocate address space for segment %d", (int)segndx);
 			curseg->vaddr_bottom = curseg->vaddr_top + curseg->memsz;
+
+			memset(curseg->vaddr_top, 0, curseg->memsz);
+			if (phdr.p_filesz != 0) {
+				fseek(ve->file, phdr.p_offset, SEEK_SET);
+				if (fread((void *)(curseg->vaddr_top), phdr.p_filesz, 1, ve->file) != 1) {
+					FAIL("Could not read segment %d", (int)segndx);
+				}
+			}
 		}
 		
 		loaded_segments++;
 	}
 	ve->num_segments = loaded_segments;
+
+	/* This part can only be done after the segments have been loaded */
+	if (lookup_vstub_relas(ve) == 0)
+		FAILX("Failed to lookup the vstub relocations");
 
 	return ve;
 
@@ -544,6 +700,9 @@ void vita_elf_free(vita_elf_t *ve)
 			munmap((void *)ve->segments[i].vaddr_top, ve->segments[i].memsz);
 	}
 
+	for (i = 0; i < ve->num_vstubs; i++)
+		free(ve->vstubs[i].rel_info);
+
 	/* free() is safe to call on NULL */
 	free(ve->fstubs);
 	free(ve->vstubs);
@@ -553,6 +712,86 @@ void vita_elf_free(vita_elf_t *ve)
 	if (ve->file != NULL)
 		fclose(ve->file);
 	free(ve);
+}
+
+static int compar_export_symbols(const void * a, const void *b)
+{
+	vita_export_symbol *symA = (*(vita_export_symbol **)a);
+	vita_export_symbol *symB = (*(vita_export_symbol **)b);
+
+	if (symA->nid > symB->nid)
+		return 1;
+	if (symA->nid < symB->nid)
+		return -1;
+
+	return 0;
+}
+
+void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports)
+{
+	int i;
+	vita_elf_symbol_t *cursym;
+	vita_library_export *exportlib = NULL;
+	vita_export_symbol *exportSym;
+	size_t strLen;
+
+	for (i = 0; i < ve->num_symbols; i++) {
+		cursym = &ve->symtab[i];
+		if (cursym->stub != NULL)
+			continue;
+		if (cursym->type != STT_FUNC && cursym->type != STT_OBJECT)
+			continue;
+		if (cursym->binding != STB_GLOBAL)
+			continue;
+
+		if (strcmp(cursym->name, "module_start") == 0 && exports->start == NULL) {
+			exports->start = strdup(cursym->name);
+			continue;
+		}
+		if (strcmp(cursym->name, "module_stop") == 0 && exports->stop == NULL) {
+			exports->stop = strdup(cursym->name);
+			continue;
+		}
+		if (strcmp(cursym->name, "module_exit") == 0 && exports->exit == NULL) {
+			exports->exit = strdup(cursym->name);
+			continue;
+		}
+
+		if (cursym->visibility != STV_DEFAULT)
+			continue;
+
+		if (exportlib == NULL) {
+			exportlib = calloc(1, sizeof(vita_library_export));
+
+			strLen = strlen(exports->name);
+			exportlib->name = strdup(exports->name);
+			exportlib->nid = sha256_32_vector(1, (uint8_t **)&exportlib->name, &strLen);
+			exportlib->syscall = 0;
+			exportlib->version = 1;
+
+			exports->libs = realloc(exports->libs, sizeof(vita_library_export *) * (exports->lib_n + 1));
+			exports->libs[exports->lib_n++] = exportlib;
+		}
+
+		exportSym = malloc(sizeof(vita_export_symbol));
+
+		strLen = strlen(cursym->name);
+		exportSym->name = strdup(cursym->name);
+		exportSym->nid = sha256_32_vector(1, (uint8_t **)&exportSym->name, &strLen);
+
+		if (cursym->type == STT_FUNC) {
+			exportlib->functions = realloc(exportlib->functions, sizeof(vita_export_symbol *) * (exportlib->function_n + 1));
+			exportlib->functions[exportlib->function_n++] = exportSym;
+		}
+		else {
+			exportlib->variables = realloc(exportlib->variables, sizeof(vita_export_symbol *) * (exportlib->variable_n + 1));
+			exportlib->variables[exportlib->variable_n++] = exportSym;
+		}
+	}
+
+	// Sort exports by NID
+	qsort(exportlib->variables, exportlib->variable_n, sizeof(vita_export_symbol *), compar_export_symbols);
+	qsort(exportlib->functions, exportlib->function_n, sizeof(vita_export_symbol *), compar_export_symbols);
 }
 
 typedef vita_imports_stub_t *(*find_stub_func_ptr)(vita_imports_module_t *, uint32_t);

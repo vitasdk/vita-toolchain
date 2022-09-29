@@ -5,6 +5,7 @@ typedef struct elf_create_args
 {
 	int log_level;
 	const char *exports;
+	const char *exports_output;
 	const char *input;
 	const char *output;
 	int extra_imports_count;

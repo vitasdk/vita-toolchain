@@ -6,15 +6,19 @@
 #include <stdint.h>
 
 #include "vita-import.h"
+#include "vita-export.h"
 #include "varray.h"
 
+struct vita_elf_stub_t;
 /* Convenience representation of a symtab entry */
 typedef struct vita_elf_symbol_t {
 	const char *name;
 	Elf32_Addr value;
 	uint8_t type;
 	uint8_t binding;
+	uint8_t visibility;
 	int shndx;
+	struct vita_elf_stub_t *stub;
 } vita_elf_symbol_t;
 
 typedef struct vita_elf_rela_t {
@@ -42,6 +46,12 @@ typedef struct vita_elf_stub_t {
 
 	vita_imports_lib_t *library;
 	vita_imports_stub_t *target;
+
+	size_t shndx;
+
+	void *rel_info; /* Relocation info for variable stubs */
+	size_t rel_count; /* Number of relocations in rel_info */
+	uint32_t rel_info_size; /* Size of the relocation info */
 } vita_elf_stub_t;
 
 typedef struct vita_elf_segment_info_t {
@@ -60,6 +70,9 @@ typedef struct vita_elf_t {
 	FILE *file;
 	int mode;
 	Elf *elf;
+
+	uint32_t module_sdk_version;
+	Elf32_Addr module_sdk_version_ptr;
 
 	varray fstubs_va;
 	varray vstubs_va;
@@ -81,6 +94,8 @@ typedef struct vita_elf_t {
 
 vita_elf_t *vita_elf_load(const char *filename, int check_stub_count);
 void vita_elf_free(vita_elf_t *ve);
+
+void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports);
 
 int vita_elf_lookup_imports(vita_elf_t *ve);
 

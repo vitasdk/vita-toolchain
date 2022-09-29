@@ -1,6 +1,7 @@
 #ifndef SHA256_H__
 #define SHA256_H__
 
+#include <vita-toolchain-public.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -27,22 +28,20 @@ typedef struct {
 } SHA256_CTX;
 
 
-void sha256_vector(size_t num_elem,  uint8_t *addr[],  size_t *len,
-         uint8_t *mac);
-
 void sha256_transform(SHA256_CTX *ctx, uint8_t data[]);
 void sha256_init(SHA256_CTX *ctx);
 void sha256_update(SHA256_CTX *ctx, uint8_t data[], uint32_t len);
 void sha256_final(SHA256_CTX *ctx, uint8_t hash[]);
-void hmac_sha256_vector( uint8_t *key, size_t key_len, size_t num_elem,
+
+VITA_TOOLCHAIN_PUBLIC void hmac_sha256_vector( uint8_t *key, size_t key_len, size_t num_elem,
              uint8_t *addr[],  size_t *len, uint8_t *mac);
-void hmac_sha256( uint8_t *key, size_t key_len,  uint8_t *data,
+VITA_TOOLCHAIN_PUBLIC void hmac_sha256( uint8_t *key, size_t key_len,  uint8_t *data,
          size_t data_len, uint8_t *mac);
-void sha256_vector(size_t num_elem,  uint8_t *addr[],  size_t *len,
+VITA_TOOLCHAIN_PUBLIC void sha256_vector(size_t num_elem,  uint8_t *addr[],  size_t *len,
          uint8_t *mac);
 
-uint32_t sha256_32_vector(size_t num_elem, uint8_t *addr[],  size_t *len);
-int sha256_file(const char *file, uint8_t *mac);
-int sha256_32_file(const char *file, uint32_t *nid);
+VITA_TOOLCHAIN_PUBLIC uint32_t sha256_32_vector(size_t num_elem, uint8_t *addr[],  size_t *len);
+VITA_TOOLCHAIN_PUBLIC int sha256_file(const char *file, uint8_t *mac);
+VITA_TOOLCHAIN_PUBLIC int sha256_32_file(const char *file, uint32_t *nid);
 
 #endif

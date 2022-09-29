@@ -16,6 +16,7 @@
 #include "elf-utils.h"
 #include "fail-utils.h"
 #include "elf-create-argp.h"
+#include "yamlemitter.h"
 
 // logging level
 int g_log = 0;
@@ -261,6 +262,194 @@ end_io_close_src:
 	return res;
 }
 
+
+static char* hextostr(int x){
+	static char buf[20];
+	sprintf(buf,"0x%x",x);
+	return buf;
+}
+
+static char* booltostr(int x){
+	return x ? "true" : "false";
+}
+
+static int pack_export_symbols(yaml_emitter_t * emitter, yaml_event_t *event, vita_export_symbol **symbols, size_t symbol_n)
+{
+	yaml_sequence_start_event_initialize(event, NULL, (unsigned char *)"tag:yaml.org,2002:map", 1, YAML_BLOCK_SEQUENCE_STYLE);
+	if (!yaml_emitter_emit(emitter, event))
+		return 0;
+
+	for (int i = 0; i < symbol_n; ++i) {
+		if (!yamlemitter_mapping_start(emitter, event))
+			return 0;
+
+		if(!yamlemitter_key_value(emitter, event, symbols[i]->name, hextostr(symbols[i]->nid)))
+			return 0;
+
+		if (!yamlemitter_mapping_end(emitter, event))
+			return 0;
+	}
+	
+	yaml_sequence_end_event_initialize(event);
+	if (!yaml_emitter_emit(emitter, event))
+		return 0;
+	
+	return -1;
+	
+}
+
+static void write_exports(vita_export_t *exports, const char *export_path)
+{
+	yaml_emitter_t emitter;
+	yaml_event_t event;
+
+	/* Create the Emitter object. */
+	yaml_emitter_initialize(&emitter);
+
+	FILE *fp = fopen(export_path, "w");
+
+	if (!fp)
+	{
+		// TODO: handle this
+		fprintf(stderr, "could not open '%s' for writing\n", export_path);
+		return;
+	}
+
+	yaml_emitter_set_output_file(&emitter, fp);
+
+	/* Create and emit the STREAM-START event. */
+	if (!yamlemitter_stream_start(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_document_start(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_mapping_start(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_key(&emitter, &event, exports->name))
+		goto error;
+
+	if (!yamlemitter_mapping_start(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_key_value(&emitter, &event, "attributes", hextostr(exports->attributes)))
+		goto error;
+
+	if (!yamlemitter_key(&emitter, &event, "version"))
+		goto error;
+
+	if (!yamlemitter_mapping_start(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_key_value(&emitter, &event, "major", hextostr(exports->ver_major)))
+		goto error;
+
+	if (!yamlemitter_key_value(&emitter, &event, "minor", hextostr(exports->ver_minor)))
+		goto error;
+
+	if (!yamlemitter_mapping_end(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_key_value(&emitter, &event, "nid", hextostr(exports->nid)))
+		goto error;
+
+	if (exports->start || exports->stop || exports->exit) {
+		if (!yamlemitter_key(&emitter, &event, "main"))
+			goto error;
+
+		if (!yamlemitter_mapping_start(&emitter, &event))
+			goto error;
+
+		if (exports->start) {
+			if (!yamlemitter_key_value(&emitter, &event, "start", exports->start))
+				goto error;
+		}
+
+		if (exports->stop) {
+			if (!yamlemitter_key_value(&emitter, &event, "stop", exports->stop))
+				goto error;
+		}
+
+		if (exports->exit) {
+			if (!yamlemitter_key_value(&emitter, &event, "exit", exports->exit))
+				goto error;
+		}
+
+		if (!yamlemitter_mapping_end(&emitter, &event))
+			goto error;
+	}
+
+	if (exports->lib_n > 0) {
+		if (!yamlemitter_key(&emitter, &event, "libraries"))
+			goto error;
+
+		if (!yamlemitter_mapping_start(&emitter, &event))
+			goto error;
+
+		for (int i = 0; i < exports->lib_n; ++i) {
+			vita_library_export *lib = exports->libs[i];
+
+			if (!yamlemitter_key(&emitter, &event, lib->name))
+				goto error;
+
+			if (!yamlemitter_mapping_start(&emitter, &event))
+				goto error;
+
+			if (!yamlemitter_key_value(&emitter, &event, "version", hextostr(lib->version)))
+				goto error;
+
+			if (!yamlemitter_key_value(&emitter, &event, "syscall", booltostr(lib->syscall)))
+				goto error;
+
+			if (!yamlemitter_key_value(&emitter, &event, "nid", hextostr(lib->nid)))
+				goto error;
+
+			if (lib->function_n) {
+				if (!yamlemitter_key(&emitter, &event, "functions"))
+					goto error;
+
+				if (!pack_export_symbols(&emitter, &event, lib->functions, lib->function_n))
+					goto error;
+			}
+
+			if (lib->variable_n) {
+				if (!yamlemitter_key(&emitter, &event, "variables"))
+					goto error;
+
+				if (!pack_export_symbols(&emitter, &event, lib->variables, lib->variable_n))
+					goto error;
+			}
+
+			yaml_mapping_end_event_initialize(&event);
+			if (!yaml_emitter_emit(&emitter, &event))
+				goto error;
+		}
+
+		if (!yamlemitter_mapping_end(&emitter, &event))
+			goto error;
+	}
+
+	if (!yamlemitter_mapping_end(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_mapping_end(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_document_end(&emitter, &event))
+		goto error;
+
+	if (!yamlemitter_stream_end(&emitter, &event))
+		goto error;
+
+	/* On error. */
+error:
+	fclose(fp);
+	/* Destroy the Emitter object. */
+	yaml_emitter_delete(&emitter);
+	// TODO: free exports, free json
+}
+
 #if defined(_WIN32) && !defined(__CYGWIN__)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -276,10 +465,12 @@ end_io_close_src:
 
 static int usage(int argc, char *argv[])
 {
-	fprintf(stderr, "usage: %s [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf\n"
+	fprintf(stderr, "usage: %s [-v|vv|vvv] [-s] [-n] [[-e | -g] config.yml] input.elf output.velf\n"
 					"\t-v,-vv,-vvv:    logging verbosity (more v is more verbose)\n"
+					"\t-s         :    strip the output ELF\n"
 					"\t-n         :    allow empty imports\n"
 					"\t-e yml     :    optional config options\n"
+					"\t-g yml     :    generate an export config from ELF symbols\n"
 					"\tinput.elf  :    input ARM ET_EXEC type ELF\n"
 					"\toutput.velf:    output ET_SCE_RELEXEC type ELF\n", argc > 0 ? argv[0] : "vita-elf-create");
 	return 0;
@@ -323,6 +514,8 @@ int main(int argc, char *argv[])
 	else {
 		// generate a default export list
 		exports = vita_export_generate_default(args.input);
+		if (args.exports_output)
+			vita_elf_generate_exports(ve, exports);
 	}
 
 	if (!vita_elf_lookup_imports(ve))
@@ -343,6 +536,22 @@ int main(int argc, char *argv[])
 	TRACEF(VERBOSE, "Segments:\n");
 	list_segments(ve);
 
+	// Enter module module_sdk_version
+	{
+		Elf32_Addr module_sdk_version_address = 0xFFFFFFFF;
+		if (get_variable_by_symbol("module_sdk_version", ve, &module_sdk_version_address) == 1) {
+			const uint32_t *module_sdk_version_ptr = vita_elf_vaddr_to_host(ve, module_sdk_version_address);
+			ASSERT(module_sdk_version_ptr != NULL);
+
+			ve->module_sdk_version = *module_sdk_version_ptr;
+			ve->module_sdk_version_ptr = module_sdk_version_address;
+		}
+		else { // failback
+			ve->module_sdk_version = PSP2_SDK_VERSION;
+			ve->module_sdk_version_ptr = 0xFFFFFFFF;
+		}
+	}
+
 	have_libc = get_variable_by_symbol("sceLibcHeapSize", ve, NULL)
 				|| get_variable_by_symbol("sceLibcHeapExtendedAlloc", ve, NULL)
 				|| get_variable_by_symbol("sceLibcHeapDelayedAlloc", ve, NULL)
@@ -359,7 +568,7 @@ int main(int argc, char *argv[])
 	if (!module_info)
 		return EXIT_FAILURE;
 	
-	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes, have_libc);
+	int total_size = sce_elf_module_info_get_size(module_info, &section_sizes, have_libc, ve->vstubs, ve->num_vstubs);
 	int curpos = 0;
 	TRACEF(VERBOSE, "Total SCE data size: %d / %x\n", total_size, total_size);
 #define PRINTSEC(name) TRACEF(VERBOSE, "  .%.*s.%s: %d (%x @ %x)\n", (int)strcspn(#name,"_"), #name, strchr(#name,'_')+1, section_sizes.name, section_sizes.name, curpos+ve->segments[0].vaddr+ve->segments[0].memsz); curpos += section_sizes.name
@@ -393,6 +602,9 @@ int main(int argc, char *argv[])
 	ASSERT(sce_elf_set_headers(outfile, ve));
 	fclose(outfile);
 
+	if (args.exports_output)
+		write_exports(exports, args.exports_output);
+
 	if (args.is_test_stripping != 0)
 		vita_elf_packing(args.output, exports);
 
@@ -403,6 +615,7 @@ int main(int argc, char *argv[])
 
 	sce_elf_module_info_free(module_info);
 	sce_elf_module_params_free(params);
+	vita_exports_free(exports);
 	vita_elf_free(ve);
 
 	return status;
