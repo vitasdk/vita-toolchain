@@ -10,6 +10,10 @@
 #include "self.h"
 #include "sha256.h"
 
+const uint8_t digest_constant[0x14] = {
+	0x62, 0x7C, 0xB1, 0x80, 0x8A, 0xB9, 0x38, 0xE3, 0x2C, 0x8C, 0x09, 0x17, 0x08, 0x72, 0x6A, 0x57, 0x9E, 0x25, 0x86, 0xE4
+};
+
 void usage(const char **argv) {
 	fprintf(stderr, "usage: %s [-s|-ss|-a 0x2XXXXXXXXXXXXXXX] [-c] [-na] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
 	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
@@ -126,26 +130,29 @@ int main(int argc, const char **argv) {
 		info->module_nid = htole32(mod_nid);
 	}
 
+	uint8_t elf_digest[0x20];
+
+	sha256_vector(1, (uint8_t *[]){input}, (size_t[]){sz}, elf_digest);
+
 	SCE_header hdr = { 0 };
 	hdr.magic = 0x454353; // "SCE\0"
 	hdr.version = 3;
 	hdr.sdk_type = 0xC0;
 	hdr.header_type = 1;
-	hdr.metadata_offset = 0x600; // ???
+	hdr.metadata_offset = 0x600; // ext_header size
 	hdr.header_len = HEADER_LEN;
 	hdr.elf_filesize = sz;
-	// self_filesize
+	hdr.self_filesize = 0;
 	hdr.self_offset = 4;
 	hdr.appinfo_offset = 0x80;
 	hdr.elf_offset = sizeof(SCE_header) + sizeof(SCE_appinfo);
 	hdr.phdr_offset = hdr.elf_offset + sizeof(Elf32_Ehdr);
 	hdr.phdr_offset = (hdr.phdr_offset + 0xf) & ~0xf; // align
-	// hdr.shdr_offset = ;
+	hdr.shdr_offset = 0;
 	hdr.section_info_offset = hdr.phdr_offset + sizeof(Elf32_Phdr) * ehdr->e_phnum;
 	hdr.sceversion_offset = hdr.section_info_offset + sizeof(segment_info) * ehdr->e_phnum;
 	hdr.controlinfo_offset = hdr.sceversion_offset + sizeof(SCE_version);
-	hdr.controlinfo_size = sizeof(SCE_controlinfo_5) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7);
-	hdr.self_filesize = 0;
+	hdr.controlinfo_size = sizeof(SCE_controlinfo_4) + sizeof(SCE_controlinfo_5) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7);
 
 	uint32_t offset_to_real_elf = HEADER_LEN;
 
@@ -161,7 +168,7 @@ int main(int argc, const char **argv) {
 			appinfo.authid = 0x2F00000000000001ULL;
 	}
 	appinfo.vendor_id = 0;
-	appinfo.self_type = 8;
+	appinfo.self_type = 8; // app/user/kernel/sm
 	appinfo.version = 0x1000000000000;
 	appinfo.padding = 0;
 
@@ -171,10 +178,19 @@ int main(int argc, const char **argv) {
 	ver.unk3 = 16;
 	ver.unk4 = 0;
 
+	SCE_controlinfo_4 control_4 = { 0 };
+	control_4.common.type = 4;
+	control_4.common.size = sizeof(control_4);
+	control_4.common.unk = 1;
+	memcpy(control_4.constant, digest_constant, sizeof(control_4.constant));
+	memcpy(control_4.elf_digest, elf_digest, sizeof(control_4.elf_digest));
+	control_4.min_required_fw = 0LL; // on fself
+
 	SCE_controlinfo_5 control_5 = { 0 };
 	control_5.common.type = 5;
 	control_5.common.size = sizeof(control_5);
 	control_5.common.unk = 1;
+
 	SCE_controlinfo_6 control_6 = { 0 };
 	control_6.common.type = 6;
 	control_6.common.size = sizeof(control_6);
@@ -183,8 +199,9 @@ int main(int argc, const char **argv) {
 	if (mem_budget) {
 		control_6.attr = attribute_cinfo;
 		control_6.phycont_memsize = phycont_mem_budget;
-		control_6.total_memsize = mem_budget;	
+		control_6.total_memsize = mem_budget;
 	}
+
 	SCE_controlinfo_7 control_7 = { 0 };
 	control_7.common.type = 7;
 	control_7.common.size = sizeof(control_7);
@@ -256,6 +273,7 @@ int main(int argc, const char **argv) {
 	}
 
 	fseek(fout, hdr.controlinfo_offset, SEEK_SET);
+	fwrite(&control_4, sizeof(control_4), 1, fout);
 	fwrite(&control_5, sizeof(control_5), 1, fout);
 	fwrite(&control_6, sizeof(control_6), 1, fout);
 	fwrite(&control_7, sizeof(control_7), 1, fout);
