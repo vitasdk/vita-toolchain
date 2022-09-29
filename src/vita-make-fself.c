@@ -188,7 +188,6 @@ int main(int argc, const char **argv) {
 		perror("Cannot generate ELF digest");
 		goto error;
 	}
-	control_info_digest.min_required_fw = 0x360;
 
 	SCE_boot_param_info control_info_boot_param = { 0 };
 	control_info_boot_param.head.type = SCE_BOOTPARAM_INFO;
