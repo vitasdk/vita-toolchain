@@ -51,8 +51,16 @@ typedef struct {
 
 typedef struct {
 	SCE_controlinfo common;
+	uint8_t constant[0x14];
+	uint8_t elf_digest[0x20];
+	uint32_t padding;
+	uint64_t min_required_fw;
+} SCE_controlinfo_4;
+
+typedef struct {
+	SCE_controlinfo common;
 	char unk[0x100];
-} SCE_controlinfo_5;
+} SCE_controlinfo_5; // npdrm info
 
 typedef struct {
 	SCE_controlinfo common;
@@ -70,7 +78,7 @@ typedef struct {
 typedef struct {
 	SCE_controlinfo common;
 	char unk[0x40];
-} SCE_controlinfo_7;
+} SCE_controlinfo_7; // shared secret
 
 typedef struct {
 	uint64_t offset;
