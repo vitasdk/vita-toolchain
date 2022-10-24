@@ -300,10 +300,10 @@ int main(int argc, char **argv)
 	for(i = 0; g_vals[i].name; i++)
 	{
 		SW(&h->count, ++count);
-		SW(&e->nameofs, k-keys);
+		SH(&e->nameofs, k-keys);
 		SW(&e->dataofs, d-data);
-		SW(&e->alignment, 4);
-		SW(&e->type, g_vals[i].type);
+		e->alignment = 4;
+		e->type = g_vals[i].type;
 
 		strcpy(k, g_vals[i].name);
 		k += strlen(k)+1;
