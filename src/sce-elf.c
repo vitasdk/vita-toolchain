@@ -185,7 +185,7 @@ failure:
 	return -1;
 }
 
-static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, sce_module_info_t *module_info, vita_export_t *export_spec, sce_process_param_t *process_param)
+static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, sce_module_info_t *module_info, vita_export_t *export_spec, void *process_param)
 {
 	export->size = sizeof(sce_module_exports_raw);
 	export->version = 0;
@@ -326,12 +326,37 @@ sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, int have_libc)
 	sce_module_params_t *params = calloc(1, sizeof(sce_module_params_t));
 	ASSERT(params != NULL);
 
-	params->process_param = calloc(1, sizeof(sce_process_param_t));
-	ASSERT(params->process_param != NULL);
-	params->process_param->size = 0x34;
-	memcpy(&params->process_param->magic, "PSP2", 4);
-	params->process_param->version = 6;
-	params->process_param->fw_version = ve->module_sdk_version;
+	params->process_param_version = ve->module_sdk_version;
+
+	if (params->process_param_version >= VITA_TOOLCHAIN_PROCESS_PARAM_NEW_FORMAT_VERSION) {
+		params->process_param_size = sizeof(sce_process_param_v6_raw);
+
+		sce_process_param_v6_raw *process_param;
+
+		process_param = calloc(1, sizeof(*process_param));
+		ASSERT(sizeof(*process_param) == 0x34);
+		ASSERT(process_param != NULL);
+		process_param->size = 0x34;
+		memcpy(&(process_param->magic), "PSP2", 4);
+		process_param->version = 6;
+		process_param->fw_version = params->process_param_version;
+
+		params->process_param = process_param;
+	} else {
+		params->process_param_size = sizeof(sce_process_param_v5_raw);
+
+		sce_process_param_v5_raw *process_param;
+
+		process_param = calloc(1, sizeof(*process_param));
+		ASSERT(sizeof(*process_param) == 0x30);
+		ASSERT(process_param != NULL);
+		process_param->size = 0x30;
+		memcpy(&(process_param->magic), "PSP2", 4);
+		process_param->version = 5;
+		process_param->fw_version = params->process_param_version;
+
+		params->process_param = process_param;
+	}
 
 	if (have_libc) {
 		params->libc_param = calloc(1, sizeof(sce_libc_param_t));
@@ -368,7 +393,7 @@ void sce_elf_module_params_free(sce_module_params_t *params)
 	free(params);
 }
 
-sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exports, sce_process_param_t* process_param)
+sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exports, void* process_param)
 {
 	int i;
 	sce_module_info_t *module_info;
@@ -440,6 +465,12 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 		set_module_import(ve, module_info->import_top + i, liblist.libs + i);
 	}
 
+	// fake param. Required for old fw.
+	if (ve->module_sdk_version < VITA_TOOLCHAIN_PROCESS_PARAM_NEW_FORMAT_VERSION) {
+		module_info->exidx_top = ve->segments[0].vaddr_top + 0;
+		module_info->exidx_end = ve->segments[0].vaddr_top + 1;
+	}
+
 	return module_info;
 
 failure:
@@ -454,7 +485,7 @@ sce_failure:
 	sizes->section += (size); \
 	total_size += (size); \
 } while (0)
-int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, int have_libc, vita_elf_stub_t *vstubs, uint32_t num_vstubs)
+int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, sce_module_params_t *params, int have_libc, vita_elf_stub_t *vstubs, uint32_t num_vstubs)
 {
 	int total_size = 0;
 	sce_module_exports_t *export;
@@ -463,7 +494,7 @@ int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_siz
 	memset(sizes, 0, sizeof(*sizes));
 
 	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
-	INCR(sceModuleInfo_rodata, sizeof(sce_process_param_raw));
+	INCR(sceModuleInfo_rodata, params->process_param_size);
 	if (have_libc)
 		INCR(sceModuleInfo_rodata, sizeof(sce_libc_param_raw));
 
@@ -559,14 +590,12 @@ void *sce_elf_module_info_encode(
 	Elf32_Addr segment_base;
 	Elf32_Word start_offset;
 	uint32_t process_param_offset = sizeof(sce_module_info_raw);
-	uint32_t libc_param_offset = process_param_offset + sizeof(sce_process_param_raw);
+	uint32_t libc_param_offset = process_param_offset + params->process_param_size;
 	int segndx;
 	int i, j;
 	sce_module_exports_t *export;
 	sce_module_imports_t *import;
 	sce_module_info_raw *module_info_raw;
-	sce_process_param_t *process_param = params->process_param;
-	sce_process_param_raw *process_param_raw;
 	sce_libc_param_t *libc_param = params->libc_param;
 	sce_libc_param_raw *libc_param_raw;
 	sce_module_exports_raw *export_raw;
@@ -698,26 +727,65 @@ void *sce_elf_module_info_encode(
 		}
 	}
 
-	process_param_raw = (sce_process_param_raw *)(ADDR(sceModuleInfo_rodata) + process_param_offset);
-	CONVERT32(process_param, size);
-	CONVERT32(process_param, magic);
-	CONVERT32(process_param, version);
-	CONVERT32(process_param, fw_version);
-	get_variable_by_symbol("sceUserMainThreadName", ve, &process_param_raw->main_thread_name);
-	get_variable_by_symbol("sceUserMainThreadPriority", ve, &process_param_raw->main_thread_priority);
-	get_variable_by_symbol("sceUserMainThreadStackSize", ve, &process_param_raw->main_thread_stacksize);
-	get_variable_by_symbol("sceUserMainThreadCpuAffinityMask", ve, &process_param_raw->main_thread_cpu_affinity_mask);
-	get_variable_by_symbol("sceUserMainThreadAttribute", ve, &process_param_raw->main_thread_attribute);
-	get_variable_by_symbol("sceKernelPreloadModuleInhibit", ve, &process_param_raw->process_preload_disabled);
-	ADDRELA(&process_param_raw->main_thread_name);
-	ADDRELA(&process_param_raw->main_thread_priority);
-	ADDRELA(&process_param_raw->main_thread_stacksize);
-	ADDRELA(&process_param_raw->main_thread_cpu_affinity_mask);
-	ADDRELA(&process_param_raw->main_thread_attribute);
-	ADDRELA(&process_param_raw->process_preload_disabled);
-	if (libc_param != NULL) {
-		process_param_raw->sce_libc_param = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, size);
-		ADDRELA(&process_param_raw->sce_libc_param);
+	if (params->process_param_size == sizeof(sce_process_param_v6_raw)) {
+
+		sce_process_param_v6_t *process_param;
+		sce_process_param_v6_raw *process_param_raw;
+
+		process_param = (sce_process_param_v6_t *)(params->process_param);
+		process_param_raw = (sce_process_param_v6_raw *)(ADDR(sceModuleInfo_rodata) + process_param_offset);
+
+		CONVERT32(process_param, size);
+		CONVERT32(process_param, magic);
+		CONVERT32(process_param, version);
+		CONVERT32(process_param, fw_version);
+		get_variable_by_symbol("sceUserMainThreadName", ve, &process_param_raw->main_thread_name);
+		get_variable_by_symbol("sceUserMainThreadPriority", ve, &process_param_raw->main_thread_priority);
+		get_variable_by_symbol("sceUserMainThreadStackSize", ve, &process_param_raw->main_thread_stacksize);
+		get_variable_by_symbol("sceUserMainThreadCpuAffinityMask", ve, &process_param_raw->main_thread_cpu_affinity_mask);
+		get_variable_by_symbol("sceUserMainThreadAttribute", ve, &process_param_raw->main_thread_attribute);
+		get_variable_by_symbol("sceKernelPreloadModuleInhibit", ve, &process_param_raw->process_preload_disabled);
+		ADDRELA(&process_param_raw->main_thread_name);
+		ADDRELA(&process_param_raw->main_thread_priority);
+		ADDRELA(&process_param_raw->main_thread_stacksize);
+		ADDRELA(&process_param_raw->main_thread_cpu_affinity_mask);
+		ADDRELA(&process_param_raw->main_thread_attribute);
+		ADDRELA(&process_param_raw->process_preload_disabled);
+		if (libc_param != NULL) {
+			process_param_raw->sce_libc_param = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, size);
+			ADDRELA(&process_param_raw->sce_libc_param);
+		}
+
+	} else if (params->process_param_size == sizeof(sce_process_param_v5_raw)) {
+
+		sce_process_param_v5_t *process_param;
+		sce_process_param_v5_raw *process_param_raw;
+
+		process_param = (sce_process_param_v5_t *)(params->process_param);
+		process_param_raw = (sce_process_param_v5_raw *)(ADDR(sceModuleInfo_rodata) + process_param_offset);
+
+		CONVERT32(process_param, size);
+		CONVERT32(process_param, magic);
+		CONVERT32(process_param, version);
+		CONVERT32(process_param, fw_version);
+		get_variable_by_symbol("sceUserMainThreadName", ve, &process_param_raw->main_thread_name);
+		get_variable_by_symbol("sceUserMainThreadPriority", ve, &process_param_raw->main_thread_priority);
+		get_variable_by_symbol("sceUserMainThreadStackSize", ve, &process_param_raw->main_thread_stacksize);
+		get_variable_by_symbol("sceUserMainThreadCpuAffinityMask", ve, &process_param_raw->main_thread_cpu_affinity_mask);
+		get_variable_by_symbol("sceUserMainThreadAttribute", ve, &process_param_raw->main_thread_attribute);
+		get_variable_by_symbol("sceKernelPreloadModuleInhibit", ve, &process_param_raw->process_preload_disabled);
+		ADDRELA(&process_param_raw->main_thread_name);
+		ADDRELA(&process_param_raw->main_thread_priority);
+		ADDRELA(&process_param_raw->main_thread_stacksize);
+		ADDRELA(&process_param_raw->main_thread_cpu_affinity_mask);
+		ADDRELA(&process_param_raw->main_thread_attribute);
+		ADDRELA(&process_param_raw->process_preload_disabled);
+		if (libc_param != NULL) {
+			process_param_raw->sce_libc_param = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, size);
+			ADDRELA(&process_param_raw->sce_libc_param);
+		}
+	} else {
+		FAILX("Unknown process_param size (0x%lX)", params->process_param_size);
 	}
 
 	module_info_raw = (sce_module_info_raw *)ADDR(sceModuleInfo_rodata);
@@ -781,7 +849,7 @@ void *sce_elf_module_info_encode(
 			raw_nids[i] = htole32(export->nid_table[i]);
 			if (export->entry_table[i] == module_info) { /* Special case */
 				raw_entries[i] = htole32(segment_base + start_offset);
-			} else if (export->entry_table[i] == process_param) {
+			} else if (export->entry_table[i] == params->process_param) {
 				raw_entries[i] = htole32(VADDR(sceModuleInfo_rodata) + process_param_offset);
 			} else {
 				raw_entries[i] = htole32(vita_elf_host_to_vaddr(ve, export->entry_table[i]));
@@ -885,7 +953,7 @@ void *sce_elf_module_info_encode(
 	}
 
 	INCR(sceModuleInfo_rodata, sizeof(sce_module_info_raw));
-	INCR(sceModuleInfo_rodata, sizeof(sce_process_param_raw));
+	INCR(sceModuleInfo_rodata, params->process_param_size);
 	if (libc_param != NULL)
 		INCR(sceModuleInfo_rodata, sizeof(sce_libc_param_raw));
 

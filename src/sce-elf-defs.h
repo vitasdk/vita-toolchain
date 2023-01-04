@@ -91,21 +91,42 @@ typedef struct SCE_TYPE(sce_module_imports_short) {
 	SCE_PTR(const void **) var_entry_table;		/* Pointer to array of data pointers to write to */
 } SCE_TYPE(sce_module_imports_short);
 
-typedef struct SCE_TYPE(sce_process_param) {
-	uint32_t size;                          /* 0x34 */
-	uint32_t magic;                         /* PSP2 */
+
+/*
+ * Note - fw lower than 1.692 should use v5's process_param struct
+ */
+#define VITA_TOOLCHAIN_PROCESS_PARAM_NEW_FORMAT_VERSION (0x1692000)
+
+typedef struct SCE_TYPE(sce_process_param_v5) {
+	uint32_t size;                          /* 0x30                       */
+	uint32_t magic;                         /* PSP2                       */
+	uint32_t version;                       /* Unknown, but it could be 5 */
+	uint32_t fw_version;                    /* SDK Version                */
+	SCE_PTR(const char *) main_thread_name; /* Thread name pointer        */
+	int32_t main_thread_priority;           /* Thread initPriority        */
+	uint32_t main_thread_stacksize;         /* Thread stacksize           */
+	uint32_t main_thread_attribute;         /* Thread attribute           */
+	SCE_PTR(const char *) process_name;     /* Process name pointer       */
+	uint32_t process_preload_disabled;      /* Module load inhibit        */
+	uint32_t main_thread_cpu_affinity_mask; /* Unknown                    */
+	SCE_PTR(const void *) sce_libc_param;   /* SceLibc param pointer      */
+} SCE_TYPE(sce_process_param_v5);
+
+typedef struct SCE_TYPE(sce_process_param_v6) {
+	uint32_t size;                          /* 0x34                       */
+	uint32_t magic;                         /* PSP2                       */
 	uint32_t version;                       /* Unknown, but it could be 6 */
-	uint32_t fw_version;                    /* SDK vsersion */
-	SCE_PTR(const char *) main_thread_name; /* Thread name pointer*/
-	int32_t main_thread_priority;           /* Thread initPriority */
-	uint32_t main_thread_stacksize;         /* Thread stacksize*/
-	uint32_t main_thread_attribute;         /* Unknown */
-	SCE_PTR(const char *) process_name;     /* Process name pointer */
-	uint32_t process_preload_disabled;      /* Module load inhibit */
-	uint32_t main_thread_cpu_affinity_mask; /* Unknown */
-	SCE_PTR(const void *) sce_libc_param;   /* SceLibc param pointer */
-	uint32_t unk;                           /* Unknown */
-} SCE_TYPE(sce_process_param);
+	uint32_t fw_version;                    /* SDK Version                */
+	SCE_PTR(const char *) main_thread_name; /* Thread name pointer        */
+	int32_t main_thread_priority;           /* Thread initPriority        */
+	uint32_t main_thread_stacksize;         /* Thread stacksize           */
+	uint32_t main_thread_attribute;         /* Thread stacksize           */
+	SCE_PTR(const char *) process_name;     /* Process name pointer       */
+	uint32_t process_preload_disabled;      /* Module load inhibit        */
+	uint32_t main_thread_cpu_affinity_mask; /* Unknown                    */
+	SCE_PTR(const void *) sce_libc_param;   /* SceLibc param pointer      */
+	uint32_t unk;                           /* Unknown                    */
+} SCE_TYPE(sce_process_param_v6);
 
 typedef struct SCE_TYPE(sce_libc_param) {
 	struct {
