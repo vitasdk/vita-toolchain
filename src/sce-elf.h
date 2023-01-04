@@ -101,7 +101,9 @@ typedef struct {
 } sce_section_sizes_t;
 
 typedef struct {
-	sce_process_param_t* process_param;
+	uint32_t process_param_version;
+	size_t process_param_size;
+	void* process_param;
 	sce_libc_param_t* libc_param;
 } sce_module_params_t;
 
@@ -109,9 +111,9 @@ sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, int have_libc)
 
 void sce_elf_module_params_free(sce_module_params_t *params);
 
-sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exports, sce_process_param_t *process_param);
+sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exports, void *process_param);
 
-int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, int have_libc, vita_elf_stub_t *vstubs, uint32_t num_vstubs);
+int sce_elf_module_info_get_size(sce_module_info_t *module_info, sce_section_sizes_t *sizes, sce_module_params_t *params, int have_libc, vita_elf_stub_t *vstubs, uint32_t num_vstubs);
 
 void sce_elf_module_info_free(sce_module_info_t *module_info);
 
