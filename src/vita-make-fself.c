@@ -14,6 +14,14 @@ const uint8_t digest_constant[0x14] = {
 	0x62, 0x7C, 0xB1, 0x80, 0x8A, 0xB9, 0x38, 0xE3, 0x2C, 0x8C, 0x09, 0x17, 0x08, 0x72, 0x6A, 0x57, 0x9E, 0x25, 0x86, 0xE4
 };
 
+typedef enum SceSelfType {
+	SCE_SELF_TYPE_KERNEL   = 7,
+	SCE_SELF_TYPE_NPDRM    = 8,
+	SCE_SELF_TYPE_KBL      = 9,
+	SCE_SELF_TYPE_SECURITY = 0xB,
+	SCE_SELF_TYPE_USER     = 0xD
+} SceSelfType;
+
 void usage(const char **argv) {
 	fprintf(stderr, "usage: %s [-s|-ss|-a 0x2XXXXXXXXXXXXXXX] [-c] [-na] input.velf output-eboot.bin\n", argv[0] ? argv[0] : "vita-make-fself");
 	fprintf(stderr, "\t-s : Generate a safe eboot.bin. A safe eboot.bin does not have access\n\tto restricted APIs and important parts of the filesystem.\n");
@@ -41,6 +49,7 @@ int main(int argc, const char **argv) {
 	int safe = 0;
 	int compressed = 0;
 	int noaslr = 0;
+	int self_type = SCE_SELF_TYPE_NPDRM;
 	uint32_t mem_budget = 0;
 	uint32_t phycont_mem_budget = 0;
 	uint32_t attribute_cinfo = 0;
@@ -64,6 +73,11 @@ int main(int argc, const char **argv) {
 			
 			if (argc > 2)
 				mem_budget = strtoul(*argv, NULL, 0);
+		} else if (strcmp(*argv, "--self_type") == 0) {
+			argc--;
+			argv++;
+			if (argc > 2)
+				self_type = strtoul(*argv, NULL, 0);
 		} else if (strcmp(*argv, "-pm") == 0) {
 			argc--;
 			argv++;
@@ -156,6 +170,14 @@ int main(int argc, const char **argv) {
 
 	uint32_t offset_to_real_elf = HEADER_LEN;
 
+	if (self_type == SCE_SELF_TYPE_SECURITY) {
+		hdr.sdk_type = 0x40;
+		hdr.metadata_offset = 0x370; // ext_header size
+		hdr.header_len = 0x800;
+		hdr.controlinfo_size = sizeof(SCE_controlinfo_4) + sizeof(SCE_controlinfo_6) + sizeof(SCE_controlinfo_7);
+		offset_to_real_elf = 0x800;
+	}
+
 	// SCE_header should be ok
 
 	SCE_appinfo appinfo = { 0 };
@@ -168,7 +190,7 @@ int main(int argc, const char **argv) {
 			appinfo.authid = 0x2F00000000000001ULL;
 	}
 	appinfo.vendor_id = 0;
-	appinfo.self_type = 8; // app/user/kernel/sm
+	appinfo.self_type = self_type; // app/user/kernel/sm
 	appinfo.version = 0x1000000000000;
 	appinfo.padding = 0;
 
@@ -222,6 +244,14 @@ int main(int argc, const char **argv) {
 	myhdr.e_phentsize = 0x20;
 	myhdr.e_phnum = ehdr->e_phnum;
 
+	if (self_type == SCE_SELF_TYPE_SECURITY) {
+		myhdr.e_machine = 0xF00D;
+		myhdr.e_flags = 0x8060000U;
+		myhdr.e_shentsize = 0x28;
+		myhdr.e_shnum = 8;
+		myhdr.e_shstrndx = 7;
+	}
+
 	fout = fopen(output_path, "wb");
 	if (!fout) {
 		perror("Failed to open output file");
@@ -274,11 +304,13 @@ int main(int argc, const char **argv) {
 
 	fseek(fout, hdr.controlinfo_offset, SEEK_SET);
 	fwrite(&control_4, sizeof(control_4), 1, fout);
-	fwrite(&control_5, sizeof(control_5), 1, fout);
+	if (self_type != SCE_SELF_TYPE_SECURITY) {
+		fwrite(&control_5, sizeof(control_5), 1, fout);
+	}
 	fwrite(&control_6, sizeof(control_6), 1, fout);
 	fwrite(&control_7, sizeof(control_7), 1, fout);
 
-	fseek(fout, HEADER_LEN, SEEK_SET);
+	fseek(fout, offset_to_real_elf, SEEK_SET);
 
 	if (!compressed) {
 		if (fwrite(input, sz, 1, fout) != 1) {
