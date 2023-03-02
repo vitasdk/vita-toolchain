@@ -12,6 +12,7 @@ typedef struct elf_create_args
 	char **extra_imports;
 	int check_stub_count;
 	int is_test_stripping;
+	char *entrypoint_funcs[3]; // module_start, module_stop, module_exit
 } elf_create_args;
 
 

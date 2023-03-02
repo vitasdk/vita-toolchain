@@ -465,12 +465,13 @@ error:
 
 static int usage(int argc, char *argv[])
 {
-	fprintf(stderr, "usage: %s [-v|vv|vvv] [-s] [-n] [[-e | -g] config.yml] input.elf output.velf\n"
+	fprintf(stderr, "usage: %s [-v|vv|vvv] [-s] [-n] [[-e | -g] config.yml] [-m start,stop,exit] input.elf output.velf\n"
 					"\t-v,-vv,-vvv:    logging verbosity (more v is more verbose)\n"
 					"\t-s         :    strip the output ELF\n"
 					"\t-n         :    allow empty imports\n"
 					"\t-e yml     :    optional config options\n"
 					"\t-g yml     :    generate an export config from ELF symbols\n"
+					"\t-m list    :    specify the list of module entrypoints\n"
 					"\tinput.elf  :    input ARM ET_EXEC type ELF\n"
 					"\toutput.velf:    output ET_SCE_RELEXEC type ELF\n", argc > 0 ? argv[0] : "vita-elf-create");
 	return 0;
@@ -514,6 +515,9 @@ int main(int argc, char *argv[])
 	else {
 		// generate a default export list
 		exports = vita_export_generate_default(args.input);
+		exports->start = args.entrypoint_funcs[0];
+		exports->stop = args.entrypoint_funcs[1];
+		exports->exit = args.entrypoint_funcs[2];
 		if (args.exports_output)
 			vita_elf_generate_exports(ve, exports);
 	}
