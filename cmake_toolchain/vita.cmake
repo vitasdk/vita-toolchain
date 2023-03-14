@@ -68,7 +68,7 @@ macro(vita_create_self target source)
 
   set(options UNCOMPRESSED UNSAFE STRIPPED NOASLR REL_OPTIMIZE)
   set(oneValueArgs CONFIG GEN_EXPORTS ATTRIBUTE MEMSIZE MODULE_ENTRY)
-  cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN}
+  cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
 
   if(vita_create_self_CONFIG AND vita_create_self_GEN_EXPORTS)
     message( FATAL_ERROR "vita_create_self: GEN_EXPORTS and CONFIG cannot be used together")
