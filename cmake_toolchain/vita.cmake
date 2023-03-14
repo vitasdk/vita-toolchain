@@ -30,7 +30,11 @@ include(CMakeParseArguments)
 ##                    [UNCOMPRESSED]
 ##                    [UNSAFE]
 ##                    [STRIPPED]
-##                    [REL_OPTIMIZE])
+##                    [NOASLR]
+##                    [REL_OPTIMIZE]
+##                    [ATTRIBUTE attr]
+##                    [MEMSIZE size]
+##                    [MODULE_ENTRY entrypoints]
 ##
 ## @param target
 ##   A CMake custom target of this given name
@@ -41,21 +45,37 @@ include(CMakeParseArguments)
 ##   Do NOT compress the result SELF (compression is default)
 ## @param[opt] UNSAFE
 ##   The homebrew uses private/system APIs and requires extended permissions
+## @param[opt] STRIPPED
+##   Strip the ELF while converting to Sony ELF format
+## @param[opt] NOASLR
+##   Disable ASLR for the process main module
+## @param[opt] REL_OPTIMIZE
+##   Optimize relocations in the output binary
 ## @param[opt] CONFIG file
 ##   Path to a YAML config file defining exports and other optional information
 ## @param[opt] GEN_EXPORTS file
 ##   Path to the auto-generated YAML config file defining exports and other information
+## @param[opt] ATTRIBUTE attr
+##   Set the system app attribute field
+## @param[opt] MEMSIZE size
+##   Set the system app memory budget in KiB
+## @param[opt] MODULE_ENTRY
+##   Set the primary entrypoints for the module. Set as string using format "start,stop,exit"
 ##
 macro(vita_create_self target source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
   set(options UNCOMPRESSED UNSAFE STRIPPED NOASLR REL_OPTIMIZE)
-  set(oneValueArgs CONFIG GEN_EXPORTS ATTRIBUTE MEMSIZE)
-  cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
+  set(oneValueArgs CONFIG GEN_EXPORTS ATTRIBUTE MEMSIZE MODULE_ENTRY)
+  cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN}
 
   if(vita_create_self_CONFIG AND vita_create_self_GEN_EXPORTS)
     message( FATAL_ERROR "vita_create_self: GEN_EXPORTS and CONFIG cannot be used together")
+  endif()
+
+  if(vita_create_self_CONFIG AND vita_create_self_MODULE_ENTRY)
+    message( FATAL_ERROR "vita_create_self: MODULE_ENTRY and CONFIG cannot be used together")
   endif()
 
   if(vita_create_self_CONFIG)
@@ -65,6 +85,9 @@ macro(vita_create_self target source)
   if(vita_create_self_GEN_EXPORTS)
     get_filename_component(fconfig ${vita_create_self_GEN_EXPORTS} ABSOLUTE)
     set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -g ${fconfig}")
+  endif()
+  if(vita_create_self_MODULE_ENTRY)
+    set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -m ${vita_create_self_MODULE_ENTRY}")
   endif()
   if(vita_create_self_STRIPPED)
     set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -s")
