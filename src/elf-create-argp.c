@@ -5,6 +5,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "dupstring.h"
+
 int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 {
 	int c;
@@ -76,7 +78,7 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 			}
 			size_t entrypoint_length = (size_t)(entrypoint_end - entrypoint);
 			if (entrypoint_length > 0)
-				arguments->entrypoint_funcs[i] = strndup(entrypoint, entrypoint_length);
+				arguments->entrypoint_funcs[i] = dupstring(entrypoint, entrypoint_length);
 
 			i++;
 			entrypoint = entrypoint_end + 1;

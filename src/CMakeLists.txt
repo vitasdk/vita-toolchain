@@ -27,6 +27,25 @@ else()
 	set(runtime_destination lib)
 endif()
 
+# Check if strndup is available, Windows toolchains typically don't provide it
+include(CheckCSourceCompiles)
+check_c_source_compiles("
+#include <string.h>
+#include <stdlib.h>
+int main() {
+	free(strndup(\"foo\", 4));
+}"
+HAVE_STRNDUP)
+
+if(HAVE_STRNDUP)
+	set(STRNDUP_DEF "HAVE_STRNDUP=1")
+else()
+	set(STRNDUP_DEF "HAVE_STRNDUP=0")
+endif()
+
+set_source_files_properties(dupstring.c PROPERTIES
+	COMPILE_DEFINITIONS ${STRNDUP_DEF})
+
 add_library(vita-yaml yamltree.c yamltreeutil.c)
 add_library(vita-export vita-export-parse.c sha256.c)
 add_library(vita-import vita-import.c vita-import-parse.c)
@@ -53,7 +72,7 @@ target_include_directories(vita-import PUBLIC
 	$<INSTALL_INTERFACE:include>)
 
 add_executable(vita-libs-gen vita-libs-gen.c)
-add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c elf-defs.c sce-elf.c varray.c elf-utils.c yamlemitter.c)
+add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c elf-defs.c sce-elf.c varray.c elf-utils.c yamlemitter.c dupstring.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
 add_executable(vita-make-fself vita-make-fself.c)
 add_executable(vita-pack-vpk vita-pack-vpk.c)
