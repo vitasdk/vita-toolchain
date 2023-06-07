@@ -1,11 +1,9 @@
-cmake_minimum_required(VERSION 2.6)
-project(vita-toolchain)
+cmake_minimum_required(VERSION 3.4)
+project(vita-toolchain LANGUAGES C)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-if (NOT TOOLCHAIN_DEPS_DIR)
-    set(TOOLCHAIN_DEPS_DIR "${CMAKE_SOURCE_DIR}/builds/deps_build")
-endif()
-set(ENV{PKG_CONFIG_PATH} "${TOOLCHAIN_DEPS_DIR}/lib/pkgconfig:${TOOLCHAIN_DEPS_DIR}/share/pkgconfig")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+set(TOOLCHAIN_DEPS_DIR "${CMAKE_SOURCE_DIR}/builds/deps_build" CACHE PATH "Prefix to search for dependencies in.")
+list(APPEND CMAKE_PREFIX_PATH "${TOOLCHAIN_DEPS_DIR}")
 
 add_subdirectory(src)
 add_subdirectory(psp2rela)
