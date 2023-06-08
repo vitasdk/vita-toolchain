@@ -37,15 +37,6 @@ int main() {
 }"
 HAVE_STRNDUP)
 
-if(HAVE_STRNDUP)
-	set(STRNDUP_DEF "HAVE_STRNDUP=1")
-else()
-	set(STRNDUP_DEF "HAVE_STRNDUP=0")
-endif()
-
-set_source_files_properties(dupstring.c PROPERTIES
-	COMPILE_DEFINITIONS ${STRNDUP_DEF})
-
 add_library(vita-yaml yamltree.c yamltreeutil.c)
 add_library(vita-export vita-export-parse.c sha256.c)
 add_library(vita-import vita-import.c vita-import-parse.c)
@@ -72,11 +63,15 @@ target_include_directories(vita-import PUBLIC
 	$<INSTALL_INTERFACE:include>)
 
 add_executable(vita-libs-gen vita-libs-gen.c)
-add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c elf-defs.c sce-elf.c varray.c elf-utils.c yamlemitter.c dupstring.c)
+add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c elf-defs.c sce-elf.c varray.c elf-utils.c yamlemitter.c strndup.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
 add_executable(vita-make-fself vita-make-fself.c)
 add_executable(vita-pack-vpk vita-pack-vpk.c)
 add_executable(vita-elf-export vita-elf-export.c yamlemitter.c)
+
+if(HAVE_STRNDUP)
+	target_compile_definitions(vita-elf-create PRIVATE "HAVE_STRNDUP")
+endif()
 
 target_link_libraries(vita-yaml ${libyaml_LIBRARIES})
 target_link_libraries(vita-import vita-yaml)
