@@ -5,6 +5,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifndef HAVE_STRNDUP
+#include "strndup.h"
+#endif
+
 int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 {
 	int c;
