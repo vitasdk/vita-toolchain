@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include "fs_list.h"
 
@@ -106,6 +107,7 @@ int fs_list_init_core(const char *path, FSListEntry **ppEnt, unsigned int depth,
 	current_depth = 0;
 
 	struct dirent *dir_ent;
+	struct stat stat_buf;
 
 	while(current != NULL){
 
@@ -120,7 +122,12 @@ int fs_list_init_core(const char *path, FSListEntry **ppEnt, unsigned int depth,
 					current->child = child;
 					current->nChild += 1;
 
-					if((dir_ent->d_type & DT_DIR) == DT_DIR){
+					res = stat(child->path_full, &stat_buf);
+					if(res != 0){
+						return -1;
+					}
+
+					if(S_ISDIR(stat_buf.st_mode)){
 
 						child->isDir = 1;
 
@@ -135,7 +142,7 @@ int fs_list_init_core(const char *path, FSListEntry **ppEnt, unsigned int depth,
 
 						nDir++;
 					}
-					else if((dir_ent->d_type & DT_REG) == DT_REG){
+					else if(S_ISREG(stat_buf.st_mode)){
 
 						child->isDir = 0;
 						nFile++;

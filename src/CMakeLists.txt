@@ -68,11 +68,7 @@ add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
 add_executable(vita-make-fself vita-make-fself.c)
 add_executable(vita-pack-vpk vita-pack-vpk.c)
 add_executable(vita-elf-export vita-elf-export.c yamlemitter.c)
-# Since it uses dirent->d_type, which is currently not in windows, it will be unix only.
-# But it's only used for vita-headers nid checks so it shouldn't matter...
-if (UNIX)
-	add_executable(vita-nid-check vita-nid-check.c fs_list.c yamlemitter.c)
-endif()
+add_executable(vita-nid-check vita-nid-check.c fs_list.c yamlemitter.c)
 
 if(HAVE_STRNDUP)
 	target_compile_definitions(vita-elf-create PRIVATE "HAVE_STRNDUP")
@@ -89,10 +85,8 @@ target_link_libraries(vita-elf-create vita-export vita-import ${libelf_LIBRARIES
 target_link_libraries(vita-pack-vpk ${libzip_LIBRARIES} ${zlib_LIBRARIES})
 target_link_libraries(vita-elf-export vita-yaml vita-export)
 target_link_libraries(vita-make-fself ${zlib_LIBRARIES} vita-export vita-import)
-if (UNIX)
-	# vita-nid-check doesn't require vita-export, but adds it for linking errors
-	target_link_libraries(vita-nid-check vita-yaml vita-export)
-endif()
+# vita-nid-check doesn't require vita-export, but adds it for linking errors
+target_link_libraries(vita-nid-check vita-yaml vita-export)
 
 if(BUILD_SHARED_LIBS)
 	target_compile_definitions(vita-yaml PUBLIC VITA_TOOLCHAIN_SHARED)
@@ -117,6 +111,4 @@ install(TARGETS vita-mksfoex DESTINATION bin)
 install(TARGETS vita-make-fself DESTINATION bin)
 install(TARGETS vita-pack-vpk DESTINATION bin)
 install(TARGETS vita-elf-export DESTINATION bin)
-if (UNIX)
-	install(TARGETS vita-nid-check DESTINATION bin)
-endif()
+install(TARGETS vita-nid-check DESTINATION bin)
