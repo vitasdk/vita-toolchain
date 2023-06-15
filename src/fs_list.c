@@ -1,6 +1,9 @@
 /*
  * fs_list
  * Copyright (C) 2022-2023, Princess of Sleeping
+ *
+ * This software may be modified and distributed under the terms
+ * of the MIT license.  See the LICENSE file for details.
  */
 
 #include <stdio.h>
