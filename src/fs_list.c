@@ -135,7 +135,7 @@ int fs_list_init_core(const char *path, FSListEntry **ppEnt, unsigned int depth,
 
 						nDir++;
 					}
-					else if((dir_ent->d_type & 0xC) == 8){
+					else if((dir_ent->d_type & DT_REG) == DT_REG){
 
 						child->isDir = 0;
 						nFile++;
