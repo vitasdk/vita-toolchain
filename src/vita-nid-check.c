@@ -31,6 +31,7 @@ typedef struct VitaNIDCheckEntry {
 	struct VitaNIDCheckLibrary *Library;
 	char *name;
 	int type;
+	int nid;
 } VitaNIDCheckEntry;
 
 typedef struct VitaNIDCheckLibrary {
@@ -86,6 +87,26 @@ void set_error(VitaNIDCheckContext *context, int error){
 	}
 }
 
+const char *get_type_string(int type){
+	if(type == ENTRY_TYPE_FUNCTION){
+		return "function";
+	}else if(type == ENTRY_TYPE_VARUABLE){
+		return "variable";
+	}
+
+	return "unknown";
+}
+
+const char *get_locate_string(int locate){
+	if(locate == LIBRARY_LOCATE_KERNEL){
+		return "kernel";
+	}else if(locate == LIBRARY_LOCATE_USERMODE){
+		return "user";
+	}
+
+	return "unknown";
+}
+
 int check_bypass(VitaNIDCheckContext *bypass, VitaNIDCheckLibrary *Target, const char *name){
 
 	if(bypass == NULL){
@@ -133,7 +154,7 @@ int check_bypass(VitaNIDCheckContext *bypass, VitaNIDCheckLibrary *Target, const
 	return -1;
 }
 
-int check_entry(const char *name, VitaNIDCheckLibrary *Library, int type){
+int check_entry(VitaNIDCheckLibrary *Library, int type, const char *name, int nid){
 
 	VitaNIDCheckEntry *Entry;
 
@@ -141,13 +162,13 @@ int check_entry(const char *name, VitaNIDCheckLibrary *Library, int type){
 		return -1;
 	}
 
-	// Library is cannot same name entry
+	// RULE: Library is cannot same name entry
 	{
 		Entry = Library->EntryHead;
 
 		while(Entry != NULL){
 			if(strcmp(name, Entry->name) == 0){
-				chkPrintfLevel(1, "%s is has already in %s::%s\n", name, Entry->Module->name, Entry->Library->name);
+				chkPrintfLevel(1, "%s (0x%08X) is has already in %s::%s::%s (0x%08X)\n", name, nid, Entry->Module->name, Entry->Library->name, Entry->name, Entry->nid);
 				set_error(Library->context, VITASDK_NID_CHK_ERROR_DUPLICATE_NAME);
 				return -1;
 			}
@@ -162,21 +183,46 @@ int check_entry(const char *name, VitaNIDCheckLibrary *Library, int type){
 			if(strcmp(name, Entry->name) == 0){
 
 				chkPrintfLevel(2,
-					"Found same name : %s::%s::%s (type=%d locate=%d) %s::%s::%s (type=%d locate=%d)\n",
-					Library->Module->name, Library->name, name, type, Library->locate,
-					Entry->Module->name, Entry->Library->name, Entry->name, Entry->type, Entry->Library->locate
+					"[%-31s] %s::%s (nid=0x%08X %s %s) %s::%s (nid=0x%08X %s %s)\n",
+					name, Library->Module->name, Library->name, nid, get_locate_string(Library->locate), get_type_string(type),
+					Entry->Module->name, Entry->Library->name, Entry->nid, get_locate_string(Entry->Library->locate), get_type_string(Entry->type)
 				);
 
+				// RULE: Not allowed same name with difference type. (func != var)
 				if(Entry->type != type){
-					chkPrintfLevel(1, "%s::%s::%s (%d) has a type difference with %s::%s::%s (%d)\n", Library->Module->name, Library->name, name, type, Entry->Module->name, Entry->Library->name, Entry->name, Entry->type);
+					chkPrintfLevel(1,
+						"%s::%s::%s has a type difference with %s::%s::%s (%s != %s)\n",
+						Library->Module->name, Library->name, name,
+						Entry->Module->name, Entry->Library->name, Entry->name, get_type_string(type), get_type_string(Entry->type)
+					);
 					set_error(Library->context, VITASDK_NID_CHK_ERROR_DIFF_TYPE);
 					return -1;
 				}
 
-				/* for
-				* SceSysmem::SceSysclibForDriver::memset
-				* SceLibc::SceLibc::memset
-				*/
+				/* SCE RULE: Not allowed same name with difference nid in module. (but prototype is should be same.)
+				 *
+				 * SceSysrootForKernel::sceKernelProcessDebugSuspend (0x1247A825)
+				 * SceProcessmgrForKernel::sceKernelProcessDebugSuspend (0x6AECE4CD)
+				 *
+				 * SceThreadmgr::sceKernelGetProcessId (0x9DCB4B7A)
+				 * SceThreadmgrForDriver::sceKernelGetProcessId (0x9DCB4B7A)
+				 */
+				if(nid != Entry->nid && strcmp(Library->Module->name, Entry->Module->name) == 0){
+					chkPrintfLevel(1,
+						"%s::%s::%s has a NID difference with %s::%s::%s (0x%08X != 0x%08X)\n",
+						Library->Module->name, Library->name, name,
+						Entry->Module->name, Entry->Library->name, Entry->name, nid, Entry->nid
+					);
+					set_error(Library->context, VITASDK_NID_CHK_ERROR_DUPLICATE_NAME);
+					return -1;
+				}
+
+				/* VITASDK RULE: Not allowed same name in same space. (but can bypass it!)
+				 *
+				 * SceSysmem::SceSysclibForDriver::memset (0x0AB9BF5C)
+				 * SceLibc::SceLibc::memset (0x6DC1F0D8)
+				 * ScePaf::ScePafStdc::memset (0x75ECC54E)
+				 */
 				if(Entry->Library->locate == Library->locate && check_bypass(Library->context->bypass, Library, name) < 0){
 					chkPrintfLevel(1, "%s::%s::%s is has already in %s::%s\n", Library->Module->name, Library->name, name, Entry->Module->name, Entry->Library->name);
 					set_error(Library->context, VITASDK_NID_CHK_ERROR_DUPLICATE_NAME);
@@ -190,21 +236,27 @@ int check_entry(const char *name, VitaNIDCheckLibrary *Library, int type){
 	return 0;
 }
 
-int process_function_entry(yaml_node *parent, yaml_node *child, VitaNIDCheckLibrary *Library){
+int process_entry(yaml_node *parent, yaml_node *child, VitaNIDCheckLibrary *Library, int type){
 
 	if(is_scalar(parent) == 0){
 		set_error(Library->context, VITASDK_NID_CHK_ERROR_INVALID_FORMAT);
 		return -1;
 	}
 
+	int nid;
 	const char *left = parent->data.scalar.value;
 
-	if(check_entry(left, Library, ENTRY_TYPE_FUNCTION) < 0){
+	if(process_32bit_integer(child, &nid) < 0){
+		set_error(Library->context, VITASDK_NID_CHK_ERROR_INVALID_FORMAT);
+		return -1;
+	}
+
+	if(check_entry(Library, type, left, nid) < 0){
 		set_error(Library->context, VITASDK_NID_CHK_ERROR_CHECK_FAILED);
 		return -1;
 	}
 
-	if(Library->EntryHead != NULL && Library->EntryHead->type == ENTRY_TYPE_FUNCTION && strcmp(Library->EntryHead->name, left) > 0){
+	if(Library->EntryHead != NULL && Library->EntryHead->type == type && strcmp(Library->EntryHead->name, left) > 0){
 		chkPrintfLevel(1, "Bad sort %s at line %d on %s::%s\n", left, parent->position.line, Library->Module->name, Library->name);
 		chkPrintfLevel(1, "Prev ent %s\n", Library->EntryHead->name);
 		set_error(Library->context, VITASDK_NID_CHK_ERROR_BAD_SORT);
@@ -227,7 +279,8 @@ int process_function_entry(yaml_node *parent, yaml_node *child, VitaNIDCheckLibr
 	Entry->Module  = Library->Module;
 	Entry->Library = Library;
 	Entry->name    = strdup(left);
-	Entry->type    = ENTRY_TYPE_FUNCTION;
+	Entry->type    = type;
+	Entry->nid     = nid;
 
 	Library->EntryHead     = Entry;
 	Library->EntryCounter += 1;
@@ -241,55 +294,12 @@ int process_function_entry(yaml_node *parent, yaml_node *child, VitaNIDCheckLibr
 	return 0;
 }
 
+int process_function_entry(yaml_node *parent, yaml_node *child, VitaNIDCheckLibrary *Library){
+	return process_entry(parent, child, Library, ENTRY_TYPE_FUNCTION);
+}
+
 int process_variable_entry(yaml_node *parent, yaml_node *child, VitaNIDCheckLibrary *Library){
-
-	if(is_scalar(parent) == 0){
-		set_error(Library->context, VITASDK_NID_CHK_ERROR_INVALID_FORMAT);
-		return -1;
-	}
-
-	const char *left = parent->data.scalar.value;
-
-	if(check_entry(left, Library, ENTRY_TYPE_VARUABLE) < 0){
-		set_error(Library->context, VITASDK_NID_CHK_ERROR_CHECK_FAILED);
-		return -1;
-	}
-
-	if(Library->EntryHead != NULL && Library->EntryHead->type == ENTRY_TYPE_VARUABLE && strcmp(Library->EntryHead->name, left) > 0){
-		chkPrintfLevel(1, "Bad sort %s at line %d on %s::%s\n", left, parent->position.line, Library->Module->name, Library->name);
-		chkPrintfLevel(1, "Prev ent %s\n", Library->EntryHead->name);
-		set_error(Library->context, VITASDK_NID_CHK_ERROR_BAD_SORT);
-		return -1;
-	}
-
-	VitaNIDCheckEntry *Entry;
-
-	Entry = malloc(sizeof(*Entry));
-	if(Entry == NULL){
-		set_error(Library->context, VITASDK_NID_CHK_ERROR_NO_MEMORY);
-		return -1;
-	}
-
-	memset(Entry, 0, sizeof(*Entry));
-
-	Entry->next    = Library->EntryHead;
-	Entry->wnext   = Library->context->WEntry;
-	Entry->context = Library->context;
-	Entry->Module  = Library->Module;
-	Entry->Library = Library;
-	Entry->name    = strdup(left);
-	Entry->type    = ENTRY_TYPE_VARUABLE;
-
-	Library->EntryHead     = Entry;
-	Library->EntryCounter += 1;
-	Library->context->WEntry = Entry;
-
-	if(Entry->name == NULL){
-		set_error(Library->context, VITASDK_NID_CHK_ERROR_NO_MEMORY);
-		return -1;
-	}
-
-	return 0;
+	return process_entry(parent, child, Library, ENTRY_TYPE_VARUABLE);
 }
 
 int process_library_info(yaml_node *parent, yaml_node *child, VitaNIDCheckLibrary *Library){
@@ -688,6 +698,11 @@ int main(int argc, char *argv[]){
 	res = fs_list_init_with_depth(&nid_db_list, dbdirver, 0, NULL, NULL);
 	if(res >= 0){
 		res = fs_list_execute(nid_db_list->child, db_top_list_callback, &param);
+		if(res < 0){
+			chkPrintfLevel(2, "%s: failed fs_list_execute 0x%X\n", __FUNCTION__, res);
+		}
+	}else{
+		chkPrintfLevel(1, "%s: failed fs_list_init_with_depth 0x%X\n", __FUNCTION__, res);
 	}
 	fs_list_fini(nid_db_list);
 	nid_db_list = NULL;
