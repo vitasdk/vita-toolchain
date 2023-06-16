@@ -104,6 +104,9 @@ set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-q" )
 set( VITA True )
 set( BUILD_VITA True )
 
+# disabled error logs for gcc13
+set( CMAKE_PCH_WARN_INVALID True )
+
 # where is the target environment
 set( CMAKE_FIND_ROOT_PATH "${VITASDK}/bin" "${VITASDK}/arm-vita-eabi" "${CMAKE_INSTALL_PREFIX}" "${CMAKE_INSTALL_PREFIX}/share" )
 set( CMAKE_INSTALL_PREFIX "${VITASDK}/arm-vita-eabi" CACHE PATH "default install path" )
