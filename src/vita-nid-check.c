@@ -199,15 +199,24 @@ int check_entry(VitaNIDCheckLibrary *Library, int type, const char *name, int ni
 					return -1;
 				}
 
+				int bypass_res = check_bypass(Library->context->bypass, Library, name);
+
 				/* SCE RULE: Not allowed same name with difference nid in module. (but prototype is should be same.)
 				 *
 				 * SceSysrootForKernel::sceKernelProcessDebugSuspend (0x1247A825)
 				 * SceProcessmgrForKernel::sceKernelProcessDebugSuspend (0x6AECE4CD)
 				 *
-				 * SceThreadmgr::sceKernelGetProcessId (0x9DCB4B7A)
-				 * SceThreadmgrForDriver::sceKernelGetProcessId (0x9DCB4B7A)
+				 * sceKernelGetProcessId is the entries are the same.
+				 * So it's an absolutely identical prototype.
+				 * - SceThreadmgr::sceKernelGetProcessId (0x9DCB4B7A)
+				 * - SceThreadmgrForDriver::sceKernelGetProcessId (0x9DCB4B7A)
+				 *
+				 * Exception (bypass in this case is allowed)
+				 * These are with and without processing for usermap.
+				 * - SceIofilemgr::SceIofilemgr::sceIoRead (0xFDB32293)
+				 * - SceIofilemgr::SceIofilemgrForDriver::sceIoRead (0xE17EFC03)
 				 */
-				if(nid != Entry->nid && strcmp(Library->Module->name, Entry->Module->name) == 0){
+				if(nid != Entry->nid && strcmp(Library->Module->name, Entry->Module->name) == 0 && bypass_res < 0){
 					chkPrintfLevel(1,
 						"%s::%s::%s has a NID difference with %s::%s::%s (0x%08X != 0x%08X)\n",
 						Library->Module->name, Library->name, name,
@@ -223,7 +232,7 @@ int check_entry(VitaNIDCheckLibrary *Library, int type, const char *name, int ni
 				 * SceLibc::SceLibc::memset (0x6DC1F0D8)
 				 * ScePaf::ScePafStdc::memset (0x75ECC54E)
 				 */
-				if(Entry->Library->locate == Library->locate && check_bypass(Library->context->bypass, Library, name) < 0){
+				if(Entry->Library->locate == Library->locate && bypass_res < 0){
 					chkPrintfLevel(1, "%s::%s::%s is has already in %s::%s\n", Library->Module->name, Library->name, name, Entry->Module->name, Entry->Library->name);
 					set_error(Library->context, VITASDK_NID_CHK_ERROR_DUPLICATE_NAME);
 					return -1;
