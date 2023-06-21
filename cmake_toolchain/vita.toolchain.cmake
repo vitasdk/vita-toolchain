@@ -116,3 +116,5 @@ endif()
 if( NOT CMAKE_FIND_ROOT_PATH_MODE_INCLUDE )
   set( CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY )
 endif()
+
+include("${VITASDK}/arm-vita-eabi/vita.header_warn.cmake" OPTIONAL)
