@@ -30,7 +30,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required( VERSION 3.2 )
+cmake_minimum_required( VERSION 3.6 )
 
 if( DEFINED CMAKE_CROSSCOMPILING )
   # subsequent toolchain loading is not really needed
@@ -117,4 +117,6 @@ if( NOT CMAKE_FIND_ROOT_PATH_MODE_INCLUDE )
   set( CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY )
 endif()
 
+set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES SHOWED_DEPRECATION_WARNING)
+set(SHOWED_DEPRECATION_WARNING Off CACHE BOOL "Showed deprecation warning")
 include("${VITASDK}/arm-vita-eabi/vita.header_warn.cmake" OPTIONAL)
