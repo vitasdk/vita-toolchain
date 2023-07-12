@@ -63,6 +63,7 @@ target_include_directories(vita-import PUBLIC
 	$<INSTALL_INTERFACE:include>)
 
 add_executable(vita-libs-gen vita-libs-gen.c)
+add_executable(vita-libs-gen-2 vita-nid-db.c fs_list.c yamlemitter.c)
 add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c elf-defs.c sce-elf.c varray.c elf-utils.c yamlemitter.c strndup.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
 add_executable(vita-make-fself vita-make-fself.c)
@@ -81,10 +82,11 @@ if (WIN32)
 	target_link_libraries(vita-export ws2_32)
 endif()
 target_link_libraries(vita-libs-gen vita-import)
+target_link_libraries(vita-libs-gen-2 vita-yaml vita-export)
 target_link_libraries(vita-elf-create vita-export vita-import ${libelf_LIBRARIES} vita-yaml)
 target_link_libraries(vita-pack-vpk ${libzip_LIBRARIES} ${zlib_LIBRARIES})
 target_link_libraries(vita-elf-export vita-yaml vita-export)
-target_link_libraries(vita-make-fself ${zlib_LIBRARIES} vita-export vita-import)
+target_link_libraries(vita-make-fself ${zlib_LIBRARIES} vita-export)
 # vita-nid-check doesn't require vita-export, but adds it for linking errors
 target_link_libraries(vita-nid-check vita-yaml vita-export)
 
@@ -106,6 +108,7 @@ install(TARGETS vita-import
 	PUBLIC_HEADER DESTINATION include
 	RUNTIME DESTINATION ${runtime_destination})
 install(TARGETS vita-libs-gen DESTINATION bin)
+install(TARGETS vita-libs-gen-2 DESTINATION bin)
 install(TARGETS vita-elf-create DESTINATION bin)
 install(TARGETS vita-mksfoex DESTINATION bin)
 install(TARGETS vita-make-fself DESTINATION bin)
