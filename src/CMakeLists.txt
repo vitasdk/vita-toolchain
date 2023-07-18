@@ -8,6 +8,9 @@ include_directories(${zlib_INCLUDE_DIRS})
 include_directories(${libzip_INCLUDE_DIRS})
 
 set(CMAKE_C_FLAGS "-fvisibility=hidden -g -std=gnu99")
+set(CMAKE_CXX_FLAGS "-fvisibility=hidden -g -std=gnu++11")
+
+enable_language(C CXX)
 
 if(USE_BUNDLED_ENDIAN_H)
 	add_definitions(-DUSE_BUNDLED_ENDIAN_H)
@@ -63,7 +66,7 @@ target_include_directories(vita-import PUBLIC
 	$<INSTALL_INTERFACE:include>)
 
 add_executable(vita-libs-gen vita-libs-gen.c)
-add_executable(vita-libs-gen-2 vita-nid-db.c fs_list.c yamlemitter.c)
+add_executable(vita-libs-gen-2 vita-libs-gen-2.cpp vita-nid-db-yml.c vita-nid-db.c fs_list.c yamlemitter.c)
 add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c elf-defs.c sce-elf.c varray.c elf-utils.c yamlemitter.c strndup.c)
 add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
 add_executable(vita-make-fself vita-make-fself.c)
