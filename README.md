@@ -21,6 +21,47 @@ usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
 Converts a standard `ET_EXEC` ELF (outputted by `arm-vita-eabi-gcc` for example)
 to the Sony ELF format.
 
+vita-elf-create also adds special symbols defined programmatically to module info.
+
+|type|mode|name|prototype|used by|
+|-----|-----|-----|-----|-----|
+|variable|C|module_sdk_version|const SceUInt32 module_sdk_version;|Kernel|
+|variable|C|sceUserMainThreadName|const char sceUserMainThreadName[];|Kernel|
+|variable|C|sceUserMainThreadPriority|const SceUInt32 sceUserMainThreadPriority;|Kernel|
+|variable|C|sceUserMainThreadStackSize|const SceSize sceUserMainThreadStackSize;|Kernel|
+|variable|C|sceUserMainThreadCpuAffinityMask|const SceUInt32 sceUserMainThreadCpuAffinityMask;|Kernel|
+|variable|C|sceUserMainThreadAttribute|const SceUInt32 sceUserMainThreadAttribute;|Kernel|
+|variable|C|sceKernelPreloadModuleInhibit|const SceUInt32 sceKernelPreloadModuleInhibit;|Kernel|
+|variable|C|sceLibcHeapUnitSize1MiB|unknown|SceLibc|
+|variable|C|sceLibcHeapSize|SceSize sceLibcHeapSize;|SceLibc|
+|variable|C|sceLibcHeapInitialSize|unknown|SceLibc|
+|variable|C|sceLibcHeapExtendedAlloc|unknown|SceLibc|
+|variable|C|sceLibcHeapDelayedAlloc|unknown|SceLibc|
+|variable|C|sceLibcHeapDetectOverrun|unknown|SceLibc|
+|function|C|user_malloc_init|unknown|SceLibc|
+|function|C|user_malloc_finalize|unknown|SceLibc|
+|function|C|user_malloc|unknown|SceLibc|
+|function|C|user_free|unknown|SceLibc|
+|function|C|user_calloc|unknown|SceLibc|
+|function|C|user_realloc|unknown|SceLibc|
+|function|C|user_memalign|unknown|SceLibc|
+|function|C|user_reallocalign|unknown|SceLibc|
+|function|C|user_malloc_stats|unknown|SceLibc|
+|function|C|user_malloc_stats_fast|unknown|SceLibc|
+|function|C|user_malloc_usable_size|unknown|SceLibc|
+|function|C|user_malloc_for_tls_init|unknown|SceLibc|
+|function|C|user_malloc_for_tls_finalize|unknown|SceLibc|
+|function|C|user_malloc_for_tls|unknown|SceLibc|
+|function|C|user_free_for_tls|unknown|SceLibc|
+|function|C++|_Z8user_newj|user_new(std::size_t) throw(std::badalloc)|SceLibc|
+|function|C++|_Z8user_newjRKSt9nothrow_t|user_new(std::size_t, std::nothrow_t const&)|SceLibc|
+|function|C++|_Z14user_new_arrayj|user_new_array(std::size_t) throw(std::badalloc)|SceLibc|
+|function|C++|_Z14user_new_arrayjRKSt9nothrow_t|user_new_array(std::size_t, std::nothrow_t const&)|SceLibc|
+|function|C++|_Z11user_deletePv|user_delete(void*)|SceLibc|
+|function|C++|_Z11user_deletePvRKSt9nothrow_t|user_delete(void*, std::nothrow_t const&)|SceLibc|
+|function|C++|_Z17user_delete_arrayPv|user_delete_array(void*)|SceLibc|
+|function|C++|_Z17user_delete_arrayPvRKSt9nothrow_t|user_delete_array(void*, std::nothrow_t const&)|SceLibc|
+
 ### vita-elf-export
 ```
 usage: vita-elf-export mod-type elf exports imports
