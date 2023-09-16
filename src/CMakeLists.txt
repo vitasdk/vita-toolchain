@@ -7,8 +7,8 @@ include_directories(${libelf_INCLUDE_DIRS})
 include_directories(${zlib_INCLUDE_DIRS})
 include_directories(${libzip_INCLUDE_DIRS})
 
-set(CMAKE_C_FLAGS "-fvisibility=hidden -g -std=gnu99")
-set(CMAKE_CXX_FLAGS "-fvisibility=hidden -g -std=gnu++11")
+set(CMAKE_C_FLAGS "-fno-strict-aliasing -fvisibility=hidden -g -std=gnu99")
+set(CMAKE_CXX_FLAGS "-fno-strict-aliasing -fvisibility=hidden -g -std=gnu++11")
 
 enable_language(C CXX)
 
