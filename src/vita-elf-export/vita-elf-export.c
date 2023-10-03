@@ -2,7 +2,7 @@
 #include <yaml.h>
 
 #include "vita-export.h"
-#include "yamlemitter.h"
+#include "utils/yamlemitter.h"
 
 static void show_usage(void)
 {

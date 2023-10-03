@@ -13,7 +13,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "getopt.h"
-#include "types.h"
+#include "../types.h"
 
 #define PSF_MAGIC	0x46535000
 #define PSF_VERSION  0x00000101

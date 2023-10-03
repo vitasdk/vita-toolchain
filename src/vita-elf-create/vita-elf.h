@@ -7,7 +7,7 @@
 
 #include "vita-import.h"
 #include "vita-export.h"
-#include "varray.h"
+#include "utils/varray.h"
 
 struct vita_elf_stub_t;
 /* Convenience representation of a symtab entry */

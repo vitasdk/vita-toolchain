@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include "vita-nid-db-yml.h"
 #include "vita-nid-db.h"
-#include "fs_list.h"
+#include "utils/fs_list.h"
 
 
 int is_number_ch(int ch){

@@ -40,8 +40,8 @@ int main() {
 }"
 HAVE_STRNDUP)
 
-add_library(vita-yaml yamltree.c yamltreeutil.c)
-add_library(vita-export vita-export-parse.c sha256.c)
+add_library(vita-yaml utils/yamltree.c utils/yamltreeutil.c)
+add_library(vita-export vita-export-parse.c utils/sha256.c)
 add_library(vita-import vita-import.c vita-import-parse.c)
 
 set_target_properties(vita-yaml PROPERTIES
@@ -65,14 +65,46 @@ target_include_directories(vita-import PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 	$<INSTALL_INTERFACE:include>)
 
-add_executable(vita-libs-gen vita-libs-gen.c)
-add_executable(vita-libs-gen-2 vita-libs-gen-2.cpp vita-nid-db-yml.c vita-nid-db.c fs_list.c yamlemitter.c)
-add_executable(vita-elf-create vita-elf-create.c elf-create-argp.c vita-elf.c elf-defs.c sce-elf.c varray.c elf-utils.c yamlemitter.c strndup.c)
-add_executable(vita-mksfoex vita-mksfoex.c getopt_long.c)
-add_executable(vita-make-fself vita-make-fself.c)
-add_executable(vita-pack-vpk vita-pack-vpk.c)
-add_executable(vita-elf-export vita-elf-export.c yamlemitter.c)
-add_executable(vita-nid-check vita-nid-check.c fs_list.c yamlemitter.c)
+add_executable(vita-libs-gen
+  vita-libs-gen/vita-libs-gen.c
+)
+add_executable(vita-libs-gen-2
+  vita-libs-gen-2/vita-libs-gen-2.cpp
+  vita-libs-gen-2/vita-nid-db-yml.c
+  vita-libs-gen-2/vita-nid-db.c
+  utils/fs_list.c
+  utils/yamlemitter.c
+)
+add_executable(vita-elf-create
+  vita-elf-create/vita-elf-create.c
+  vita-elf-create/elf-create-argp.c
+  vita-elf-create/vita-elf.c
+  vita-elf-create/elf-defs.c
+  vita-elf-create/elf-utils.c
+  vita-elf-create/sce-elf.c
+  utils/varray.c
+  utils/yamlemitter.c
+  utils/strndup.c
+)
+add_executable(vita-mksfoex
+  vita-mksfoex/vita-mksfoex.c
+  vita-mksfoex/getopt_long.c
+)
+add_executable(vita-make-fself
+  vita-make-fself/vita-make-fself.c
+)
+add_executable(vita-pack-vpk
+  vita-pack-vpk/vita-pack-vpk.c
+)
+add_executable(vita-elf-export
+  vita-elf-export/vita-elf-export.c
+  utils/yamlemitter.c
+)
+add_executable(vita-nid-check
+  vita-nid-check/vita-nid-check.c
+  utils/fs_list.c
+  utils/yamlemitter.c
+)
 
 if(HAVE_STRNDUP)
 	target_compile_definitions(vita-elf-create PRIVATE "HAVE_STRNDUP")

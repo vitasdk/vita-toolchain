@@ -10,9 +10,9 @@
 #include "elf-defs.h"
 #include "elf-utils.h"
 #include "sce-elf.h"
-#include "fail-utils.h"
-#include "varray.h"
-#include "endian-utils.h"
+#include "utils/fail-utils.h"
+#include "utils/varray.h"
+#include "utils/endian-utils.h"
 
 const uint32_t sce_elf_stub_func[3] = {
 	0xe3e00000,	/* mvn r0, #0 */

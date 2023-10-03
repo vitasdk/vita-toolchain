@@ -14,9 +14,9 @@
 #include "elf-defs.h"
 #include "sce-elf.h"
 #include "elf-utils.h"
-#include "fail-utils.h"
+#include "utils/fail-utils.h"
 #include "elf-create-argp.h"
-#include "yamlemitter.h"
+#include "utils/yamlemitter.h"
 
 // logging level
 int g_log = 0;
