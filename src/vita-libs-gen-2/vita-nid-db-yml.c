@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "vita-nid-db-yml.h"
-#include "yamltreeutil.h"
+#include "utils/yamltreeutil.h"
 
 
 const VitaNIDCallbacks *g_VitaNIDCallbacks = NULL;

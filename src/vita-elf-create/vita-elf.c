@@ -31,9 +31,9 @@
 #include "vita-import.h"
 #include "vita-export.h"
 #include "elf-defs.h"
-#include "fail-utils.h"
-#include "endian-utils.h"
-#include "sha256.h"
+#include "utils/fail-utils.h"
+#include "utils/endian-utils.h"
+#include "utils/sha256.h"
 #include "vita-export.h"
 #include "sce-elf.h"
 

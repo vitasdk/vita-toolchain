@@ -5,9 +5,9 @@
 #include <limits.h>
 
 #include "vita-export.h"
-#include "yamltree.h"
-#include "yamltreeutil.h"
-#include "sha256.h"
+#include "utils/yamltree.h"
+#include "utils/yamltreeutil.h"
+#include "utils/sha256.h"
 #ifdef _WIN32
 #include <winsock2.h>
 #else

@@ -1,9 +1,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include "vita-import.h"
-#include "yamltree.h"
-#include "yamltreeutil.h"
-#include "sha256.h"
+#include "utils/yamltree.h"
+#include "utils/yamltreeutil.h"
+#include "utils/sha256.h"
 
 int process_import_functions(yaml_node *parent, yaml_node *child, vita_imports_lib_t *library) {
 	if (!is_scalar(parent)) {

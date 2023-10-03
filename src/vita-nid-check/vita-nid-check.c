@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include "fs_list.h"
-#include "yamltreeutil.h"
+#include "utils/fs_list.h"
+#include "utils/yamltreeutil.h"
 
 
 #define VITASDK_NID_CHK_ERROR                (0x80010001)
