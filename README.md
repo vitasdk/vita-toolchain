@@ -9,6 +9,18 @@ only contains Vita specific host tools. Check out the
 format, these tools, and their inputs/outputs (including the YAML configuration 
 format).
 
+## vita-toolchain file formats
+|name|description|
+|-----|-----|
+|elf|A normal .elf format|
+|velf|The vita's elf format (elf + some module infos)|
+|self|The signed velf file + self headers|
+|fself|The self file. but not signed. (fake self)|
+|nid_db_json|really old nid db format|
+|nid_db_classic|Base of the most used formats currently|
+|nid_db_classic_v2|Added library `version` key to nid_db_classic|
+|nid_db_classic_v3|Added library `stubname` key to nid_db_classic_v2|
+
 ### vita-elf-create
 ```
 usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
@@ -85,6 +97,27 @@ manually written by hackers for Sony owned modules), this will generate stub
 libraries that can be linked to such that `vita-elf-create` can properly
 generate a Sony ELF. After calling `vita-libs-gen` you need to run `make` or 
 `cmake` in the output directory to build the stubs.
+
+vita-libs-gen supports nid_db_classic_v2 yml file
+
+### vita-libs-gen-2
+```
+usage: vita-libs-gen-2 -yml=<nids_db.yml|nids_db_yml_dir> -output=<output_dir> [-cmake=<true|false>] [-ignore-stubname=<true|false>]
+```
+Enhanced version of vita-libs-gen.
+- better cleeanup for make version
+- no 1024 limite for entries number
+- support multi yml in once
+- support stubname mapping
+
+vita-libs-gen-2 supports nid_db_classic_v3 yml file
+
+### vita-nid-check
+```
+usage: vita-nid-check -dbdirver=<./path/to/db_dir>[-bypass=<./path/to/bypass.yml>] [-dbg=<debug|trace>] 
+```
+
+vita-nid-check supports nid_db_classic_v3 yml file
 
 ### vita-make-fself
 ```
