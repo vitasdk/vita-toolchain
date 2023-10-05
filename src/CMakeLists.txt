@@ -102,6 +102,9 @@ add_executable(vita-elf-export
 )
 add_executable(vita-nid-check
   vita-nid-check/vita-nid-check.c
+  vita-nid-check/vita-nid-bypass.c
+  vita-libs-gen-2/vita-nid-db-yml.c
+  vita-libs-gen-2/vita-nid-db.c
   utils/fs_list.c
   utils/yamlemitter.c
 )

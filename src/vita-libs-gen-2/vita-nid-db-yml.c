@@ -349,7 +349,8 @@ int add_nid_db_by_path(const char *path, void *argp){
 	fp = NULL;
 
 	if(res < 0){
-		printf("yml parse error on %s\n", path);
+		// printf("yml parse error on %s\n", path);
+		return res;
 	}
 
 	return 0;

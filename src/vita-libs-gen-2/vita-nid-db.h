@@ -10,11 +10,20 @@ extern "C" {
 #endif
 
 
+#define ENTRY_TYPE_NONE     (0)
+#define ENTRY_TYPE_FUNCTION (1)
+#define ENTRY_TYPE_VARUABLE (2)
+
+#define LIBRARY_LOCATE_NONE     (0)
+#define LIBRARY_LOCATE_USERMODE (1)
+#define LIBRARY_LOCATE_KERNEL   (2)
+
 typedef struct DBEntry {
 	struct DBEntry *next;
 	struct DBEntry *prev;
 	char *name;
 	uint32_t nid;
+	int type;
 	struct DBLibrary *library;
 	struct DBModule *module;
 	struct DBFirmware *firmware;

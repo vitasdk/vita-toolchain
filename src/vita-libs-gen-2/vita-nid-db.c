@@ -22,7 +22,6 @@ void db_new_context(DBContext **result){
 	*result = context;
 }
 
-
 void db_new_firmware(DBContext *context, uint32_t firmware, DBFirmware **result){
 
 	DBContext *ctx;
@@ -80,7 +79,6 @@ void db_search_or_new_firmware(DBContext *context, uint32_t firmware, DBFirmware
 		db_new_firmware(context, firmware, result);
 	}
 }
-
 
 void db_new_module(DBFirmware *fw, const char *name, DBModule **result){
 
@@ -215,6 +213,7 @@ void db_new_entry_function(DBLibrary *library, const char *name, DBEntry **resul
 	entry->prev = tail;
 	entry->name = strdup(name);
 	entry->nid = 0;
+	entry->type = ENTRY_TYPE_FUNCTION;
 	entry->library = library;
 	entry->module = ((DBLibrary *)library)->module;
 	entry->firmware = ((DBLibrary *)library)->firmware;
@@ -264,6 +263,7 @@ void db_new_entry_variable(DBLibrary *library, const char *name, DBEntry **resul
 	entry->prev = tail;
 	entry->name = strdup(name);
 	entry->nid = 0;
+	entry->type = ENTRY_TYPE_VARUABLE;
 	entry->library = library;
 	entry->module = ((DBLibrary *)library)->module;
 	entry->firmware = ((DBLibrary *)library)->firmware;
