@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #ifndef HAVE_STRNDUP
-#include "strndup.h"
+#include "utils/strndup.h"
 #endif
 
 int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
