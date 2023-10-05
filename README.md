@@ -10,16 +10,18 @@ format, these tools, and their inputs/outputs (including the YAML configuration
 format).
 
 ## vita-toolchain file formats
-|name|description|
-|-----|-----|
-|elf|A normal .elf format|
-|velf|The vita's elf format (elf + some module infos)|
-|self|The signed velf file + self headers|
-|fself|The self file. but not signed. (fake self)|
-|nid_db_json|really old nid db format|
-|nid_db_classic|Base of the most used formats currently|
-|nid_db_classic_v2|Added library `version` key to nid_db_classic|
-|nid_db_classic_v3|Added library `stubname` key to nid_db_classic_v2|
+|name|processor|description|
+|-----|-----|-----|
+|elf|-|A normal .elf format|
+|velf|vita-elf-create.c|The vita's elf format (elf + some module infos)|
+|self|-|The signed velf file + self headers|
+|fself|vita-make-fself.c|The self file. but not signed. (fake self)|
+|nid_db_json|-|really old nid db format|
+|nid_db_classic|vita-import-parse.c <br> vita-nid-db-yml.c|Base of the most used formats currently|
+|nid_db_classic_v2|vita-import-parse.c <br> vita-nid-db-yml.c|Added library `version` key to nid_db_classic|
+|nid_db_classic_v3|vita-nid-db-yml.c|Added library `stubname` key to nid_db_classic_v2|
+|nid_db_bypass|vita-nid-bypass.c|The yml format to bypass duplicate entry names in vita-libs-gen-2|
+|module_config|vita-export-parse.c|The yml format for more detailed module configuration|
 
 ### vita-elf-create
 ```
@@ -100,13 +102,15 @@ generate a Sony ELF. After calling `vita-libs-gen` you need to run `make` or
 
 vita-libs-gen supports nid_db_classic_v2 yml file
 
+Warning: You cannot add more than 1024 entries to a single library in cmake mode.
+
 ### vita-libs-gen-2
 ```
 usage: vita-libs-gen-2 -yml=<nids_db.yml|nids_db_yml_dir> -output=<output_dir> [-cmake=<true|false>] [-ignore-stubname=<true|false>]
 ```
 Enhanced version of vita-libs-gen.
 - better cleeanup for make version
-- no 1024 limite for entries number
+- no 1024 limite for entries number in cmake mode
 - support multi yml in once
 - support stubname mapping
 
@@ -114,8 +118,15 @@ vita-libs-gen-2 supports nid_db_classic_v3 yml file
 
 ### vita-nid-check
 ```
-usage: vita-nid-check -dbdirver=<./path/to/db_dir>[-bypass=<./path/to/bypass.yml>] [-dbg=<debug|trace>] 
+usage: vita-nid-check -dbdirver=<./path/to/db_dir> [-bypass=<./path/to/bypass.yml>] [-dbg=<debug|trace>] 
 ```
+
+Checks all files in the selected directory.
+- Is yml file
+- Is entry sorted
+- Is no duplicated name
+
+Also cannot contain multiple firmware versions within the selected directory.
 
 vita-nid-check supports nid_db_classic_v3 yml file
 
