@@ -107,7 +107,7 @@ set( BUILD_VITA True )
 # where is the target environment
 set( CMAKE_FIND_ROOT_PATH "${VITASDK}/bin" "${VITASDK}/arm-vita-eabi" "${CMAKE_INSTALL_PREFIX}" "${CMAKE_INSTALL_PREFIX}/share" )
 set( CMAKE_INSTALL_PREFIX "${VITASDK}/arm-vita-eabi" CACHE PATH "default install path" )
-set( PKG_CONFIG_EXECUTABLE "${VITASDK}/bin/arm-vita-eabi-pkg-config" )
+set( PKG_CONFIG_EXECUTABLE "${VITASDK}/bin/arm-vita-eabi-pkg-config" CACHE PATH "Path of pkg-config executable" )
 
 # only search for libraries and includes in vita toolchain
 if( NOT CMAKE_FIND_ROOT_PATH_MODE_LIBRARY )
