@@ -540,7 +540,7 @@ failure:
 	return 0;
 }
 
-vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
+vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export)
 {
 	vita_elf_t *ve = NULL;
 	GElf_Ehdr ehdr;
@@ -623,7 +623,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count)
 	if (ve->symtab == NULL)
 		FAILX("No symbol table in binary, perhaps stripped out");
 
-	if (ve->rela_tables == NULL)
+	if (ve->rela_tables == NULL && export != NULL && export->is_image_module == 0)
 		FAILX("No relocation sections in binary; use -Wl,-q while compiling");
 
 	if (ve->fstubs_va.count != 0) {

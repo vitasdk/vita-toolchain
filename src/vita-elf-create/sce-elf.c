@@ -187,13 +187,18 @@ failure:
 
 static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, sce_module_info_t *module_info, vita_export_t *export_spec, void *process_param)
 {
+	int have_process_param = export_spec->is_process_image != 0 && export_spec->is_image_module == 0;
+
 	export->size = sizeof(sce_module_exports_raw);
-	export->version = 0;
-	export->flags = 0x8000; // for syslib
-	export->num_syms_funcs = (export_spec->is_image_module == 0) ? 1 : 0; // Really all modules have module_start?
-	export->num_syms_vars = 2; // module_info/process_param for default
+	export->version        = 0;
+	export->flags          = 0x8000; // for syslib
+	export->num_syms_funcs = 0;
+	export->num_syms_vars  = 1;      // module_info for default
 
 	if (export_spec->is_image_module == 0) {
+		if (export_spec->start)
+			++export->num_syms_funcs;
+
 		if (export_spec->bootstart)
 			++export->num_syms_funcs;
 
@@ -202,6 +207,10 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 
 		if (export_spec->exit)
 			++export->num_syms_funcs;
+	}
+
+	if (have_process_param != 0) {
+		++export->num_syms_vars;
 	}
 
 	if (ve->module_sdk_version_ptr != 0xFFFFFFFF) {
@@ -270,9 +279,11 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 	export->entry_table[cur_nid] = module_info;
 	++cur_nid;
 	
-	export->nid_table[cur_nid] = NID_PROCESS_PARAM;
-	export->entry_table[cur_nid] = process_param;
-	++cur_nid;
+	if (have_process_param != 0) {
+		export->nid_table[cur_nid] = NID_PROCESS_PARAM;
+		export->entry_table[cur_nid] = process_param;
+		++cur_nid;
+	}
 
 	if (ve->module_sdk_version_ptr != 0xFFFFFFFF) {
 		export->nid_table[cur_nid] = NID_MODULE_SDK_VERSION;
@@ -321,12 +332,29 @@ static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, cons
 	}
 }
 
-sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, int have_libc) 
+sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, vita_export_t *exports, int have_libc) 
 {
+	ASSERT(ve != NULL);
+	ASSERT(exports != NULL);
+
 	sce_module_params_t *params = calloc(1, sizeof(sce_module_params_t));
 	ASSERT(params != NULL);
 
 	params->process_param_version = ve->module_sdk_version;
+
+	if (exports->is_process_image == 0 || exports->is_image_module != 0) {
+
+		params->process_param_size = 0;
+
+		sce_process_param_v6_raw *process_param;
+
+		process_param = calloc(1, sizeof(*process_param));
+		ASSERT(process_param != NULL);
+		process_param->size = 0;
+		params->process_param = process_param;
+
+		return params;
+	}
 
 	if (params->process_param_version >= VITA_TOOLCHAIN_PROCESS_PARAM_NEW_FORMAT_VERSION) {
 		params->process_param_size = sizeof(sce_process_param_v6_raw);
@@ -579,6 +607,9 @@ void sce_elf_module_info_free(sce_module_info_t *module_info)
 		rela->addend = addend; \
 	} \
 } while(0)
+
+#define sce_module_info_alignment_value (4)
+
 void *sce_elf_module_info_encode(
 		const sce_module_info_t *module_info, const vita_elf_t *ve, const sce_section_sizes_t *sizes,
 		vita_elf_rela_table_t *rtable, sce_module_params_t *params)
@@ -618,7 +649,7 @@ void *sce_elf_module_info_encode(
 
 	segment_base = ve->segments[segndx].vaddr;
 	start_offset = ve->segments[segndx].memsz;
-	start_offset = (start_offset + 0xF) & ~0xF; // align to 16 bytes
+	start_offset = (start_offset + (sce_module_info_alignment_value - 1)) & ~(sce_module_info_alignment_value - 1);
 
 	for (i = 0; i < ve->num_segments; i++) {
 		if (i == segndx)
@@ -784,7 +815,7 @@ void *sce_elf_module_info_encode(
 			process_param_raw->sce_libc_param = VADDR(sceModuleInfo_rodata) + libc_param_offset + offsetof(sce_libc_param_raw, size);
 			ADDRELA(&process_param_raw->sce_libc_param);
 		}
-	} else {
+	} else if(params->process_param_size != 0) {
 		FAILX("Unknown process_param size (0x%lX)", params->process_param_size);
 	}
 
@@ -1028,7 +1059,7 @@ int sce_elf_write_module_info(
 
 	segment_base = ve->segments[segndx].vaddr;
 	start_segoffset = ve->segments[segndx].memsz;
-	start_segoffset = (start_segoffset + 0xF) & ~0xF; // align to 16 bytes, same with `sce_elf_module_info_encode`
+	start_segoffset = (start_segoffset + (sce_module_info_alignment_value - 1)) & ~(sce_module_info_alignment_value - 1);
 	total_size += (start_segoffset - ve->segments[segndx].memsz); // add the padding size
 
 	start_vaddr = segment_base + start_segoffset;

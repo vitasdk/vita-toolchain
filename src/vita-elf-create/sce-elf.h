@@ -107,7 +107,12 @@ typedef struct {
 	sce_libc_param_t* libc_param;
 } sce_module_params_t;
 
-sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, int have_libc);
+/**
+ * function: sce_elf_module_params_create
+ *
+ * Create process_param and libc_param
+ */
+sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, vita_export_t *exports, int have_libc);
 
 void sce_elf_module_params_free(sce_module_params_t *params);
 

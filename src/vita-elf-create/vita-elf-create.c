@@ -497,7 +497,13 @@ int main(int argc, char *argv[])
 
 	g_log = args.log_level;
 
-	if ((ve = vita_elf_load(args.input, args.check_stub_count)) == NULL)
+	if (args.exports) {
+		exports = vita_exports_load(args.exports, args.input, 0);		
+		if (!exports)
+			return EXIT_FAILURE;
+	}
+
+	if ((ve = vita_elf_load(args.input, args.check_stub_count, exports)) == NULL)
 		return EXIT_FAILURE;
 
 	/* FIXME: save original segment sizes */
@@ -506,13 +512,10 @@ int main(int argc, char *argv[])
 	for(idx = 0; idx < ve->num_segments; idx++)
 		segment_sizes[idx] = ve->segments[idx].memsz;
 
-	if (args.exports) {
-		exports = vita_exports_load(args.exports, args.input, 0);
-		
-		if (!exports)
-			return EXIT_FAILURE;
-	}
-	else {
+	if (!vita_elf_lookup_imports(ve))
+		status = EXIT_FAILURE;
+
+	if (!args.exports) {
 		// generate a default export list
 		exports = vita_export_generate_default(args.input);
 		exports->start = args.entrypoint_funcs[0];
@@ -521,9 +524,6 @@ int main(int argc, char *argv[])
 		if (args.exports_output)
 			vita_elf_generate_exports(ve, exports);
 	}
-
-	if (!vita_elf_lookup_imports(ve))
-		status = EXIT_FAILURE;
 
 	if (ve->fstubs_va.count) {
 		TRACEF(VERBOSE, "Function stubs in sections \n");
@@ -563,12 +563,15 @@ int main(int argc, char *argv[])
 				|| get_variable_by_symbol("sceLibcHeapUnitSize1MiB", ve, NULL)
 				|| get_variable_by_symbol("sceLibcHeapDetectOverrun", ve, NULL);
 
-	params = sce_elf_module_params_create(ve, have_libc);
+	if (exports->is_process_image == 0 || exports->is_image_module != 0) {
+		have_libc = 0;
+	}
+
+	params = sce_elf_module_params_create(ve, exports, have_libc);
 	if (!params)
 		return EXIT_FAILURE;
 
 	module_info = sce_elf_module_info_create(ve, exports, params->process_param);
-
 	if (!module_info)
 		return EXIT_FAILURE;
 	
