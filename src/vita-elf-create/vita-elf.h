@@ -92,7 +92,7 @@ typedef struct vita_elf_t {
 	int num_segments;
 } vita_elf_t;
 
-vita_elf_t *vita_elf_load(const char *filename, int check_stub_count);
+vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export);
 void vita_elf_free(vita_elf_t *ve);
 
 void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports);

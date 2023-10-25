@@ -483,6 +483,25 @@ int process_module_info(yaml_node *parent, yaml_node *child, vita_export_t *info
 		info->attributes = (uint16_t)attrib32;
 	}
 
+	else if (strcmp(key->value, "process_image") == 0) {
+
+		if (!is_scalar(child)) {
+			fprintf(stderr, "error: line: %zd, column: %zd, expecting process_image to be scalar, got '%s'.\n", child->position.line, child->position.column, node_type_str(child));
+			return -1;
+		}
+
+		key = &child->data.scalar;
+
+		if (strcmp(key->value, "true") == 0) {
+			info->is_process_image = 1;
+		} else if (strcmp(key->value, "false") == 0) {
+			info->is_process_image = 0;
+		} else {
+			fprintf(stderr, "error: line: %zd, column: %zd, Received unexpected value in process_image, got '%s'. Vaild value is \"true\" or \"false\".\n", child->position.line, child->position.column, key->value);
+			return -1;
+		}
+	}
+
 	else if (strcmp(key->value, "imagemodule") == 0) {
 
 		if (!is_scalar(child)) {
@@ -658,6 +677,14 @@ vita_export_t *vita_export_generate_default(const char *elf)
 		return NULL;
 	}
 
+	/*
+	 * | is_process_image | is_image_module |
+	 * | 0                | 0               | prx
+	 * | 0                | 1               | bootimage.skprx
+	 * | 1                | 0               | eboot.bin
+	 * | 1                | 1               | undefined
+	 */
+	exports->is_process_image = 1;
 	exports->is_image_module = 0;
 	
 	// we don't specify any specific symbols

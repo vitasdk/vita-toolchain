@@ -28,6 +28,7 @@ typedef struct {
 	uint8_t ver_minor;
 	uint16_t attributes;
 	uint32_t nid;
+	int is_process_image;
 	int is_image_module;
 	const char *bootstart;
 	const char *start;
