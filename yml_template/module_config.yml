@@ -1,0 +1,57 @@
+# top key is will be module name
+# Can be up to 27 characters
+SceSomethingModule:
+  # module attributes
+  # 0: none
+  # 1: module can't stop
+  # 2: module exclusive load
+  # 4: module exclusive start
+  attributes: 0
+  # process_image key
+  #   true:  embed process_param in the module.
+  #   false: don't embed process_param in the module.
+  # This is required only for process_image (eboot.bin)
+  process_image: false
+  # imagemodule kay
+  #   true:  allow no code module
+  #   false: disallow no code module
+  imagemodule: false
+  # version key
+  # Normally this should remain 1.1 and does not need to be changed.
+  version:
+    major: 1
+    minor: 1
+  # nid key unused in toolchain?
+  nid: 0
+  # main key
+  # syslib entries
+  main:
+    # start key
+    # module entry for called by sceKernelStartModule function.
+    start: module_start
+    # stop key
+    # module entry for called by sceKernelStopModule function.
+    stop: module_stop
+    # bootstart key
+    # module entry for called by kernel bootloader.
+    # Therefore setting this entry in a regular module has no effect.
+    bootstart: module_bootstart
+    # exit key
+    # module entry for unknown.
+    exit: module_exit
+  # libraries key
+  # define to library exports
+  libraries:
+    # ${library name} key
+    # Can be up to 255 characters
+    SceSomething:
+      # syscall key
+      # The kernel module is used to expose exports to users.
+      # If true, other kernel modules cannot import this library.
+      syscall: false
+      # version key
+      version: 1
+      functions:
+        - something_function
+      variables:
+        - something_variable
