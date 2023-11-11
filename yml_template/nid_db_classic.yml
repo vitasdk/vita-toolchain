@@ -1,0 +1,25 @@
+version: 2
+firmware: 3.60
+modules:
+  SceSomethingModule:
+    # nid has been deprecated. Please use the "fingerprint" key instead.
+    nid: 0xDEADBEEF
+    fingerprint: 0xDEADBEEF
+    libraries:
+      SceLibSomething:
+        # kernel key
+        #   true:  stub name will be the library name
+        #   false: stub name will be the module name
+        kernel: false
+        # stubname key : Specify stubname directly.
+        # The version key is available from nid_db_classic_v3.
+        stubname: SceSomething
+        nid: 0x12345678
+        # library's version.
+        # The version key is available from nid_db_classic_v2.
+        version: 1
+        functions:
+          sceSomethingGetState: 0x9ABCDEF0
+          sceSomethingSetState: 0x1A2B3C4D
+        variables:
+          sceSomethingState: 0x9ABCDEF0
