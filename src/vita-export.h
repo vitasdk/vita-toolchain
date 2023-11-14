@@ -23,6 +23,7 @@ typedef struct {
 } vita_library_export;
 
 typedef struct {
+	int is_default;
 	char name[27];
 	uint8_t ver_major;
 	uint8_t ver_minor;
