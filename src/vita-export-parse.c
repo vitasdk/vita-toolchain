@@ -576,6 +576,7 @@ vita_export_t *read_module_exports(yaml_document *doc, uint32_t default_nid) {
 	
 	vita_export_t *export = malloc(sizeof(vita_export_t));
 	memset(export, 0, sizeof(vita_export_t));
+	export->is_default = 0;
 	
 	// check lhs is a scalar
 	if (!is_scalar(root->pairs[0]->lhs)) {
@@ -644,7 +645,9 @@ vita_export_t *vita_exports_loads(FILE *text, const char *elf, int verbose)
 vita_export_t *vita_export_generate_default(const char *elf)
 {
 	vita_export_t *exports = calloc(1, sizeof(vita_export_t));
-	
+
+	exports->is_default = 1;
+
 	// set module name to elf output name
 	const char *fs = strrchr(elf, '/');
 	const char *bs = strrchr(elf, '\\');

@@ -35,10 +35,15 @@ void print_stubs(vita_elf_stub_t *stubs, int num_stubs)
 	int i;
 
 	for (i = 0; i < num_stubs; i++) {
-		TRACEF(VERBOSE, "  0x%06x (%s):\n", stubs[i].addr, stubs[i].symbol ? stubs[i].symbol->name : "unreferenced stub");
-		TRACEF(VERBOSE, "    Flags  : %u\n", stubs[i].library ? stubs[i].library->flags : 0);
-		TRACEF(VERBOSE, "    Library: %u (%s)\n", stubs[i].library_nid, stubs[i].library ? stubs[i].library->name : "not found");
-		TRACEF(VERBOSE, "    NID    : %u (%s)\n", stubs[i].target_nid, stubs[i].target ? stubs[i].target->name : "not found");
+		// TRACEF(VERBOSE, "  0x%08X (%s):\n", stubs[i].addr, stubs[i].symbol ? stubs[i].symbol->name : "unreferenced stub");
+		// TRACEF(VERBOSE, "    Flags  : 0x%04X\n", stubs[i].library ? stubs[i].library->flags : 0);
+		TRACEF(
+			VERBOSE,
+			"    stub=0x%08X library_nid=0x%08X (%s) target_nid=0x%08X (%s)\n",
+			stubs[i].addr,
+			stubs[i].library_nid, stubs[i].library ? stubs[i].library->name : "not found",
+			stubs[i].target_nid, stubs[i].target ? stubs[i].target->name : "not found"
+		);
 	}
 }
 
@@ -501,6 +506,8 @@ int main(int argc, char *argv[])
 		exports = vita_exports_load(args.exports, args.input, 0);		
 		if (!exports)
 			return EXIT_FAILURE;
+
+		TRACEF(VERBOSE, "export config loaded from file\n");
 	}
 
 	if ((ve = vita_elf_load(args.input, args.check_stub_count, exports)) == NULL)
@@ -523,6 +530,8 @@ int main(int argc, char *argv[])
 		exports->exit = args.entrypoint_funcs[2];
 		if (args.exports_output)
 			vita_elf_generate_exports(ve, exports);
+
+		TRACEF(VERBOSE, "export config loaded from default\n");
 	}
 
 	if (ve->fstubs_va.count) {
