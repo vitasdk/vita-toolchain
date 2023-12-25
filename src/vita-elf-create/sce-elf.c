@@ -13,6 +13,7 @@
 #include "utils/fail-utils.h"
 #include "utils/varray.h"
 #include "utils/endian-utils.h"
+#include "../vita-libs-gen-2/defs.h"
 
 const uint32_t sce_elf_stub_func[3] = {
 	0xe3e00000,	/* mvn r0, #0 */
@@ -318,11 +319,14 @@ static void set_module_import(vita_elf_t *ve, sce_module_imports_t *import, cons
 	import->num_syms_funcs = library->functions_va.count;
 	import->num_syms_vars = library->variables_va.count;
 	import->library_nid = library->nid;
-	import->flags = library->library->flags & 0xFFFF;
 
-	if (library->library) {
-		import->library_name = library->library->name;
+	if ((library->library->flags & VITA_STUB_GEN_2_FLAG_WEAK) != 0) {
+		import->flags = 0x8;
+	} else {
+		import->flags = 0x0;
 	}
+
+	import->library_name = library->library->name;
 
 	import->func_nid_table = calloc(library->functions_va.count, sizeof(uint32_t));
 	import->func_entry_table = calloc(library->functions_va.count, sizeof(void *));

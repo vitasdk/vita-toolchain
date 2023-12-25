@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include "vita-nid-db-yml.h"
 #include "vita-nid-db.h"
+#include "defs.h"
 #include "utils/fs_list.h"
 
 
@@ -246,7 +247,6 @@ const char *find_item(int argc, char *argv[], const char *name){
 	return NULL;
 }
 
-
 void vita_nid_db_gen_asm(NidStub *stub, DBEntry *entry, int is_function){
 
 	char path[0x400];
@@ -277,11 +277,17 @@ void vita_nid_db_gen_asm(NidStub *stub, DBEntry *entry, int is_function){
 		fprintf(fp, ".type %s, %%object\n", entry->name);
 	}
 
+	int flag = 0;
+
+	if(entry->library->privilege == LIBRARY_LOCATE_KERNEL){
+		flag |= VITA_STUB_GEN_2_FLAG_IS_KERNEL;
+	}
+
 	fprintf(fp, "%s:\n", entry->name);
 	fprintf(fp, ".if GEN_WEAK_EXPORTS\n");
-	fprintf(fp, "\t.word 0x%04X0008\n", entry->library->version);
+	fprintf(fp, "\t.word 0x%04X%04X\n", entry->library->version & 0xFFFF, (flag | VITA_STUB_GEN_2_FLAG_WEAK) & 0xFFFF);
 	fprintf(fp, ".else\n");
-	fprintf(fp, "\t.word 0x%04X0000\n", entry->library->version);
+	fprintf(fp, "\t.word 0x%04X%04X\n", entry->library->version & 0xFFFF, flag & 0xFFFF);
 	fprintf(fp, ".endif //GEN_WEAK_EXPORTS\n");
 	fprintf(fp, "\t.word 0x%08X\n", entry->library->nid);
 	fprintf(fp, "\t.word 0x%08X\n", entry->nid);
