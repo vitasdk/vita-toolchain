@@ -17,6 +17,7 @@
 #include "utils/fail-utils.h"
 #include "elf-create-argp.h"
 #include "utils/yamlemitter.h"
+#include "../vita-libs-gen-2/defs.h"
 
 // logging level
 int g_log = 0;
@@ -470,13 +471,14 @@ error:
 
 static int usage(int argc, char *argv[])
 {
-	fprintf(stderr, "usage: %s [-v|vv|vvv] [-s] [-n] [[-e | -g] config.yml] [-m start,stop,exit] input.elf output.velf\n"
+	fprintf(stderr, "usage: %s [-v|vv|vvv] [-s] [-n] [[-e | -g] config.yml] [-l <long_name_option>] [-m start,stop,exit] input.elf output.velf\n"
 					"\t-v,-vv,-vvv:    logging verbosity (more v is more verbose)\n"
 					"\t-s         :    strip the output ELF\n"
 					"\t-n         :    allow empty imports\n"
 					"\t-e yml     :    optional config options\n"
 					"\t-g yml     :    generate an export config from ELF symbols\n"
 					"\t-m list    :    specify the list of module entrypoints\n"
+					"\t-l op name :    long name option name\n"
 					"\tinput.elf  :    input ARM ET_EXEC type ELF\n"
 					"\toutput.velf:    output ET_SCE_RELEXEC type ELF\n", argc > 0 ? argv[0] : "vita-elf-create");
 	return 0;
@@ -532,6 +534,50 @@ int main(int argc, char *argv[])
 			vita_elf_generate_exports(ve, exports);
 
 		TRACEF(VERBOSE, "export config loaded from default\n");
+	}
+
+	if (args.is_bypass_stub_privilege_check == 0) {
+		int prev_privilege = ~0;
+
+		for (int i=0;i<ve->num_fstubs;i++) {
+
+			// printf("%s 0x%08X 0x%08X\n", ve->fstubs[i].library->name, ve->fstubs[i].library->flags, ve->fstubs[i].target_nid);
+
+			int flags = ve->fstubs[i].library->flags & 0xFFFF; // mask for flags. upper16 is library version.
+
+			if ((flags & ~(VITA_STUB_GEN_2_FLAG_WEAK | VITA_STUB_GEN_2_FLAG_IS_KERNEL)) != 0) {
+				printf("library have unknown flag (0x%04X)\n", flags & ~(VITA_STUB_GEN_2_FLAG_WEAK | VITA_STUB_GEN_2_FLAG_IS_KERNEL));
+			}
+
+			if (prev_privilege != ~0 && prev_privilege != (flags & VITA_STUB_GEN_2_FLAG_IS_KERNEL)) {
+				printf("Importing stubs with different privileges.\n");
+				printf("\tIf needed for exploit, add flag \"-l skip_stub_privilege_check\" and try again.\n");
+				printf("\tIf not, check the stub you are importing to make sure there are no mistake regarding privileges.\n");
+				return EXIT_FAILURE;
+			}
+
+			prev_privilege = flags & VITA_STUB_GEN_2_FLAG_IS_KERNEL;
+		}
+
+		for (int i=0;i<ve->num_vstubs;i++) {
+
+			// printf("%s 0x%08X 0x%08X\n", ve->fstubs[i].library->name, ve->fstubs[i].library->flags, ve->fstubs[i].target_nid);
+
+			int flags = ve->vstubs[i].library->flags & 0xFFFF; // mask for flags. upper16 is library version.
+
+			if ((flags & ~(VITA_STUB_GEN_2_FLAG_WEAK | VITA_STUB_GEN_2_FLAG_IS_KERNEL)) != 0) {
+				printf("library have unknown flag (0x%04X)\n", flags & ~(VITA_STUB_GEN_2_FLAG_WEAK | VITA_STUB_GEN_2_FLAG_IS_KERNEL));
+			}
+
+			if (prev_privilege != ~0 && prev_privilege != (flags & VITA_STUB_GEN_2_FLAG_IS_KERNEL)) {
+				printf("Importing stubs with different privileges.\n");
+				printf("\tIf needed for exploit, add flag \"-l skip_stub_privilege_check\" and try again.\n");
+				printf("\tIf not, check the stub you are importing to make sure there are no mistake regarding privileges.\n");
+				return EXIT_FAILURE;
+			}
+
+			prev_privilege = flags & VITA_STUB_GEN_2_FLAG_IS_KERNEL;
+		}
 	}
 
 	if (ve->fstubs_va.count) {
