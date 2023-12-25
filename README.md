@@ -27,11 +27,12 @@ format).
 ```
 usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
     -v,-vv,-vvv:    logging verbosity (more v is more verbose)
+    -s         :    strip the output ELF
     -n         :    allow empty imports
     -e yml     :    optional config options
     -g yml     :    generate an export config from ELF symbols
     -m list    :    specify the list of module entrypoints
-    -l op name :    long name option name
+    -p         :    skip stub privilege check
     input.elf  :    input ARM ET_EXEC type ELF
     output.velf:    output ET_SCE_RELEXEC type ELF
 ```

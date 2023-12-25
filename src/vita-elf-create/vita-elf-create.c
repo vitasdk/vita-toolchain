@@ -478,7 +478,7 @@ static int usage(int argc, char *argv[])
 					"\t-e yml     :    optional config options\n"
 					"\t-g yml     :    generate an export config from ELF symbols\n"
 					"\t-m list    :    specify the list of module entrypoints\n"
-					"\t-l op name :    long name option name\n"
+					"\t-p         :    skip stub privilege check\n"
 					"\tinput.elf  :    input ARM ET_EXEC type ELF\n"
 					"\toutput.velf:    output ET_SCE_RELEXEC type ELF\n", argc > 0 ? argv[0] : "vita-elf-create");
 	return 0;
@@ -551,7 +551,7 @@ int main(int argc, char *argv[])
 
 			if (prev_privilege != ~0 && prev_privilege != (flags & VITA_STUB_GEN_2_FLAG_IS_KERNEL)) {
 				printf("Importing stubs with different privileges.\n");
-				printf("\tIf needed for exploit, add flag \"-l skip_stub_privilege_check\" and try again.\n");
+				printf("\tIf needed for exploit, add flag \"-p\" and try again.\n");
 				printf("\tIf not, check the stub you are importing to make sure there are no mistake regarding privileges.\n");
 				return EXIT_FAILURE;
 			}
@@ -571,7 +571,7 @@ int main(int argc, char *argv[])
 
 			if (prev_privilege != ~0 && prev_privilege != (flags & VITA_STUB_GEN_2_FLAG_IS_KERNEL)) {
 				printf("Importing stubs with different privileges.\n");
-				printf("\tIf needed for exploit, add flag \"-l skip_stub_privilege_check\" and try again.\n");
+				printf("\tIf needed for exploit, add flag \"-p\" and try again.\n");
 				printf("\tIf not, check the stub you are importing to make sure there are no mistake regarding privileges.\n");
 				return EXIT_FAILURE;
 			}

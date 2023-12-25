@@ -19,7 +19,7 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 	arguments->is_test_stripping = 0;
 	arguments->is_bypass_stub_privilege_check = 0;
 
-	while ((c = getopt(argc, argv, "vne:sg:m:l:")) != -1)
+	while ((c = getopt(argc, argv, "vne:sg:m:p")) != -1)
 	{
 		switch (c)
 		{
@@ -41,20 +41,8 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 		case 'm':
 			entrypoint_list = optarg;
 			break;
-		case 'l': // long name option
-
-			if (strlen(optarg) == 0) {
-				fprintf(stderr, "long name option lemgth is 0\n");
-				return -1;
-			}
-
-			if (strcmp(optarg, "skip_stub_privilege_check") == 0) {
-				arguments->is_bypass_stub_privilege_check = 1;
-			} else {
-				fprintf(stderr, "unknown long name option (%s)\n", optarg);
-				return -1;
-			}
-
+		case 'p':
+			arguments->is_bypass_stub_privilege_check = 1;
 			break;
 		case '?':
 			fprintf(stderr, "unknown option -%c\n", optopt);
