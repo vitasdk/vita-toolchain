@@ -536,7 +536,12 @@ int main(int argc, char *argv[])
 		TRACEF(VERBOSE, "export config loaded from default\n");
 	}
 
-	if (args.is_bypass_stub_privilege_check == 0) {
+	/*
+	 * FIXME
+	 * Since packages such as taihen have a pre-built taihenForKernel_stub.a, this check always fails.
+	 * The only way to fix this is to rebuild stub.a again with the latest vitasdk.
+	 */
+	if (args.is_bypass_stub_privilege_check == 0 && 0) {
 		int prev_privilege = ~0;
 
 		for (int i=0;i<ve->num_fstubs;i++) {
