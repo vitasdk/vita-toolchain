@@ -4,14 +4,36 @@ parameters:
     type: string
     default: Release
     values:
-    - Release
-    - Debug
-    - RelWithDebInfo
-    - MinSizeRel
+      - Release
+      - Debug
+      - RelWithDebInfo
+      - MinSizeRel
   - name: IncludeBuildLogs
     displayName: 'Include Build and Configure logs even on build success'
     default: false
     type: boolean
+  - name: Pool
+    type: string
+    default: Azure Pipelines
+    values:
+      - Azure Pipelines
+      - Default
+    displayName: 'Build Agent pool to use for the build'
+  - name: CleanupBuildEnvironment
+    displayName: 'Cleanup Build Environment Before Run. Useful for self-hosted agent maintenance for build problems.'
+    type: boolean
+    default: false
+  - name: DockerContainer
+    type: string
+    default: gnuton/vitasdk-docker:latest
+    displayName: 'Docker Image to use'
+    values:
+      - vitasdk/vitasdk:latest
+      - gnuton/vitasdk-docker:latest
+      - localbuildenv/vitasdk:latest
+  - name: NinjaStatus
+    displayName: 'String to use for Ninja Status in console.'
+    default: '[%f/%t] (%p)'
 
 variables:
 - name: VITASDK
@@ -20,75 +42,90 @@ variables:
 - name: VITASDK_CMAKE_TOOLCHAIN
   value: $(VITASDK)/share/vita.toolchain.cmake
   readonly: true
+- name: NINJA_STATUS
+  value: ${{ parameters.NinjaStatus}}
+  readonly: true
 
-pool:
-#     vmImage: 'ubuntu-latest'
-  vmImage: 'ubuntu-latest'
+trigger: none
 
-container: gnuton/vitasdk-docker:latest
+jobs:
+  - job: 'BuildingVitaApp'
+    displayName: 'Building PS Vita App ${{ parameters.BuildType }}:'
+    container: ${{ parameters.DockerContainer }}
+    pool: 
+      name: ${{ parameters.Pool }}
+      ${{ if eq(parameters.Pool, 'Azure Pipelines') }}: # Add vmImage if build agent is hosted by Microsoft.
+        vmImage: 'ubuntu-latest'
+      ${{ if not(eq(parameters.Pool, 'Azure Pipelines')) }}: # Setup demands and clean workspace if build is self-hosted.
+        demands: docker
+        ${{ if eq(parameters.CleanupBuildEnvironment, true) }}: # Cleanup workspace at pipeline start if user wants to.
+          workspace:
+            clean: outputs
+    steps:
+    - script: sudo apt install -qq -y pkg-config ninja-build
+      displayName: 'Install build tools'
 
-steps:
-- script: sudo apt install -qq -y pkg-config ninja-build
-  displayName: 'Install extra dependencies'
+    - task: CMake@1
+      name: CMakeConfigure
+      displayName: 'Configuring CMake'
+      inputs:
+        cmakeArgs: |
+          -S $(Build.SourcesDirectory) \
+          -B $(Agent.BuildDirectory) \
+          -G Ninja \
+          -DCMAKE_TOOLCHAIN_FILE=${VITASDK_CMAKE_TOOLCHAIN} \
+          -DCMAKE_BUILD_TYPE=${{ parameters.BuildType }}
+        runInsideShell: true
 
-- task: CMake@1
-  name: CMakeConfigure
-  displayName: 'Configuring CMake'
-  inputs:
-    cmakeArgs: |
-      -S $(Build.SourcesDirectory) \
-      -B $(Agent.BuildDirectory) \
-      -G Ninja \
-      -DCMAKE_TOOLCHAIN_FILE=${VITASDK_CMAKE_TOOLCHAIN} \
-      -DCMAKE_BUILD_TYPE=${{ parameters.BuildType }}
-    runInsideShell: true
+    - script: |
+        cmake --build $(Agent.BuildDirectory)
+      displayName: 'Building Vita Homebrew App: $(Build.Repository.Name)-${{ parameters.BuildType }}'
+      name: CMakeBuild
+      
+    - task: CopyFiles@2
+      displayName: 'Copy binaries for installing app to Artifact Staging Directory'
+      condition: succeeded()
+      inputs:
+        SourceFolder: '$(Agent.BuildDirectory)'
+        Contents: '**/?(*.vpk|*.skprx|*.suprx)'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
-- script: cmake --build $(Agent.BuildDirectory)
-  displayName: 'Building Vita Homebrew App: $(Build.Repository.Name)'
-  name: CMakeBuild
+    - ${{ if or(eq(parameters.BuildType, 'Debug'), eq(parameters.BuildType, 'RelWithDebInfo')) }}:
+      - task: CopyFiles@2
+        displayName: 'Copy binaries needed for debugging coredumps to Artifact Staging Directory'
+        condition: succeeded()
+        inputs:
+          SourceFolder: '$(Agent.BuildDirectory)'
+          Contents: '**/?(*.elf)'
+          TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
-- task: CopyFiles@2
-  displayName: 'Copy binaries for installing app to Artifact Staging Directory'
-  condition: succeeded()
-  inputs:
-    SourceFolder: '$(Agent.BuildDirectory)'
-    Contents: '**/?(*.vpk|*.skprx|*.suprx)'
-    TargetFolder: '$(Build.ArtifactStagingDirectory)'
+      # TODO: Add option to copy files located in CMake Install directory instead. Not compatible with every project.
 
-- ${{ if or(eq(parameters.BuildType, 'Debug'), eq(parameters.BuildType, 'RelWithDebInfo')) }}:
-  - task: CopyFiles@2
-    displayName: 'Copy binaries needed for debugging coredumps to Artifact Staging Directory'
-    condition: succeeded()
-    inputs:
-      SourceFolder: '$(Agent.BuildDirectory)'
-      Contents: '**/?(*.elf)'
-      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Vita VPK Build Artifacts (Build Succeeded)'
+      condition: succeeded()
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/'
+        artifact: 'Vita Package (VPK)'
+        publishLocation: 'pipeline'
+        archiveFilePatterns: '**'
 
-# TODO: Add option to copy files located in CMake Install directory instead. Not compatible with every project.
+    # TODO: Make this step conditional based on if build failed so that it doesn't clutter the list.
+    # - ${{ if eq(parameters.IncludeBuildLogs, true) }}:
+    - task: CopyFiles@2
+      displayName: 'Copy CMake and Ninja build files for debugging build to Artifact Staging Directory'
+      condition: or(failed(), eq(${{ parameters.IncludeBuildLogs }}, true))
+      inputs:
+        SourceFolder: '$(Agent.BuildDirectory)'
+        Contents: '**/?(CMakeCache.txt|CMakeLists.txt|CMake*.txt|build.ninja|.ninja_log)'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
+        CleanTargetFolder: true
 
-- task: PublishPipelineArtifact@1
-  displayName: 'Publish Vita VPK Build Artifacts (Build Succeeded)'
-  condition: succeeded()
-  inputs:
-    targetPath: '$(Build.ArtifactStagingDirectory)/'
-    artifact: 'Vita Package (VPK)'
-    publishLocation: 'pipeline'
-    archiveFilePatterns: '**'
-
-- task: CopyFiles@2
-  displayName: 'Copy CMake and Ninja build files for debugging build to Artifact Staging Directory'
-  condition: or(failed(), eq(${{ parameters.IncludeBuildLogs }}, true))
-  inputs:
-    SourceFolder: '$(Agent.BuildDirectory)'
-    Contents: '**/?(CMakeCache.txt|CMakeLists.txt|CMake*.txt|build.ninja|.ninja_log)'
-    TargetFolder: '$(Build.ArtifactStagingDirectory)'
-    CleanTargetFolder: true
-
-- task: PublishPipelineArtifact@1
-  displayName: 'Publish Build Configuration and Logs'
-  condition: or(failed(), eq(${{ parameters.IncludeBuildLogs }}, true))
-  inputs:
-    targetPath: '$(Build.ArtifactStagingDirectory)/'
-    artifact: 'Build Log and Configure Files'
-    publishLocation: 'pipeline'
-    archiveFilePatterns: '**'
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Build Configuration and Logs'
+      condition: or(failed(), eq(${{ parameters.IncludeBuildLogs }}, true))
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/'
+        artifact: 'Build Log and Configure Files'
+        publishLocation: 'pipeline'
+        archiveFilePatterns: '**'
