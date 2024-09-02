@@ -33,7 +33,7 @@ parameters:
       - localbuildenv/vitasdk:latest
   - name: NinjaStatus
     displayName: 'String to use for Ninja Status in console.'
-    default: '[%f/%t] (%p)'
+    default: '[%f/%t] (%p) '
 
 variables:
 - name: VITASDK
