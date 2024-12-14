@@ -465,7 +465,7 @@ int gen_cmake(const char *dstdir, StubContext *stub_ctx){
 	stub_ctx->fp = fp;
 
 	fprintf(fp,
-		"cmake_minimum_required(VERSION 2.8)\n"
+		"cmake_minimum_required(VERSION 3.10)\n"
 		"if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)\n"
 		"\tif(DEFINED ENV{VITASDK})\n"
 		"\t\tset(CMAKE_TOOLCHAIN_FILE \"$ENV{VITASDK}/share/vita.toolchain.cmake\" CACHE PATH \"toolchain file\")\n"
