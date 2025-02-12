@@ -198,9 +198,9 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 
 	if (export_spec->is_image_module == 0) {
 		/*
-		 * non export.yml module shoule be have main function.
+		 * non export.yml and process image modules shoule have main function.
 		 */
-		if (export_spec->start || export_spec->is_default != 0)
+		if (export_spec->start || export_spec->is_default != 0 || export_spec->is_process_image != 0)
 			++export->num_syms_funcs;
 
 		if (export_spec->bootstart)
@@ -238,7 +238,7 @@ static int set_main_module_export(vita_elf_t *ve, sce_module_exports_t *export, 
 			export->nid_table[cur_nid] = NID_MODULE_START;
 			export->entry_table[cur_nid] = module_info->module_start;
 			++cur_nid;
-		} else if(export_spec->is_default != 0) {
+		} else if(export_spec->is_default != 0 || export_spec->is_process_image != 0) {
 			module_info->module_start = vita_elf_vaddr_to_host(ve, elf32_getehdr(ve->elf)->e_entry);
 
 			export->nid_table[cur_nid] = NID_MODULE_START;

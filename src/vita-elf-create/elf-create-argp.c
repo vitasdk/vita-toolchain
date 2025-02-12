@@ -12,7 +12,7 @@
 int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 {
 	int c;
-	char *entrypoint_list = "_start,,";
+	char *entrypoint_list = NULL;
 
 	arguments->log_level = 0;
 	arguments->check_stub_count = 1;
