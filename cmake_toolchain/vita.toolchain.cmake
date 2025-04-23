@@ -30,7 +30,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required( VERSION 3.6 )
+cmake_minimum_required( VERSION 3.16 )
 
 if( DEFINED CMAKE_CROSSCOMPILING )
   # subsequent toolchain loading is not really needed
