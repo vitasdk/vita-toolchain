@@ -77,6 +77,12 @@ int fs_list_init_core(const char *path, FSListEntry **ppEnt, unsigned int depth,
 	int res;
 	int current_depth, nDir = 0, nFile = 0;
 	FSListEntry *pEnt, *current, *child;
+	struct stat stat_buf;
+
+	res = stat(path, &stat_buf);
+	if(res != 0){
+		return -1;
+	}
 
 	pEnt = malloc(sizeof(*pEnt));
 	if(pEnt == NULL){
@@ -94,6 +100,10 @@ int fs_list_init_core(const char *path, FSListEntry **ppEnt, unsigned int depth,
 
 	pEnt->path_full = path_full;
 
+	if(S_ISDIR(stat_buf.st_mode)){
+		pEnt->isDir = 1;
+	}
+
 	current = pEnt;
 
 	DIR *dd = opendir(current->path_full);
@@ -107,7 +117,6 @@ int fs_list_init_core(const char *path, FSListEntry **ppEnt, unsigned int depth,
 	current_depth = 0;
 
 	struct dirent *dir_ent;
-	struct stat stat_buf;
 
 	while(current != NULL){
 
