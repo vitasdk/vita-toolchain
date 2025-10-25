@@ -377,7 +377,7 @@ sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, vita_export_t 
 		ASSERT(process_param != NULL);
 		process_param->size = 0x34;
 		memcpy(&(process_param->magic), "PSP2", 4);
-		process_param->version = 6;
+		process_param->version = 0;
 		process_param->fw_version = params->process_param_version;
 
 		params->process_param = process_param;
@@ -391,7 +391,7 @@ sce_module_params_t *sce_elf_module_params_create(vita_elf_t *ve, vita_export_t 
 		ASSERT(process_param != NULL);
 		process_param->size = 0x30;
 		memcpy(&(process_param->magic), "PSP2", 4);
-		process_param->version = 5;
+		process_param->version = 0;
 		process_param->fw_version = params->process_param_version;
 
 		params->process_param = process_param;
