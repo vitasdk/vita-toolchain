@@ -107,7 +107,7 @@ macro(vita_create_self target source)
 
   ## check source for being a target, otherwise it is a file path
   if(TARGET ${source})
-    set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${source})
+    set(sourcepath "$<TARGET_FILE:${source}>")
   else()
     set(sourcepath ${source})
   endif()
@@ -271,7 +271,7 @@ macro(vita_create_stubs target-dir source config)
 
   ## check source for being a target, otherwise it is a file path
   if(TARGET ${source})
-    set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${source})
+    set(sourcepath "$<TARGET_FILE:${source}>")
   else()
     set(sourcepath ${source})
   endif()
