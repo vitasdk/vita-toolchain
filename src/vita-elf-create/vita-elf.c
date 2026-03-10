@@ -599,6 +599,12 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 			varray_push(&ve->vstubs_va,&ndxscn);
 			if (!load_stubs(scn, &ve->num_vstubs, &ve->vstubs, name))
 				goto failure;
+		} else if (shdr.sh_type == SHT_ARM_EXIDX && strncmp(name, ".ARM.exidx", strlen(".ARM.exidx")) == 0) {
+			ve->exidx_sh_addr = shdr.sh_addr;
+			ve->exidx_sh_size = shdr.sh_size;
+		} else if (shdr.sh_type == SHT_PROGBITS && strncmp(name, ".ARM.extab", strlen(".ARM.extab")) == 0) {
+			ve->extab_sh_addr = shdr.sh_addr;
+			ve->extab_sh_size = shdr.sh_size;
 		}
 
 		if (shdr.sh_type == SHT_SYMTAB) {

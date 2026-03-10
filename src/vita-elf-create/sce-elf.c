@@ -504,10 +504,22 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 		set_module_import(ve, module_info->import_top + i, liblist.libs + i);
 	}
 
-	// fake param. Required for old fw.
-	if (ve->module_sdk_version < VITA_TOOLCHAIN_PROCESS_PARAM_NEW_FORMAT_VERSION) {
-		module_info->exidx_top = ve->segments[0].vaddr_top + 0;
-		module_info->exidx_end = ve->segments[0].vaddr_top + 1;
+	if (ve->exidx_sh_size > 0) {
+		uint32_t exidx_offset = ve->exidx_sh_addr - ve->segments[0].vaddr;
+		module_info->exidx_top = ve->segments[0].vaddr_top + exidx_offset;
+		module_info->exidx_end = module_info->exidx_top + ve->exidx_sh_size;
+	} else {
+		module_info->exidx_top = 0;
+		module_info->exidx_end = 0;
+	}
+
+	if (ve->extab_sh_size > 0) {
+		uint32_t extab_offset = ve->extab_sh_addr - ve->segments[0].vaddr;
+		module_info->extab_top = ve->segments[0].vaddr_top + extab_offset;
+		module_info->extab_end = module_info->extab_top + ve->extab_sh_size;
+	} else {
+		module_info->extab_top = 0;
+		module_info->extab_end = 0;
 	}
 
 	return module_info;
