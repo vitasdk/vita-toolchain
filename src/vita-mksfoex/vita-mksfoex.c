@@ -223,7 +223,11 @@ int process_args(int argc, char **argv)
 				break;
 			case 's' : if(!add_string(optarg))
 					   {
+						   return 0;
 					   }
+				break;
+			case 'e' :
+			    g_empty = 1;
 				break;
 			default  : break;
 		};
@@ -239,12 +243,9 @@ int process_args(int argc, char **argv)
 		return 0;
 	}
 
-	if(!g_empty)
-	{
-		g_title = argv[0];
-		argc--;
-		argv++;
-	}
+	g_title = argv[0];
+	argc--;
+	argv++;
 
 	if(argc < 1)
 	{
@@ -271,16 +272,6 @@ int main(int argc, char **argv)
 	unsigned int keyofs;
 	unsigned int count;
 	
-	for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
-	{
-		struct EntryContainer *entry = find_free();
-		if(entry == NULL)
-		{
-			fprintf(stderr, "Maximum options reached\n");
-			return 0;
-		}
-		*entry = g_defaults[i];
-	}
 	
 	if(!process_args(argc, argv)) 
 	{
@@ -290,15 +281,57 @@ int main(int argc, char **argv)
 
 		return 1;
 	}
+
+    if (!g_empty)
+    {
+    	for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
+    	{
+    		struct EntryContainer *entry = find_free();
+    		if(entry == NULL)
+    		{
+    			fprintf(stderr, "Maximum options reached\n");
+    			return 0;
+    		}
+    		*entry = g_defaults[i];
+    	}
+    }
 	
 	if (g_title)
 	{
 		struct EntryContainer *entry = find_name("TITLE");
+		if (!entry)
+		{
+			entry = find_free();
+		    if(entry == NULL)
+			{
+	    		fprintf(stderr, "Maximum options reached\n");
+		    	return 0;
+		    }
+
+		    memset(entry, 0, sizeof(struct EntryContainer));
+		    entry->name = "TITLE";
+		    entry->type = PSF_TYPE_STR;
+		}
 		entry->data = g_title;
 		
 		entry = find_name("STITLE");
+		if (!entry)
+		{
+			entry = find_free();
+		    if(entry == NULL)
+			{
+	    		fprintf(stderr, "Maximum options reached\n");
+		    	return 0;
+		    }
+
+		    memset(entry, 0, sizeof(struct EntryContainer));
+		    entry->name = "STITLE";
+		    entry->type = PSF_TYPE_STR;
+		}
 		entry->data = g_title;
 	}
+
+    // TODO: sort keys
 
 	memset(head, 0, sizeof(head));
 	memset(keys, 0, sizeof(keys));
