@@ -257,6 +257,31 @@ int process_args(int argc, char **argv)
 	return 1;
 }
 
+static int cmpkeys(const void *a, const void *b)
+{
+    const struct EntryContainer *ea = (const struct EntryContainer *)a;
+    const struct EntryContainer *eb = (const struct EntryContainer *)b;
+
+    if (ea->name == NULL && eb->name == NULL)
+        return 0;
+    if (ea->name == NULL)
+        return 1;
+    if (eb->name == NULL)
+        return -1;
+
+    return strcmp(ea->name, eb->name);
+}
+
+void sortkeys()
+{
+    int count = 0;
+
+    while (count < MAX_OPTIONS && g_vals[count].name != NULL)
+        count++;
+
+    qsort(g_vals, count, sizeof(struct EntryContainer), cmpkeys);
+}
+
 int main(int argc, char **argv)
 {
 	FILE *fp;
@@ -335,7 +360,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-    // TODO: sort keys
+    sortkeys();
 
 	memset(head, 0, sizeof(head));
 	memset(keys, 0, sizeof(keys));
