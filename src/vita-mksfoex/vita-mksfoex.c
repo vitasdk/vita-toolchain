@@ -259,27 +259,27 @@ int process_args(int argc, char **argv)
 
 static int cmpkeys(const void *a, const void *b)
 {
-    const struct EntryContainer *ea = (const struct EntryContainer *)a;
-    const struct EntryContainer *eb = (const struct EntryContainer *)b;
-
-    if (ea->name == NULL && eb->name == NULL)
-        return 0;
-    if (ea->name == NULL)
-        return 1;
-    if (eb->name == NULL)
-        return -1;
-
-    return strcmp(ea->name, eb->name);
+	const struct EntryContainer *ea = (const struct EntryContainer *)a;
+	const struct EntryContainer *eb = (const struct EntryContainer *)b;
+	
+	if (ea->name == NULL && eb->name == NULL)
+		return 0;
+	if (ea->name == NULL)
+		return 1;
+	if (eb->name == NULL)
+		return -1;
+	
+	return strcmp(ea->name, eb->name);
 }
 
 void sortkeys()
 {
-    int count = 0;
-
-    while (count < MAX_OPTIONS && g_vals[count].name != NULL)
-        count++;
-
-    qsort(g_vals, count, sizeof(struct EntryContainer), cmpkeys);
+	int count = 0;
+	
+	while (count < MAX_OPTIONS && g_vals[count].name != NULL)
+		count++;
+	
+	qsort(g_vals, count, sizeof(struct EntryContainer), cmpkeys);
 }
 
 int main(int argc, char **argv)
@@ -308,22 +308,22 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-    if (!g_empty)
-    {
-    	for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
-    	{
-    		if (!find_name(g_defaults[i].name))
-    		{
-        		struct EntryContainer *entry = find_free();
-        		if(entry == NULL)
-        		{
-        			fprintf(stderr, "Maximum options reached\n");
-        			return 0;
-        		}
-        		*entry = g_defaults[i];
-        	}
-    	}
-    }
+	if (!g_empty)
+	{
+		for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
+		{
+			if (!find_name(g_defaults[i].name))
+			{
+				struct EntryContainer *entry = find_free();
+				if(entry == NULL)
+				{
+					fprintf(stderr, "Maximum options reached\n");
+					return 0;
+				}
+				*entry = g_defaults[i];
+			}
+		}
+	}
 	
 	if (g_title)
 	{
@@ -331,15 +331,15 @@ int main(int argc, char **argv)
 		if (!entry)
 		{
 			entry = find_free();
-		    if(entry == NULL)
+			if(entry == NULL)
 			{
-	    		fprintf(stderr, "Maximum options reached\n");
-		    	return 0;
-		    }
+				fprintf(stderr, "Maximum options reached\n");
+				return 0;
+			}
 
-		    memset(entry, 0, sizeof(struct EntryContainer));
-		    entry->name = "TITLE";
-		    entry->type = PSF_TYPE_STR;
+			memset(entry, 0, sizeof(struct EntryContainer));
+			entry->name = "TITLE";
+			entry->type = PSF_TYPE_STR;
 			entry->data = g_title;
 		}
 		
@@ -347,20 +347,20 @@ int main(int argc, char **argv)
 		if (!entry)
 		{
 			entry = find_free();
-		    if(entry == NULL)
+			if(entry == NULL)
 			{
-	    		fprintf(stderr, "Maximum options reached\n");
-		    	return 0;
-		    }
+				fprintf(stderr, "Maximum options reached\n");
+				return 0;
+			}
 
-		    memset(entry, 0, sizeof(struct EntryContainer));
-		    entry->name = "STITLE";
-		    entry->type = PSF_TYPE_STR;
-		    entry->data = g_title;
+			memset(entry, 0, sizeof(struct EntryContainer));
+			entry->name = "STITLE";
+			entry->type = PSF_TYPE_STR;
+			entry->data = g_title;
 		}
 	}
 
-    sortkeys();
+	sortkeys();
 
 	memset(head, 0, sizeof(head));
 	memset(keys, 0, sizeof(keys));
