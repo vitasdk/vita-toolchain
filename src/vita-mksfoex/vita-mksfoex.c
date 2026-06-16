@@ -315,13 +315,12 @@ int main(int argc, char **argv)
 		    memset(entry, 0, sizeof(struct EntryContainer));
 		    entry->name = "TITLE";
 		    entry->type = PSF_TYPE_STR;
+			entry->data = g_title;
 		}
-		entry->data = g_title;
 		
 		entry = find_name("STITLE");
 		if (!entry)
 		{
-		    fprintf(stderr, "aaaa\n");
 			entry = find_free();
 		    if(entry == NULL)
 			{
@@ -332,8 +331,8 @@ int main(int argc, char **argv)
 		    memset(entry, 0, sizeof(struct EntryContainer));
 		    entry->name = "STITLE";
 		    entry->type = PSF_TYPE_STR;
+		    entry->data = g_title;
 		}
-		entry->data = g_title;
 	}
 
     // TODO: sort keys
