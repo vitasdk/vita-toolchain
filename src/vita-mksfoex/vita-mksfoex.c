@@ -79,8 +79,8 @@ struct EntryContainer g_defaults[] = {
 	{ "PSP2_SYSTEM_VER", PSF_TYPE_VAL, 0, NULL },
 	{ "REGION_DENY", PSF_TYPE_VAL, 0, NULL },
 	{ "SAVEDATA_MAX_SIZE", PSF_TYPE_VAL, 1048576, NULL },
-	{ "STITLE", PSF_TYPE_STR, 52, "Homebrew" },
-	{ "TITLE", PSF_TYPE_STR, 0x80, "Homebrew" },
+	{ "STITLE", PSF_TYPE_STR, 52, "Homebrew1" },
+	{ "TITLE", PSF_TYPE_STR, 0x80, "Homebrew2" },
 	{ "TITLE_ID", PSF_TYPE_STR, 0, "ABCD99999" },
 	{ "VERSION", PSF_TYPE_STR, 0, "01.00" },
 };
@@ -287,13 +287,16 @@ int main(int argc, char **argv)
     {
     	for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
     	{
-    		struct EntryContainer *entry = find_free();
-    		if(entry == NULL)
+    		if (!find_name(g_defaults[i].name))
     		{
-    			fprintf(stderr, "Maximum options reached\n");
-    			return 0;
-    		}
-    		*entry = g_defaults[i];
+        		struct EntryContainer *entry = find_free();
+        		if(entry == NULL)
+        		{
+        			fprintf(stderr, "Maximum options reached\n");
+        			return 0;
+        		}
+        		*entry = g_defaults[i];
+        	}
     	}
     }
 	
@@ -318,6 +321,7 @@ int main(int argc, char **argv)
 		entry = find_name("STITLE");
 		if (!entry)
 		{
+		    fprintf(stderr, "aaaa\n");
 			entry = find_free();
 		    if(entry == NULL)
 			{
