@@ -41,7 +41,7 @@ int yamlemitter_stream_start(yaml_emitter_t * emitter, yaml_event_t *event)
 
 int yamlemitter_document_start(yaml_emitter_t * emitter, yaml_event_t *event)
 {
-	if (!yaml_document_start_event_initialize(event,NULL,NULL,NULL,0))	
+	if (!yaml_document_start_event_initialize(event,NULL,NULL,NULL,1))
 		return 0;
 	if (!yaml_emitter_emit(emitter, event))
 		return 0;
