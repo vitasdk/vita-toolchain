@@ -101,6 +101,10 @@ int module_name(const char *name, void *argp){
 	DBContext *ctx = (DBContext *)argp;
 	DBModule *module;
 
+	if(ctx->pFirmware == NULL){
+		db_search_or_new_firmware(ctx, 0, &ctx->pFirmware);
+	}
+
 	db_search_or_new_module(ctx->pFirmware, name, &module);
 	ctx->pModule = module;
 
