@@ -9,3 +9,6 @@ add_subdirectory(src)
 add_subdirectory(psp2rela)
 add_subdirectory(cmake_toolchain)
 add_subdirectory(pkgconfig)
+
+enable_testing()
+add_subdirectory(test)

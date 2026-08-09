@@ -1,3 +1,6 @@
 *.o
 *.elf
 *.velf
+!fixtures/*.elf
+!fixtures/*.velf
+!fixtures/*.fself
