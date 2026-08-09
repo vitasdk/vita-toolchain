@@ -90,6 +90,11 @@ typedef struct vita_elf_t {
 
 	vita_elf_segment_info_t *segments;
 	int num_segments;
+
+	Elf32_Addr exidx_sh_addr;
+	Elf32_Word exidx_sh_size;
+	Elf32_Addr extab_sh_addr;
+	Elf32_Word extab_sh_size;
 } vita_elf_t;
 
 vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export);

@@ -504,10 +504,20 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 		set_module_import(ve, module_info->import_top + i, liblist.libs + i);
 	}
 
-	// fake param. Required for old fw.
-	if (ve->module_sdk_version < VITA_TOOLCHAIN_PROCESS_PARAM_NEW_FORMAT_VERSION) {
-		module_info->exidx_top = ve->segments[0].vaddr_top + 0;
-		module_info->exidx_end = ve->segments[0].vaddr_top + 1;
+	if (ve->exidx_sh_size > 0) {
+		module_info->exidx_top = (void *)vita_elf_vaddr_to_host(ve, ve->exidx_sh_addr);
+		module_info->exidx_end = (void *)((const char *)module_info->exidx_top + ve->exidx_sh_size);
+	} else {
+		module_info->exidx_top = NULL;
+		module_info->exidx_end = NULL;
+	}
+
+	if (ve->extab_sh_size > 0) {
+		module_info->extab_top = (void *)vita_elf_vaddr_to_host(ve, ve->extab_sh_addr);
+		module_info->extab_end = (void *)((const char *)module_info->extab_top + ve->extab_sh_size);
+	} else {
+		module_info->extab_top = NULL;
+		module_info->extab_end = NULL;
 	}
 
 	return module_info;
@@ -855,10 +865,23 @@ void *sce_elf_module_info_encode(
 	}else{
 		module_info_raw->module_stop = 0xFFFFFFFF;
 	}
-	CONVERTOFFSET(module_info, exidx_top);
-	CONVERTOFFSET(module_info, exidx_end);
-	CONVERTOFFSET(module_info, extab_top);
-	CONVERTOFFSET(module_info, extab_end);
+	if (module_info->exidx_top != NULL) {
+		int exidx_seg = vita_elf_host_to_segndx(ve, module_info->exidx_top);
+		module_info_raw->exidx_top = htole32(vita_elf_host_to_segoffset(ve, module_info->exidx_top, exidx_seg));
+		module_info_raw->exidx_end = htole32(vita_elf_host_to_segoffset(ve, module_info->exidx_end, exidx_seg));
+	} else {
+		module_info_raw->exidx_top = 0;
+		module_info_raw->exidx_end = 0;
+	}
+
+	if (module_info->extab_top != NULL) {
+		int extab_seg = vita_elf_host_to_segndx(ve, module_info->extab_top);
+		module_info_raw->extab_top = htole32(vita_elf_host_to_segoffset(ve, module_info->extab_top, extab_seg));
+		module_info_raw->extab_end = htole32(vita_elf_host_to_segoffset(ve, module_info->extab_end, extab_seg));
+	} else {
+		module_info_raw->extab_top = 0;
+		module_info_raw->extab_end = 0;
+	}
 
 	for (export = module_info->export_top; export < module_info->export_end; export++) {
 		int num_syms;
