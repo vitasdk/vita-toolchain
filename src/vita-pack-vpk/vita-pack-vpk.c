@@ -1,10 +1,10 @@
 #include <stdio.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <getopt.h>
+#include <errno.h>
 #include <zip.h>
 
 #define DEFAULT_OUTPUT_FILE "output.vpk"
@@ -25,11 +25,16 @@ static const struct option long_options[] = {
 static int add_file_zip(zip_t *zip, const char *src, const char *dst)
 {
 	struct stat s;
-	if (stat(src,&s)) {
+	if (stat(src, &s)) {
+		fprintf(stderr, "Error: cannot stat '%s': %s\n", src, strerror(errno));
 		return 0;
 	}
 	if (S_ISDIR(s.st_mode)) {
 		DIR *dir = opendir(src);
+		if (!dir) {
+			fprintf(stderr, "Error: cannot open directory '%s': %s\n", src, strerror(errno));
+			return 0;
+		}
 		struct dirent *entry;
 		while((entry = readdir(dir))){
 			if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
@@ -40,12 +45,25 @@ static int add_file_zip(zip_t *zip, const char *src, const char *dst)
 			int dst_len = snprintf(dst_dir, sizeof(dst_dir)-1, "%s/%s", dst, entry->d_name);
 			src_dir[src_len] = 0;
 			dst_dir[dst_len] = 0;
-			add_file_zip(zip, src_dir, dst_dir);
+			if (!add_file_zip(zip, src_dir, dst_dir)) {
+				closedir(dir);
+				return 0;
+			}
 		}
 		closedir(dir);
 	}else if(S_ISREG(s.st_mode)){
-		zip_file_add(zip, dst, zip_source_file(zip, src, 0, 0), 0);
+		zip_source_t *zs = zip_source_file(zip, src, 0, 0);
+		if (!zs) {
+			fprintf(stderr, "Error: cannot create zip source for '%s': %s\n", src, zip_strerror(zip));
+			return 0;
+		}
+		if (zip_file_add(zip, dst, zs, 0) < 0) {
+			zip_source_free(zs);
+			fprintf(stderr, "Error: cannot add '%s' to zip as '%s': %s\n", src, dst, zip_strerror(zip));
+			return 0;
+		}
 	} else { // symlink etc.
+		fprintf(stderr, "Error: unsupported file type for '%s'\n", src);
 		return 0;
 	}
 	return 1;
@@ -177,16 +195,23 @@ int main(int argc, char *argv[])
 		goto error_create_zip;
 	}
 
-	if (!add_file_zip(zip, sfo, "sce_sys/param.sfo"))
+	if (!add_file_zip(zip, sfo, "sce_sys/param.sfo")) {
+		fprintf(stderr, "Error: failed to add sfo file '%s'\n", sfo);
 		goto error_add_zip;
+	}
 
-	if (!add_file_zip(zip, eboot, "eboot.bin"))
+	if (!add_file_zip(zip, eboot, "eboot.bin")) {
+		fprintf(stderr, "Error: failed to add eboot file '%s'\n", eboot);
 		goto error_add_zip;
+	}
 
 	for (i = 0; i < additional_list.num; i++) {
 		if (!add_file_zip(zip, additional_list.src[i],
-				  additional_list.dst[i]))
+				  additional_list.dst[i])) {
+			fprintf(stderr, "Error: failed to add additional file '%s' as '%s'\n",
+				additional_list.src[i], additional_list.dst[i]);
 			goto error_add_zip;
+		}
 	}
 
 	err = zip_close(zip);
