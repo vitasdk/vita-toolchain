@@ -202,6 +202,8 @@ int process_args(int argc, char **argv)
 	{
 		switch(ch)
 		{
+			case 'e' : g_empty = 1;
+				break;
 			case 'd' : if(!add_dword(optarg))
 					   {
 						   return 0;
@@ -209,6 +211,7 @@ int process_args(int argc, char **argv)
 				break;
 			case 's' : if(!add_string(optarg))
 					   {
+						   return 0;
 					   }
 				break;
 			default  : break;
@@ -242,6 +245,31 @@ int process_args(int argc, char **argv)
 	return 1;
 }
 
+static int cmpkeys(const void *a, const void *b)
+{
+	const struct EntryContainer *ea = (const struct EntryContainer *)a;
+	const struct EntryContainer *eb = (const struct EntryContainer *)b;
+
+	if (ea->name == NULL && eb->name == NULL)
+		return 0;
+	if (ea->name == NULL)
+		return 1;
+	if (eb->name == NULL)
+		return -1;
+
+	return strcmp(ea->name, eb->name);
+}
+
+static void sortkeys()
+{
+	int count = 0;
+
+	while (count < MAX_OPTIONS && g_vals[count].name != NULL)
+		count++;
+
+	qsort(g_vals, count, sizeof(struct EntryContainer), cmpkeys);
+}
+
 int main(int argc, char **argv)
 {
 	FILE *fp;
@@ -256,35 +284,74 @@ int main(int argc, char **argv)
 	unsigned int align;
 	unsigned int keyofs;
 	unsigned int count;
-	
-	for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
-	{
-		struct EntryContainer *entry = find_free();
-		if(entry == NULL)
-		{
-			fprintf(stderr, "Maximum options reached\n");
-			return 0;
-		}
-		*entry = g_defaults[i];
-	}
-	
+
 	if(!process_args(argc, argv)) 
 	{
 		fprintf(stderr, "usage: mksfoex [options] TITLE output.sfo\n");
 		fprintf(stderr, "\t-d NAME=VALUE   Add a new DWORD value\n");
 		fprintf(stderr, "\t-s NAME=STR     Add a new string value\n");
+		fprintf(stderr, "\t-e, --empty     Do not add default values\n");
 
 		return 1;
+	}
+
+	if (!g_empty)
+	{
+		for(i = 0; i < (sizeof(g_defaults) / sizeof(struct EntryContainer)); i++)
+		{
+			if (strcmp(g_defaults[i].name, "TITLE") == 0 || strcmp(g_defaults[i].name, "STITLE") == 0)
+				continue;
+			if (!find_name(g_defaults[i].name))
+			{
+				struct EntryContainer *entry = find_free();
+				if(entry == NULL)
+				{
+					fprintf(stderr, "Maximum options reached\n");
+					return 0;
+				}
+				*entry = g_defaults[i];
+			}
+		}
 	}
 	
 	if (g_title)
 	{
 		struct EntryContainer *entry = find_name("TITLE");
-		entry->data = g_title;
+		if (!entry)
+		{
+			entry = find_free();
+			if(entry == NULL)
+			{
+				fprintf(stderr, "Maximum options reached\n");
+				return 0;
+			}
+
+			memset(entry, 0, sizeof(struct EntryContainer));
+			entry->name = "TITLE";
+			entry->type = PSF_TYPE_STR;
+			entry->value = 0x80;
+			entry->data = g_title;
+		}
 		
 		entry = find_name("STITLE");
-		entry->data = g_title;
+		if (!entry)
+		{
+			entry = find_free();
+			if(entry == NULL)
+			{
+				fprintf(stderr, "Maximum options reached\n");
+				return 0;
+			}
+
+			memset(entry, 0, sizeof(struct EntryContainer));
+			entry->name = "STITLE";
+			entry->type = PSF_TYPE_STR;
+			entry->value = 52;
+			entry->data = g_title;
+		}
 	}
+
+	sortkeys();
 
 	memset(head, 0, sizeof(head));
 	memset(keys, 0, sizeof(keys));
