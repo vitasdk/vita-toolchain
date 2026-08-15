@@ -19,3 +19,7 @@ add_test(NAME test_elf_create
 add_test(NAME test_make_fself
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_make_fself.py $<TARGET_FILE:vita-make-fself> $<TARGET_FILE:psp2rela>
 )
+
+add_test(NAME test_cmake_sourcepath
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cmake_sourcepath.py ${CMAKE_SOURCE_DIR}/cmake_toolchain/vita.cmake
+)
