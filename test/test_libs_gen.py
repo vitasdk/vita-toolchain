@@ -48,6 +48,18 @@ def main():
         files = os.listdir(out_dir)
         assert len(files) > 0, "No output files generated from a yml with a 'version' key"
 
+        # The ar command line must go through a response file in a way that
+        # works on every make (#127 / PR #278): $(file ...) on make >= 4,
+        # which avoids the shell and its ARG_MAX limit entirely, and the
+        # echo fallback on 3.x, which lacks the $(file) function.
+        mk_name = next((f for f in files if f.lower() == "makefile"), None)
+        assert mk_name, "No Makefile generated"
+        with open(os.path.join(out_dir, mk_name)) as f:
+            makefile = f.read()
+        expected = '@$(if $(filter-out 3.%,$(MAKE_VERSION)),$(file >$@-objs,$?),echo "$?" > $@-objs)'
+        assert expected in makefile, \
+            "Regression (#127): ar response file must be written via the version-gated $(file)/echo line"
+
     print("test_libs_gen: ALL TESTS PASSED")
 
 if __name__ == "__main__":

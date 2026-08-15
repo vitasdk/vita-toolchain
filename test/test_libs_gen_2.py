@@ -55,6 +55,17 @@ def main():
         # Verify generated Makefile or assembly stubs
         files1 = os.listdir(out1_dir)
         assert len(files1) > 0, "No output files generated from YAML with firmware"
+
+        # Same contract as vita-libs-gen (#127 / PR #278): the ar response
+        # file must be written via $(file ...) on make >= 4 and fall back to
+        # echo on 3.x, which lacks the $(file) function.
+        mk_name = next((f for f in files1 if f.lower() == "makefile"), None)
+        assert mk_name, "No Makefile generated"
+        with open(os.path.join(out1_dir, mk_name)) as f:
+            makefile = f.read()
+        expected = '@$(if $(filter-out 3.%,$(MAKE_VERSION)),$(file >$@-objs,$?),echo "$?" > $@-objs)'
+        assert expected in makefile, \
+            "Regression (#127): ar response file must be written via the version-gated $(file)/echo line"
         
         # Test 2: YAML without firmware (Issue #244 regression test)
         yml2_path = os.path.join(tmpdir, "nofw.yml")
