@@ -329,6 +329,9 @@ static int get_rel_handling(int type)
 	switch(type) {
 		case R_ARM_NONE:
 		case R_ARM_V4BX:
+		/* The offset of a symbol's GOT slot from the GOT base: both live in
+		 * the same section, so the in-place value is a link-time constant. */
+		case R_ARM_GOT_BREL:
 			return REL_HANDLE_IGNORE;
 		case R_ARM_ABS32:
 		case R_ARM_TARGET1:
@@ -397,6 +400,11 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		/* R_ARM_THM_JUMP24 is functionally the same as R_ARM_THM_CALL, however Vita only supports the second one */
 		if (currela->type == R_ARM_THM_JUMP24)
 			currela->type = R_ARM_THM_CALL;
+		/* A PIC reference to the GOT base: the in-place value is GOT + A - P,
+		 * the same math as R_ARM_REL32 against _GLOBAL_OFFSET_TABLE_, so
+		 * encode it as one. */
+		if (currela->type == R_ARM_BASE_PREL)
+			currela->type = R_ARM_REL32;
 		/* This one comes from libstdc++.
 		 * Should be safe to ignore because it's pc-relative and already encoded in the file. */
 		if (currela->type == R_ARM_THM_PC11)
@@ -540,6 +548,57 @@ failure:
 	return 0;
 }
 
+/* PIC binaries reference their globals through the GOT, but a static -Wl,-q
+ * link emits no relocations for the GOT slots themselves: they only hold the
+ * link-time addresses. Synthesize an R_ARM_ABS32 entry for every slot that
+ * points into a segment, so the loader rebases them like any other pointer. */
+static int synthesize_got_relas(vita_elf_t *ve, int got_ndxscn)
+{
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	Elf_Data *data;
+	vita_elf_rela_table_t *rtable = NULL;
+	vita_elf_rela_t *currela;
+	uint32_t word;
+	int i, num_slots;
+
+	ELF_ASSERT(scn = elf_getscn(ve->elf, got_ndxscn));
+	ELF_ASSERT(gelf_getshdr(scn, &shdr));
+	data = elf_getdata(scn, NULL);
+	if (data == NULL || data->d_buf == NULL || data->d_size == 0)
+		return 1;
+
+	num_slots = data->d_size / 4;
+	rtable = calloc(1, sizeof(vita_elf_rela_table_t));
+	ASSERT(rtable != NULL);
+	rtable->relas = calloc(num_slots, sizeof(vita_elf_rela_t));
+	ASSERT(rtable->relas != NULL);
+
+	for (i = 0; i < num_slots; i++) {
+		memcpy(&word, (char *)data->d_buf + i * 4, sizeof(word));
+		word = le32toh(word);
+		if (word == 0 || vita_elf_vaddr_to_segndx(ve, word) < 0)
+			continue;
+		currela = rtable->relas + rtable->num_relas++;
+		currela->type = R_ARM_ABS32;
+		currela->symbol = NULL;
+		currela->offset = shdr.sh_addr + i * 4;
+		currela->addend = word;
+	}
+
+	if (rtable->num_relas == 0) {
+		free_rela_table(rtable);
+		return 1;
+	}
+
+	rtable->next = ve->rela_tables;
+	ve->rela_tables = rtable;
+	return 1;
+failure:
+	free_rela_table(rtable);
+	return 0;
+}
+
 vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export)
 {
 	vita_elf_t *ve = NULL;
@@ -549,6 +608,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	size_t shstrndx;
 	char *name;
 	const char **debug_name;
+	int got_ndxscn = -1;
 
 	GElf_Phdr phdr;
 	size_t segment_count, segndx, loaded_segments;
@@ -605,6 +665,8 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		} else if (shdr.sh_type == SHT_PROGBITS && strncmp(name, ".ARM.extab", strlen(".ARM.extab")) == 0) {
 			ve->extab_sh_addr = shdr.sh_addr;
 			ve->extab_sh_size = shdr.sh_size;
+		} else if (shdr.sh_type == SHT_PROGBITS && strcmp(name, ".got") == 0) {
+			got_ndxscn = elf_ndxscn(scn);
 		}
 
 		if (shdr.sh_type == SHT_SYMTAB) {
@@ -680,6 +742,9 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	/* This part can only be done after the segments have been loaded */
 	if (lookup_vstub_relas(ve) == 0)
 		FAILX("Failed to lookup the vstub relocations");
+
+	if (got_ndxscn >= 0 && !synthesize_got_relas(ve, got_ndxscn))
+		FAILX("Failed to synthesize relocations for the GOT");
 
 	return ve;
 
