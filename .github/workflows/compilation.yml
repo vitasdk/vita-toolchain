@@ -10,10 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: true
-
     - name: Get Information Variables
       id: core
       run: |
@@ -30,7 +29,7 @@ jobs:
         ctest --output-on-failure
     - name: Upload artifacts
       if: ${{ success() }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: vita-toolchain-${{ steps.core.outputs.sha8 }}
         path: ./vita-toolchain/usr/local/
