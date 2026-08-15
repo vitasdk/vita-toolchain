@@ -494,7 +494,7 @@ int generate_makefile(vita_imports_t **imports, int imports_count)
 		"clean:\n"
 		"\trm -f $(TARGETS) $(TARGETS_WEAK) $(ALL_OBJS)\n\n"
 		"$(TARGETS) $(TARGETS_WEAK):\n"
-		"\t@echo \"$?\" > $@-objs\n"
+		"\t@$(if $(filter-out 3.%,$(MAKE_VERSION)),$(file >$@-objs,$?),echo \"$?\" > $@-objs)\n"
 		"\t$(AR) cru $@ @$@-objs\n"
 		"\t$(RANLIB) $@\n\n"
 		"%.o: %.S\n"
