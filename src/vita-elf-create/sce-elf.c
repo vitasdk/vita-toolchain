@@ -890,7 +890,7 @@ void *sce_elf_module_info_encode(
 		export_raw = (sce_module_exports_raw *)ADDR(sceLib_ent);
 		INCR(sceLib_ent, sizeof(sce_module_exports_raw));
 
-		export_raw->size = htole16(sizeof(sce_module_exports_raw));
+		export_raw->size = sizeof(sce_module_exports_raw);
 		CONVERT16(export, version);
 		CONVERT16(export, flags);
 		CONVERT16(export, num_syms_funcs);
@@ -927,7 +927,7 @@ void *sce_elf_module_info_encode(
 		import_raw = (sce_module_imports_raw *)ADDR(sceLib_stubs);
 		INCR(sceLib_stubs, sizeof(sce_module_imports_raw));
 
-		import_raw->size = htole16(sizeof(sce_module_imports_raw));
+		import_raw->size = sizeof(sce_module_imports_raw);
 		CONVERT16(import, version);
 		CONVERT16(import, flags);
 		CONVERT16(import, num_syms_funcs);
