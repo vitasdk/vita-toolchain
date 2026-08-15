@@ -444,6 +444,7 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 	ASSERT(module_info != NULL);
 
 	module_info->type = 6;
+	module_info->attributes = exports->attributes;
 	module_info->version = (exports->ver_major << 8) | exports->ver_minor;
 	
 	strncpy(module_info->name, exports->name, sizeof(module_info->name) - 1);
