@@ -8,6 +8,10 @@ add_test(NAME test_pack_vpk
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_pack_vpk.py $<TARGET_FILE:vita-pack-vpk>
 )
 
+add_test(NAME test_libs_gen
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_libs_gen.py $<TARGET_FILE:vita-libs-gen>
+)
+
 add_test(NAME test_libs_gen_2
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_libs_gen_2.py $<TARGET_FILE:vita-libs-gen-2>
 )
