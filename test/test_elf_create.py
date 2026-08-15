@@ -74,7 +74,49 @@ def main():
         assert extab_end == 0x14, f"Expected extab_end 0x14, got {hex(extab_end)}"
         assert exidx_top == 0x14, f"Expected exidx_top 0x14, got {hex(exidx_top)}"
         assert exidx_end == 0x24, f"Expected exidx_end 0x24, got {hex(exidx_end)}"
-        
+
+        # Test 3: MOVW/MOVT relocations against an imported stub symbol survive
+        # into the SCE relocation table (Issue #225). The fixture was built with
+        # vitasdk from an inline-asm sample loading the address of
+        # scePowerIsPowerOnline via movw/movt instead of calling it directly,
+        # matching the original report. See fixtures/sample_movwmovt.c.
+        sample_movwmovt_elf = os.path.join(fixtures_dir, "sample_movwmovt.elf")
+        velf3 = os.path.join(tmpdir, "sample_movwmovt.velf")
+        res3 = subprocess.run([elf_create, sample_movwmovt_elf, velf3], capture_output=True, text=True)
+        if res3.returncode != 0:
+            print("Failed vita-elf-create on sample_movwmovt.elf:", res3.stderr)
+            sys.exit(1)
+
+        secs3 = inspect_velf_sections(velf3)
+        assert ".sce.rel" in secs3, "Missing .sce.rel in generated VELF"
+        rel_data = secs3[".sce.rel"]["data"]
+        assert len(rel_data) % 12 == 0, "Unexpected .sce.rel entry size"
+
+        # R_ARM_THM_MOVW_ABS_NC (47) / R_ARM_THM_MOVT_ABS (48) at the exact
+        # offset/addend of the scePowerIsPowerOnline reference, extracted via
+        # `arm-vita-eabi-readelf -r sample_movwmovt.elf` against the source
+        # (offsets are segment-relative, so 0x810001b8/0x810001bc minus the
+        # 0x81000000 segment base).
+        R_ARM_THM_MOVW_ABS_NC = 47
+        R_ARM_THM_MOVT_ABS = 48
+        EXPECTED_MOVW_OFFSET = 0x1b8
+        EXPECTED_MOVT_OFFSET = 0x1bc
+        EXPECTED_SYM_ADDEND = 0x3330
+
+        found_movw = found_movt = False
+        for off in range(0, len(rel_data), 12):
+            word1, word2, word3 = struct.unpack_from('<III', rel_data, off)
+            code = (word1 >> 8) & 0xFF
+            addend = word2
+            r_offset = word3
+            if code == R_ARM_THM_MOVW_ABS_NC and r_offset == EXPECTED_MOVW_OFFSET and addend == EXPECTED_SYM_ADDEND:
+                found_movw = True
+            if code == R_ARM_THM_MOVT_ABS and r_offset == EXPECTED_MOVT_OFFSET and addend == EXPECTED_SYM_ADDEND:
+                found_movt = True
+
+        assert found_movw, "Regression (#225): MOVW relocation against scePowerIsPowerOnline missing from .sce.rel"
+        assert found_movt, "Regression (#225): MOVT relocation against scePowerIsPowerOnline missing from .sce.rel"
+
     print("test_elf_create: ALL TESTS PASSED")
 
 if __name__ == "__main__":
