@@ -25,6 +25,7 @@ include(CMakeParseArguments)
 ##                    [CONFIG file | GEN_EXPORTS file]
 ##                    [UNCOMPRESSED]
 ##                    [UNSAFE]
+##                    [SECRETSAFE]
 ##                    [STRIPPED]
 ##                    [NOASLR]
 ##                    [REL_OPTIMIZE]
@@ -41,6 +42,9 @@ include(CMakeParseArguments)
 ##   Do NOT compress the result SELF (compression is default)
 ## @param[opt] UNSAFE
 ##   The homebrew uses private/system APIs and requires extended permissions
+## @param[opt] SECRETSAFE
+##   Generate a secret-safe eboot (vita-make-fself -ss) instead of a safe one.
+##   Do not use this if you don't know what it does. Takes priority over UNSAFE.
 ## @param[opt] STRIPPED
 ##   Strip the ELF while converting to Sony ELF format
 ## @param[opt] NOASLR
@@ -62,7 +66,7 @@ macro(vita_create_self target source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
-  set(options UNCOMPRESSED UNSAFE STRIPPED NOASLR REL_OPTIMIZE)
+  set(options UNCOMPRESSED UNSAFE SECRETSAFE STRIPPED NOASLR REL_OPTIMIZE)
   set(oneValueArgs CONFIG GEN_EXPORTS ATTRIBUTE MEMSIZE MODULE_ENTRY)
   cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
 
@@ -97,7 +101,9 @@ macro(vita_create_self target source)
   if(vita_create_self_MEMSIZE)
     set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -m ${vita_create_self_MEMSIZE}")
   endif()
-  if(NOT vita_create_self_UNSAFE)
+  if(vita_create_self_SECRETSAFE)
+    set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -ss")
+  elseif(NOT vita_create_self_UNSAFE)
     set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -s")
   endif()
 

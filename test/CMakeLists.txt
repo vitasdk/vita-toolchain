@@ -23,3 +23,7 @@ add_test(NAME test_make_fself
 add_test(NAME test_cmake_sourcepath
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cmake_sourcepath.py ${CMAKE_SOURCE_DIR}/cmake_toolchain/vita.cmake
 )
+
+add_test(NAME test_cmake_secretsafe
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cmake_secretsafe.py ${CMAKE_SOURCE_DIR}/cmake_toolchain/vita.cmake
+)
