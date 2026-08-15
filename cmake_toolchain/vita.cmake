@@ -107,18 +107,21 @@ macro(vita_create_self target source)
 
   ## check source for being a target, otherwise it is a file path
   if(TARGET ${source})
-    set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${source})
+    set(sourcepath "$<TARGET_FILE:${source}>")
+    set(sourcefile ${source})
+    set(targetname "${source}-velf")
   else()
     set(sourcepath ${source})
+    get_filename_component(sourcefile ${sourcepath} NAME)
+    set(targetname "${sourcefile}-velf")
   endif()
-  get_filename_component(sourcefile ${sourcepath} NAME)
 
   ## VELF command
   separate_arguments(VITA_ELF_CREATE_FLAGS)
 
   if(vita_create_self_REL_OPTIMIZE)
     if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
-      add_custom_target(${sourcefile}-velf ALL
+      add_custom_target(${targetname} ALL
         COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         DEPENDS ${sourcepath}
@@ -127,17 +130,17 @@ macro(vita_create_self target source)
       # Little hack to ensure proper dependencies in the absence of BYPRODUCTS
       add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-        DEPENDS ${sourcefile}-velf
+        DEPENDS ${targetname}
       )
       if (vita_create_self_GEN_EXPORTS)
         add_custom_command(OUTPUT ${fconfig}
           COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${fconfig}
-          DEPENDS ${sourcefile}-velf
+          DEPENDS ${targetname}
         )
       endif()
     else()
       if(vita_create_self_GEN_EXPORTS)
-        add_custom_target(${sourcefile}-velf ALL
+        add_custom_target(${targetname} ALL
           COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
@@ -145,7 +148,7 @@ macro(vita_create_self target source)
           COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
         )
       else()
-        add_custom_target(${sourcefile}-velf ALL
+        add_custom_target(${targetname} ALL
           COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
@@ -156,7 +159,7 @@ macro(vita_create_self target source)
     endif()
   else()
     if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
-      add_custom_target(${sourcefile}-velf ALL
+      add_custom_target(${targetname} ALL
         COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         DEPENDS ${sourcepath}
         COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
@@ -164,24 +167,24 @@ macro(vita_create_self target source)
       # Little hack to ensure proper dependencies in the absence of BYPRODUCTS
       add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-        DEPENDS ${sourcefile}-velf
+        DEPENDS ${targetname}
       )
       if (vita_create_self_GEN_EXPORTS)
         add_custom_command(OUTPUT ${fconfig}
           COMMAND ${CMAKE_COMMAND} -E touch_nocreate ${fconfig}
-          DEPENDS ${sourcefile}-velf
+          DEPENDS ${targetname}
         )
       endif()
     else()
       if(vita_create_self_GEN_EXPORTS)
-        add_custom_target(${sourcefile}-velf ALL
+        add_custom_target(${targetname} ALL
           COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
           BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${fconfig}
           COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
         )
       else()
-        add_custom_target(${sourcefile}-velf ALL
+        add_custom_target(${targetname} ALL
           COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
           BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
@@ -271,11 +274,12 @@ macro(vita_create_stubs target-dir source config)
 
   ## check source for being a target, otherwise it is a file path
   if(TARGET ${source})
-    set(sourcepath ${CMAKE_CURRENT_BINARY_DIR}/${source})
+    set(sourcepath "$<TARGET_FILE:${source}>")
+    set(sourcefile ${source})
   else()
     set(sourcepath ${source})
+    get_filename_component(sourcefile ${sourcepath} NAME)
   endif()
-  get_filename_component(sourcefile ${sourcepath} NAME)
 
   set(target_yml ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml)
 
