@@ -32,6 +32,45 @@ def inspect_velf_sections(velf_path):
         }
     return sections
 
+def compare_to_golden(generated_path, golden_path, label):
+    with open(generated_path, 'rb') as f:
+        gen_data = f.read()
+    with open(golden_path, 'rb') as f:
+        golden_data = f.read()
+
+    if gen_data == golden_data:
+        return
+
+    gen_secs = inspect_velf_sections(generated_path)
+    golden_secs = inspect_velf_sections(golden_path)
+    gen_names = list(gen_secs.keys())
+    golden_names = list(golden_secs.keys())
+
+    lines = [f"{label}: generated VELF does not match golden fixture {golden_path}"]
+    if gen_names != golden_names:
+        lines.append(f"  section order differs:\n    golden:    {golden_names}\n    generated: {gen_names}")
+    else:
+        for name in golden_names:
+            g, n = golden_secs[name], gen_secs[name]
+            if g['offset'] != n['offset'] or g['size'] != n['size']:
+                lines.append(
+                    f"  {name}: golden offset=0x{g['offset']:x} size=0x{g['size']:x}"
+                    f"  generated offset=0x{n['offset']:x} size=0x{n['size']:x}"
+                )
+    if len(gen_data) != len(golden_data):
+        lines.append(f"  file size differs: golden={len(golden_data)} generated={len(gen_data)}")
+
+    diff_offset = next((i for i in range(min(len(gen_data), len(golden_data))) if gen_data[i] != golden_data[i]), None)
+    if diff_offset is not None:
+        containing = next(
+            (name for name, s in golden_secs.items() if s['offset'] <= diff_offset < s['offset'] + s['size']),
+            "(no known section / in ELF/program headers)"
+        )
+        lines.append(f"  first differing byte at file offset 0x{diff_offset:x}, inside section {containing}")
+
+    lines.append("  If this is an intentional layout change, regenerate with: test/regen_golden.sh <path-to-vita-elf-create>")
+    raise AssertionError("\n".join(lines))
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: test_elf_create.py <path-to-vita-elf-create>")
@@ -74,7 +113,16 @@ def main():
         assert extab_end == 0x14, f"Expected extab_end 0x14, got {hex(extab_end)}"
         assert exidx_top == 0x14, f"Expected exidx_top 0x14, got {hex(exidx_top)}"
         assert exidx_end == 0x24, f"Expected exidx_end 0x24, got {hex(exidx_end)}"
-        
+
+        # Test 3: Golden-master layout regression check (#47).
+        # Byte-exact comparison against checked-in reference VELFs, so a layout/alignment
+        # regression is caught even when the section presence/value checks above still pass.
+        golden1 = os.path.join(fixtures_dir, "sample.velf")
+        compare_to_golden(velf1, golden1, "sample.elf")
+
+        golden2 = os.path.join(fixtures_dir, "sample_exidx.velf")
+        compare_to_golden(velf2, golden2, "sample_exidx.elf")
+
     print("test_elf_create: ALL TESTS PASSED")
 
 if __name__ == "__main__":
