@@ -1,5 +1,14 @@
 find_package(PkgConfig)
-pkg_check_modules(PC_libelf REQUIRED libelf=0.8.13)
+pkg_check_modules(PC_libelf QUIET libelf=0.8.13)
+if(NOT PC_libelf_FOUND)
+	message(FATAL_ERROR
+		"libelf 0.8.13 (the original libelf by Michael Riepe) was not found via pkg-config. "
+		"The package named libelf on most distros (Arch, Debian, Ubuntu, ...) is elfutils' "
+		"libelf, which is not compatible: vita-elf-create builds against it but produces "
+		"broken output. Build the bundled libelf 0.8.13 into the dependency prefix (see "
+		"buildscripts), or point TOOLCHAIN_DEPS_DIR or PKG_CONFIG_PATH at a libelf 0.8.13 "
+		"installation.")
+endif()
 
 find_path(libelf_INCLUDE_DIR libelf.h
           HINTS ${PC_libelf_INCLUDEDIR} ${PC_libelf_INCLUDE_DIRS})
