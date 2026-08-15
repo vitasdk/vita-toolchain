@@ -165,6 +165,17 @@ def main():
         assert ".sceLib.stubs" in secs1, "Missing .sceLib.stubs in generated VELF"
         assert ".sceFNID.rodata" in secs1, "Missing .sceFNID.rodata in generated VELF"
         assert ".sceVNID.rodata" in secs1, "Missing .sceVNID.rodata in generated VELF"
+
+        # The export/import table headers start with a 1-byte struct size
+        # followed by a reserved zero byte (Issue #114) — not a 16-bit size.
+        # For the values emitted here the bytes are the same either way, so
+        # this pins the on-disk format for both interpretations.
+        ent_data = secs1[".sceLib.ent"]["data"]
+        assert ent_data[0] == 0x20 and ent_data[1] == 0x00, \
+            f"Regression (#114): sce_module_exports must start 0x20,0x00, got {ent_data[0]:#x},{ent_data[1]:#x}"
+        stub_data = secs1[".sceLib.stubs"]["data"]
+        assert stub_data[0] in (0x24, 0x34) and stub_data[1] == 0x00, \
+            f"Regression (#114): sce_module_imports must start 0x24/0x34,0x00, got {stub_data[0]:#x},{stub_data[1]:#x}"
         
         # Test 2: Unwind and Exception tables (.ARM.exidx and .ARM.extab - PR #281)
         velf2 = os.path.join(tmpdir, "sample_exidx.velf")
