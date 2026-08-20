@@ -329,6 +329,8 @@ static int get_rel_handling(int type)
 	switch(type) {
 		case R_ARM_NONE:
 		case R_ARM_V4BX:
+		/* TLS offset, already resolved by the linker */
+		case R_ARM_TLS_LE32:
 			return REL_HANDLE_IGNORE;
 		case R_ARM_ABS32:
 		case R_ARM_TARGET1:
