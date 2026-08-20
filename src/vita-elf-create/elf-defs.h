@@ -20,6 +20,7 @@
 # define R_ARM_THM_MOVW_ABS_NC 47
 # define R_ARM_THM_MOVT_ABS    48
 # define R_ARM_THM_PC11        102
+# define R_ARM_TLS_LE32        108
 
 #define STB_NUM     3
 
