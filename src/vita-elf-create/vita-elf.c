@@ -329,6 +329,8 @@ static int get_rel_handling(int type)
 	switch(type) {
 		case R_ARM_NONE:
 		case R_ARM_V4BX:
+		/* TLS offset, already resolved by the linker */
+		case R_ARM_TLS_LE32:
 			return REL_HANDLE_IGNORE;
 		case R_ARM_ABS32:
 		case R_ARM_TARGET1:
@@ -648,6 +650,12 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 
 	for (segndx = 0; segndx < segment_count; segndx++) {
 		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
+
+		if (phdr.p_type == PT_TLS) {
+			ve->tls_vaddr = phdr.p_vaddr;
+			ve->tls_filesz = phdr.p_filesz;
+			ve->tls_memsz = phdr.p_memsz;
+		}
 
 		if (phdr.p_type != PT_LOAD) {
 			continue; // skip non-loadable segments
