@@ -651,6 +651,12 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	for (segndx = 0; segndx < segment_count; segndx++) {
 		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
 
+		if (phdr.p_type == PT_TLS) {
+			ve->tls_vaddr = phdr.p_vaddr;
+			ve->tls_filesz = phdr.p_filesz;
+			ve->tls_memsz = phdr.p_memsz;
+		}
+
 		if (phdr.p_type != PT_LOAD) {
 			continue; // skip non-loadable segments
 		}
