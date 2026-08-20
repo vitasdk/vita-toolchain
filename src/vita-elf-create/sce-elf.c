@@ -520,6 +520,16 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 		module_info->extab_end = NULL;
 	}
 
+	if (ve->tls_memsz > 0) {
+		module_info->tls_start = (void *)vita_elf_vaddr_to_host(ve, ve->tls_vaddr);
+		module_info->tls_filesz = ve->tls_filesz;
+		module_info->tls_memsz = ve->tls_memsz;
+	} else {
+		module_info->tls_start = NULL;
+		module_info->tls_filesz = 0;
+		module_info->tls_memsz = 0;
+	}
+
 	return module_info;
 
 failure:
@@ -850,9 +860,14 @@ void *sce_elf_module_info_encode(
 	module_info_raw->import_top = htole32(OFFSET(sceLib_stubs));
 	module_info_raw->import_end = htole32(OFFSET(sceLib_stubs) + sizes->sceLib_stubs);
 	CONVERT32(module_info, module_nid);
-	CONVERT32(module_info, tls_start);
 	CONVERT32(module_info, tls_filesz);
 	CONVERT32(module_info, tls_memsz);
+	if (module_info->tls_start != NULL) {
+		/* Relative to module_start's segment, not .tdata's own */
+		module_info_raw->tls_start = htole32(vita_elf_vaddr_to_segoffset(ve, ve->tls_vaddr, segndx));
+	} else {
+		module_info_raw->tls_start = 0;
+	}
 	if(module_info->module_start != NULL){
 		CONVERTOFFSET(module_info, module_start);
 	}else{
