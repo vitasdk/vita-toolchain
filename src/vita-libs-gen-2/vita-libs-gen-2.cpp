@@ -413,7 +413,7 @@ int gen_makefile(const char *dstdir, StubContext *stub_ctx){
 	fprintf(fp, "clean:\n");
 	fprintf(fp, "\trm -f $(TARGETS) $(TARGETS_WEAK) $(ALL_OBJS)\n\n");
 	fprintf(fp, "$(TARGETS) $(TARGETS_WEAK):\n");
-	fprintf(fp, "\t@echo \"$?\" > $@-objs\n");
+	fprintf(fp, "\t$(file >$@-objs,$?)\n");
 	fprintf(fp, "\t$(AR) cru $@ @$@-objs\n");
 	fprintf(fp, "\t$(RANLIB) $@\n");
 	fprintf(fp, "\trm $^ $@-objs\n\n");
