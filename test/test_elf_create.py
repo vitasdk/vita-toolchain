@@ -117,6 +117,38 @@ def main():
         assert found_movw, "Regression (#225): MOVW relocation against scePowerIsPowerOnline missing from .sce.rel"
         assert found_movt, "Regression (#225): MOVT relocation against scePowerIsPowerOnline missing from .sce.rel"
 
+        # Test 4: PIC binaries (Issue #274). R_ARM_BASE_PREL (25) used to be
+        # rejected with "Invalid relocation type 25"; it is now encoded as
+        # R_ARM_REL32 against _GLOBAL_OFFSET_TABLE_, R_ARM_GOT_BREL is a
+        # link-time constant, and the GOT slots (which a static -Wl,-q link
+        # leaves without relocations) get synthesized ABS32 entries.
+        # Expected offsets extracted from the fixture with
+        # `arm-vita-eabi-readelf -r/-S sample_pic.elf`: the BASE_PREL literal
+        # at 0x810001c4 (text segment + 0x1c4); .got at 0x8101000c with its
+        # one used slot at +0xc (data segment + 0x18) holding the address of
+        # shared_state (0x81010024, data segment + 0x24).
+        sample_pic_elf = os.path.join(fixtures_dir, "sample_pic.elf")
+        velf4 = os.path.join(tmpdir, "sample_pic.velf")
+        res4 = subprocess.run([elf_create, sample_pic_elf, velf4], capture_output=True, text=True)
+        if res4.returncode != 0:
+            print("Regression (#274): vita-elf-create failed on a PIC binary:", res4.stderr)
+            sys.exit(1)
+
+        secs4 = inspect_velf_sections(velf4)
+        rel4 = secs4[".sce.rel"]["data"]
+        R_ARM_ABS32 = 2
+        R_ARM_REL32 = 3
+        got_base_rel32 = got_slot_abs32 = False
+        for off in range(0, len(rel4), 12):
+            w1, w2, w3 = struct.unpack_from('<III', rel4, off)
+            code = (w1 >> 8) & 0xFF
+            if code == R_ARM_REL32 and w3 == 0x1c4:
+                got_base_rel32 = True
+            if code == R_ARM_ABS32 and w3 == 0x18 and w2 == 0x24:
+                got_slot_abs32 = True
+        assert got_base_rel32, "Regression (#274): missing REL32 entry for the R_ARM_BASE_PREL literal"
+        assert got_slot_abs32, "Regression (#274): missing synthesized ABS32 entry for the GOT slot"
+
     print("test_elf_create: ALL TESTS PASSED")
 
 if __name__ == "__main__":
