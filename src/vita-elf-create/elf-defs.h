@@ -19,7 +19,17 @@
 # define R_ARM_MOVT_PREL       46
 # define R_ARM_THM_MOVW_ABS_NC 47
 # define R_ARM_THM_MOVT_ABS    48
+# define R_ARM_TLS_GOTDESC     90
+# define R_ARM_TLS_CALL        91
+# define R_ARM_TLS_DESCSEQ     92
+# define R_ARM_THM_TLS_CALL    93
 # define R_ARM_THM_PC11        102
+# define R_ARM_TLS_GD32        104
+# define R_ARM_TLS_LDM32       105
+# define R_ARM_TLS_LDO32       106
+# define R_ARM_TLS_IE32        107
+# define R_ARM_TLS_LE32        108
+# define R_ARM_THM_TLS_DESCSEQ 129
 
 #define STB_NUM     3
 

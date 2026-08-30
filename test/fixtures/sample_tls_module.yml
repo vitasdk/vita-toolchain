@@ -1,0 +1,9 @@
+sample_tls_two_tu:
+  attributes: 0
+  process_image: false
+  imagemodule: false
+  version:
+    major: 1
+    minor: 1
+  main:
+    start: module_start
