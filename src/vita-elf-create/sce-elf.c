@@ -862,7 +862,7 @@ void *sce_elf_module_info_encode(
 	CONVERT32(module_info, module_nid);
 	CONVERT32(module_info, tls_filesz);
 	CONVERT32(module_info, tls_memsz);
-	if (module_info->tls_start != NULL) {
+	if (module_info->tls_memsz != 0) {
 		if (ve->tls_vaddr < ve->segments[segndx].vaddr)
 			FAILX("TLS template (vaddr=0x%x) lies before the start of segment %d (vaddr=0x%x); cannot encode tls_start",
 					ve->tls_vaddr, segndx, ve->segments[segndx].vaddr);
