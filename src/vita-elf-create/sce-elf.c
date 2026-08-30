@@ -863,6 +863,10 @@ void *sce_elf_module_info_encode(
 	CONVERT32(module_info, tls_filesz);
 	CONVERT32(module_info, tls_memsz);
 	if (module_info->tls_start != NULL) {
+		if (ve->tls_vaddr < ve->segments[segndx].vaddr)
+			FAILX("TLS template (vaddr=0x%x) lies before the start of segment %d (vaddr=0x%x); cannot encode tls_start",
+					ve->tls_vaddr, segndx, ve->segments[segndx].vaddr);
+
 		/* Relative to module_start's segment, not .tdata's own */
 		module_info_raw->tls_start = htole32(vita_elf_vaddr_to_segoffset(ve, ve->tls_vaddr, segndx));
 	} else {

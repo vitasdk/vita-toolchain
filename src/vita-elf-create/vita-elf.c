@@ -579,6 +579,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	GElf_Phdr phdr;
 	size_t segment_count, segndx, loaded_segments;
 	vita_elf_segment_info_t *curseg;
+	int seen_pt_tls = 0;
 
 
 	if (elf_version(EV_CURRENT) == EV_NONE)
@@ -676,6 +677,24 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
 
 		if (phdr.p_type == PT_TLS) {
+			if (seen_pt_tls)
+				FAILX("ELF has more than one PT_TLS segment");
+			seen_pt_tls = 1;
+
+			if (phdr.p_filesz > phdr.p_memsz)
+				FAILX("PT_TLS p_filesz (0x%llx) exceeds p_memsz (0x%llx)",
+						(unsigned long long)phdr.p_filesz, (unsigned long long)phdr.p_memsz);
+
+			if (phdr.p_align & (phdr.p_align - 1))
+				FAILX("PT_TLS p_align (0x%llx) is not zero or a power of two", (unsigned long long)phdr.p_align);
+
+			if (phdr.p_align > 0x800)
+				FAILX("PT_TLS p_align (0x%llx) exceeds the maximum supported alignment of 0x800", (unsigned long long)phdr.p_align);
+
+			if (phdr.p_vaddr + phdr.p_memsz > 0xFFFFFFFFULL)
+				FAILX("PT_TLS range overflows 32 bits (p_vaddr=0x%llx, p_memsz=0x%llx)",
+						(unsigned long long)phdr.p_vaddr, (unsigned long long)phdr.p_memsz);
+
 			if (phdr.p_memsz > 0 && !export_is_process_image(export))
 				FAILX("TLS (PT_TLS) is only supported in a process image; this module is not one (process_image: false)");
 
@@ -711,6 +730,16 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		loaded_segments++;
 	}
 	ve->num_segments = loaded_segments;
+
+	if (ve->tls_memsz > 0) {
+		int tls_segndx = vita_elf_vaddr_to_segndx(ve, ve->tls_vaddr);
+		if (tls_segndx < 0)
+			FAILX("PT_TLS range (vaddr=0x%x, memsz=0x%x) does not lie within any loaded segment",
+					ve->tls_vaddr, ve->tls_memsz);
+		if (ve->tls_vaddr + ve->tls_memsz > ve->segments[tls_segndx].vaddr + ve->segments[tls_segndx].memsz)
+			FAILX("PT_TLS range (vaddr=0x%x, memsz=0x%x) extends past the end of segment %d",
+					ve->tls_vaddr, ve->tls_memsz, tls_segndx);
+	}
 
 	/* This part can only be done after the segments have been loaded */
 	if (lookup_vstub_relas(ve) == 0)
