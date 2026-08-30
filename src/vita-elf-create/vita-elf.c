@@ -732,7 +732,17 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	ve->num_segments = loaded_segments;
 
 	if (ve->tls_memsz > 0) {
-		int tls_segndx = vita_elf_vaddr_to_segndx(ve, ve->tls_vaddr);
+		int tls_segndx = -1;
+
+		/* Inclusive of the segment's last address: a p_filesz == 0 (.tbss-only)
+		 * template legitimately starts exactly one past a segment's last byte */
+		for (int i = 0; i < ve->num_segments; i++) {
+			if (ve->tls_vaddr >= ve->segments[i].vaddr && ve->tls_vaddr <= ve->segments[i].vaddr + ve->segments[i].memsz) {
+				tls_segndx = i;
+				break;
+			}
+		}
+
 		if (tls_segndx < 0)
 			FAILX("PT_TLS range (vaddr=0x%x, memsz=0x%x) does not lie within any loaded segment",
 					ve->tls_vaddr, ve->tls_memsz);
