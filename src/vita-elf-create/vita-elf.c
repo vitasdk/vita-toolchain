@@ -736,9 +736,10 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		if (tls_segndx < 0)
 			FAILX("PT_TLS range (vaddr=0x%x, memsz=0x%x) does not lie within any loaded segment",
 					ve->tls_vaddr, ve->tls_memsz);
-		if (ve->tls_vaddr + ve->tls_memsz > ve->segments[tls_segndx].vaddr + ve->segments[tls_segndx].memsz)
-			FAILX("PT_TLS range (vaddr=0x%x, memsz=0x%x) extends past the end of segment %d",
-					ve->tls_vaddr, ve->tls_memsz, tls_segndx);
+		/* Only p_filesz is backed by segment bytes; the .tbss zero-fill tail routinely runs past the segment */
+		if (ve->tls_vaddr + ve->tls_filesz > ve->segments[tls_segndx].vaddr + ve->segments[tls_segndx].memsz)
+			FAILX("PT_TLS file-backed range (vaddr=0x%x, filesz=0x%x) extends past the end of segment %d",
+					ve->tls_vaddr, ve->tls_filesz, tls_segndx);
 	}
 
 	/* This part can only be done after the segments have been loaded */
