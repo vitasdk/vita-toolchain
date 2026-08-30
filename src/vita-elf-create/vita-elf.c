@@ -324,6 +324,7 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 #define REL_HANDLE_NORMAL 0
 #define REL_HANDLE_IGNORE -1
 #define REL_HANDLE_INVALID -2
+#define REL_HANDLE_TLS_UNSUPPORTED -3
 static int get_rel_handling(int type)
 {
 	switch(type) {
@@ -345,12 +346,28 @@ static int get_rel_handling(int type)
 		case R_ARM_THM_MOVW_ABS_NC:
 		case R_ARM_THM_MOVT_ABS:
 			return REL_HANDLE_NORMAL;
+		case R_ARM_TLS_GOTDESC:
+		case R_ARM_TLS_CALL:
+		case R_ARM_TLS_DESCSEQ:
+		case R_ARM_THM_TLS_CALL:
+		case R_ARM_TLS_GD32:
+		case R_ARM_TLS_LDM32:
+		case R_ARM_TLS_LDO32:
+		case R_ARM_TLS_IE32:
+		case R_ARM_THM_TLS_DESCSEQ:
+			return REL_HANDLE_TLS_UNSUPPORTED;
 	}
 
 	return REL_HANDLE_INVALID;
 }
 
-static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
+/* export is NULL before the default export config is generated; that default is a process image */
+static int export_is_process_image(vita_export_t *export)
+{
+	return export == NULL || (export->is_process_image != 0 && export->is_image_module == 0);
+}
+
+static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn, vita_export_t *export)
 {
 	Elf_Scn *text_scn;
 	GElf_Shdr shdr, text_shdr;
@@ -409,10 +426,17 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		memcpy(&insn, text_data->d_buf+(rel.r_offset - text_shdr.sh_addr), sizeof(insn));
 		insn = le32toh(insn);
 
+		if (currela->type == R_ARM_TLS_LE32 && !export_is_process_image(export))
+			FAILX("TLS relocation %s is only supported in a process image; this module is not one (process_image: false)",
+					elf_decode_r_type(currela->type));
+
 		handling = get_rel_handling(currela->type);
 
 		if (handling == REL_HANDLE_IGNORE)
 			continue;
+		else if (handling == REL_HANDLE_TLS_UNSUPPORTED)
+			FAILX("Unsupported TLS relocation %s; only local-exec TLS (R_ARM_TLS_LE32) in a process image is supported",
+					elf_decode_r_type(currela->type));
 		else if (handling == REL_HANDLE_INVALID)
 			FAILX("Invalid relocation type %d!", currela->type);
 
@@ -615,7 +639,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		} else if (shdr.sh_type == SHT_REL) {
 			if (!is_valid_relsection(ve, &shdr))
 				continue;
-			if (!load_rel_table(ve, scn))
+			if (!load_rel_table(ve, scn, export))
 				goto failure;
 		} else if (shdr.sh_type == SHT_RELA) {
 			if (!is_valid_relsection(ve, &shdr))
@@ -652,6 +676,9 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
 
 		if (phdr.p_type == PT_TLS) {
+			if (phdr.p_memsz > 0 && !export_is_process_image(export))
+				FAILX("TLS (PT_TLS) is only supported in a process image; this module is not one (process_image: false)");
+
 			ve->tls_vaddr = phdr.p_vaddr;
 			ve->tls_filesz = phdr.p_filesz;
 			ve->tls_memsz = phdr.p_memsz;
