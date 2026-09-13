@@ -84,18 +84,20 @@ def main():
             f"Expected ATTRIBUTE {hex(ATTRIBUTE_NO_COMMUNICATION_ZONE)}, got {hex(dict1['ATTRIBUTE'])}"
         assert dict1["ATTRIBUTE2"] == ATTRIBUTE2_MEM109, \
             f"Expected ATTRIBUTE2 {hex(ATTRIBUTE2_MEM109)}, got {hex(dict1['ATTRIBUTE2'])}"
-        assert dict1["CONTENT_ID"] == "HB0001-ABCD99999_00-0000000000000000", \
-            f"Expected placeholder CONTENT_ID, got '{dict1['CONTENT_ID']}'"
+        assert dict1["CONTENT_ID"] == "HB0001-ABCD12345_00-0000000000000000", \
+            f"Expected CONTENT_ID derived from TITLE_ID, got '{dict1['CONTENT_ID']}'"
         assert dict1["SAVEDATA_MAX_SIZE"] == 1048576, \
             f"Expected SAVEDATA_MAX_SIZE 1048576, got {dict1['SAVEDATA_MAX_SIZE']}"
 
-        # Test 2: Separate TITLE and STITLE options (PR #284)
+        # Test 2: Separate TITLE and STITLE options (PR #284), and preserve an
+        # explicitly supplied CONTENT_ID rather than deriving one from TITLE_ID.
         sfo2 = os.path.join(tmpdir, "custom.sfo")
         res = subprocess.run([
             mksfoex,
             "-s", "TITLE=Long Title",
             "-s", "STITLE=Short",
             "-s", "TITLE_ID=TEST00001",
+            "-s", "CONTENT_ID=HB0001-CUSTOM999_00-1111111111111111",
             "IgnoredDefaultTitle",
             sfo2
         ], capture_output=True, text=True)
@@ -107,6 +109,8 @@ def main():
             dict2 = dict(read_sfo(f.read()))
         assert dict2["TITLE"] == "Long Title", f"Expected 'Long Title', got '{dict2['TITLE']}'"
         assert dict2["STITLE"] == "Short", f"Expected 'Short', got '{dict2['STITLE']}'"
+        assert dict2["CONTENT_ID"] == "HB0001-CUSTOM999_00-1111111111111111", \
+            f"Expected explicit CONTENT_ID to be preserved, got '{dict2['CONTENT_ID']}'"
         
         # Test 3: Empty flag (-e), with no positional title — only the output
         # filename. Also regression-tests PR #284's other bug: an earlier version
