@@ -97,7 +97,7 @@ typedef struct vita_elf_t {
 	Elf32_Word extab_sh_size;
 } vita_elf_t;
 
-vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export);
+vita_elf_t *vita_elf_load(const char *filename, vita_export_t *export);
 void vita_elf_free(vita_elf_t *ve);
 
 void vita_elf_generate_exports(vita_elf_t *ve, vita_export_t *exports);

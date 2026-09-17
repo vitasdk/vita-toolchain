@@ -540,7 +540,7 @@ failure:
 	return 0;
 }
 
-vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export)
+vita_elf_t *vita_elf_load(const char *filename, vita_export_t *export)
 {
 	vita_elf_t *ve = NULL;
 	GElf_Ehdr ehdr;
@@ -623,14 +623,12 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		}
 	}
 
-	if (ve->fstubs_va.count == 0 && ve->vstubs_va.count == 0 && check_stub_count)
-		FAILX("No .vitalink stub sections in binary, probably not a Vita binary. If this is a vita binary, pass '-n' to squash this error.");
-
 	if (ve->symtab == NULL)
 		FAILX("No symbol table in binary, perhaps stripped out");
 
+	/* Leaf-only modules may have no relocations even with --emit-relocs. */
 	if (ve->rela_tables == NULL && export != NULL && export->is_image_module == 0)
-		FAILX("No relocation sections in binary; use -Wl,-q while compiling");
+		warnx("No relocation sections in binary; ensure -Wl,-q was used while linking");
 
 	if (ve->fstubs_va.count != 0) {
 		if (!lookup_stub_symbols(ve, ve->num_fstubs, ve->fstubs, &ve->fstubs_va, STT_FUNC)) goto failure;

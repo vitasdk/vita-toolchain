@@ -28,7 +28,7 @@ format).
 usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
     -v,-vv,-vvv:    logging verbosity (more v is more verbose)
     -s         :    strip the output ELF
-    -n         :    allow empty imports
+    -n         :    accepted for compatibility; empty imports are allowed by default
     -e yml     :    optional config options
     -g yml     :    generate an export config from ELF symbols
     -m list    :    specify the list of module entrypoints
@@ -38,6 +38,17 @@ usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
 ```
 Converts a standard `ET_EXEC` ELF (outputted by `arm-vita-eabi-gcc` for example)
 to the Sony ELF format.
+
+Modules without imports are supported without extra flags. The `.vitalink.*`
+sections describe imports to the converter, so their absence is normal when a
+module does not import any functions or variables. The legacy `-n` option is
+still accepted but has no effect.
+
+Continue linking with `-Wl,-q` to preserve any required relocation information.
+A module containing only leaf functions may have no relocation sections even
+with this option. For an explicitly configured relocatable module, missing
+relocation sections produce a warning rather than an error; the converter
+cannot distinguish such a module from one linked without `-Wl,-q`.
 
 vita-elf-create also adds special symbols defined programmatically to module info.
 

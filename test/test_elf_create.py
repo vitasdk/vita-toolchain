@@ -141,6 +141,116 @@ def make_segment_end_reloc_fixture(source_path, output_path):
 
     return datseg, datoff, symseg, symoff
 
+
+def assert_empty_imports(velf):
+    sections = inspect_velf_sections(velf)
+    module_info = sections['.sceModuleInfo.rodata']['data']
+    export_top, export_end, import_top, import_end = struct.unpack_from('<IIII', module_info, 0x24)
+    assert export_end > export_top, "Import-free module lost its exports"
+    assert import_top == import_end, "Import-free module has a nonempty import table"
+    for section in ('.sceLib.stubs', '.sceFNID.rodata', '.sceVNID.rodata',
+                    '.sceImport.rodata', '.sceFStub.rodata', '.sceVStub.rodata'):
+        assert sections.get(section, {}).get('size', 0) == 0, f"Unexpected import data in {section}"
+    return sections
+
+
+def test_empty_imports(elf_create, sample_elf, tmpdir):
+    assert not any(name.startswith('.vitalink.') for name in inspect_velf_sections(sample_elf)), \
+        "Empty-import regression fixture must not contain import stubs"
+
+    config = os.path.join(tmpdir, 'no_imports.yml')
+    with open(config, 'w') as f:
+        f.write('''no_imports:
+  process_image: false
+  imagemodule: false
+  main:
+    start: _start
+  libraries:
+    no_imports:
+      functions:
+        - __gxx_personality_v0
+''')
+
+    modes = [
+        ('default', []),
+        ('config', ['-e', config]),
+        ('entrypoint', ['-m', '_start,,']),
+        ('generated', ['-g', os.path.join(tmpdir, 'generated.yml')]),
+    ]
+    for name, flags in modes:
+        velf = os.path.join(tmpdir, f'no_imports_{name}.velf')
+        result = subprocess.run([elf_create, *flags, sample_elf, velf], capture_output=True, text=True)
+        assert result.returncode == 0, f"Import-free conversion ({name}) failed: {result.stderr}"
+
+        assert_empty_imports(velf)
+
+        legacy_velf = os.path.join(tmpdir, f'no_imports_{name}_legacy.velf')
+        result = subprocess.run([elf_create, '-n', *flags, sample_elf, legacy_velf],
+                                capture_output=True, text=True)
+        assert result.returncode == 0, f"Legacy -n conversion ({name}) failed: {result.stderr}"
+        with open(velf, 'rb') as f, open(legacy_velf, 'rb') as legacy:
+            assert f.read() == legacy.read(), f"Legacy -n changed the output ({name})"
+
+    with open(sample_elf, 'rb') as f:
+        non_arm = bytearray(f.read())
+    struct.pack_into('<H', non_arm, 18, 3)  # EM_386
+    non_arm_elf = os.path.join(tmpdir, 'non_arm.elf')
+    with open(non_arm_elf, 'wb') as f:
+        f.write(non_arm)
+    result = subprocess.run([elf_create, non_arm_elf, os.path.join(tmpdir, 'non_arm.velf')],
+                            capture_output=True, text=True)
+    assert result.returncode != 0 and 'not an ARM binary' in result.stderr, \
+        "Allowing empty imports must not bypass ARM validation"
+
+
+def test_import_free_plugin(elf_create, fixtures_dir, tmpdir):
+    sample_elf = os.path.join(fixtures_dir, 'sample_no_imports.elf')
+    config = os.path.join(fixtures_dir, 'sample_no_imports.yml')
+    source_sections = inspect_velf_sections(sample_elf)
+    assert not any(name.startswith('.vitalink.') for name in source_sections), \
+        "Plugin fixture must not contain import stubs"
+    assert not any(section['type'] in (4, 9) for section in source_sections.values()), \
+        "Plugin fixture must not contain REL or RELA sections"
+
+    outputs = []
+    for name, flags in (('default', []), ('legacy', ['-n'])):
+        velf = os.path.join(tmpdir, f'plugin_{name}.velf')
+        result = subprocess.run([elf_create, *flags, '-e', config, sample_elf, velf],
+                                capture_output=True, text=True)
+        assert result.returncode == 0, f"Zero-relocation plugin ({name}) failed: {result.stderr}"
+        assert 'No relocation sections' in result.stderr and '-Wl,-q' in result.stderr, \
+            "Keep the diagnostic for builds that omitted relocation information"
+
+        sections = assert_empty_imports(velf)
+        assert sections['.text']['data'] == source_sections['.text']['data'], "Plugin code changed"
+        assert sections['.sce.rel']['size'] > 0, "Missing generated export relocations"
+        exports = sections['.sceLib.ent']['data']
+        assert len(exports) == 0x40, "Missing plugin export library"
+        assert struct.unpack_from('<H', exports, 6)[0] == 3, "Missing module entrypoint exports"
+        assert struct.unpack_from('<H', exports, 0x26)[0] == 1, "Missing simple_greeting export"
+        start, stop = struct.unpack_from('<II', sections['.sceModuleInfo.rodata']['data'], 0x44)
+        assert start != 0xffffffff and stop != 0xffffffff, "Missing module start/stop offsets"
+        with open(velf, 'rb') as f:
+            outputs.append(f.read())
+    assert outputs[0] == outputs[1], "Legacy -n changed the plugin output"
+
+    with open(sample_elf, 'rb') as f:
+        no_symbols = bytearray(f.read())
+    shoff = struct.unpack_from('<I', no_symbols, 32)[0]
+    shentsize, shnum = struct.unpack_from('<HH', no_symbols, 46)
+    for i in range(shnum):
+        type_offset = shoff + i * shentsize + 4
+        if struct.unpack_from('<I', no_symbols, type_offset)[0] == 2:
+            struct.pack_into('<I', no_symbols, type_offset, 1)
+    no_symbols_elf = os.path.join(tmpdir, 'no_symbols.elf')
+    with open(no_symbols_elf, 'wb') as f:
+        f.write(no_symbols)
+    result = subprocess.run([elf_create, '-e', config, no_symbols_elf,
+                             os.path.join(tmpdir, 'no_symbols.velf')], capture_output=True, text=True)
+    assert result.returncode != 0 and 'No symbol table' in result.stderr, \
+        "Allowing zero relocations must not bypass symbol-table validation"
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: test_elf_create.py <path-to-vita-elf-create>")
@@ -168,7 +278,7 @@ def main():
         
         # Test 2: Unwind and Exception tables (.ARM.exidx and .ARM.extab - PR #281)
         velf2 = os.path.join(tmpdir, "sample_exidx.velf")
-        res2 = subprocess.run([elf_create, "-n", sample_exidx_elf, velf2], capture_output=True, text=True)
+        res2 = subprocess.run([elf_create, sample_exidx_elf, velf2], capture_output=True, text=True)
         if res2.returncode != 0:
             print("Failed vita-elf-create on sample_exidx.elf:", res2.stderr)
             sys.exit(1)
@@ -257,6 +367,9 @@ def main():
 
         assert found_segment_end_reloc, \
             "Regression: relocation against a symbol at the exact end of a PT_LOAD segment was dropped"
+
+        test_empty_imports(elf_create, sample_exidx_elf, tmpdir)
+        test_import_free_plugin(elf_create, fixtures_dir, tmpdir)
 
     print("test_elf_create: ALL TESTS PASSED")
 
