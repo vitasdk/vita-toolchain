@@ -4,8 +4,8 @@ if(NOT PC_libelf_FOUND)
 	message(FATAL_ERROR
 		"libelf 0.8.13 (the original libelf by Michael Riepe) was not found via pkg-config. "
 		"The package named libelf on most distros (Arch, Debian, Ubuntu, ...) is elfutils' "
-		"libelf, which is not compatible: vita-elf-create builds against it but produces "
-		"broken output. Build the bundled libelf 0.8.13 into the dependency prefix (see "
+		"libelf, which is not supported by vita-elf-create. Build the bundled libelf 0.8.13 "
+		"into the dependency prefix (see "
 		"buildscripts), or point TOOLCHAIN_DEPS_DIR or PKG_CONFIG_PATH at a libelf 0.8.13 "
 		"installation.")
 endif()
