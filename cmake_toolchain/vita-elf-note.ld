@@ -11,3 +11,4 @@ SECTIONS
     LONG(1)
   }
 }
+INSERT AFTER .bss;

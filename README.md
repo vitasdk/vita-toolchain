@@ -78,13 +78,15 @@ link time using the installed augmenting linker script:
 
 ```sh
 arm-vita-eabi-gcc -nostdlib -Wl,-q,-e,module_start \
-  -Wl,"$VITASDK/share/vita-elf-note.ld" plugin.c -o plugin.elf
+  -Wl,-T,"$VITASDK/share/vita-elf-note.ld" plugin.c -o plugin.elf
 ```
 
-Pass this script as an additional linker input, not with `-T`: it augments
-rather than replaces either the default or a custom layout. Custom linker
-scripts may instead emit the same non-allocated note directly. Prebuilt,
-unmarked Vita ELFs can still be converted with `-n` without modifying them.
+The script uses `INSERT AFTER .bss` to augment rather than replace the default
+layout. With a custom layout, put this `-T` option before the custom script's
+`-T` option and provide a `.bss` output section. The CMake toolchain supplies
+this ordering automatically. Custom scripts may instead emit the same
+non-allocated note directly. Prebuilt, unmarked Vita ELFs can still be
+converted with `-n` without modifying them.
 
 Continue linking with `-Wl,-q` to preserve any required relocation information.
 A module containing only leaf functions may have no relocation sections even
