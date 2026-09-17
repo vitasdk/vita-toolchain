@@ -65,7 +65,7 @@ The version-1 note has 4-byte alignment and exactly 24 bytes:
 | `namesz` | 8 |
 | `descsz` | 4 |
 | `type` | 1 |
-| owner | `VitaSDK` followed by a null byte |
+| owner | `vitasdk` followed by a null byte |
 | descriptor | 32-bit value 1 (marker format version, not SDK release version) |
 
 All integers use the input ELF's little-endian encoding. Identical records may
@@ -73,8 +73,9 @@ coexist when both the linker and a compatibility script supply the note. The
 converter checks the section type, allocation flag, size, owner, note type, and
 format version; the section name alone is insufficient.
 
-With an older SDK linker, an import-free module can be explicitly marked at
-link time using the installed augmenting linker script:
+With an older SDK linker (GNU ld 2.41 or newer), an import-free module can be
+explicitly marked at link time using the installed augmenting linker script.
+The script uses `ASCIZ "vitasdk"` to emit the null-terminated owner string:
 
 ```sh
 arm-vita-eabi-gcc -nostdlib -Wl,-q,-e,module_start \

@@ -48,6 +48,7 @@ def main():
             ('truncated', VITASDK_NOTE[:-1], 7, 0),
             ('trailing-data', VITASDK_NOTE + b'\0', 7, 0),
             ('owner', VITASDK_NOTE[:12] + b'NotVita\0' + VITASDK_NOTE[20:], 7, 0),
+            ('mixed-case-owner', VITASDK_NOTE[:12] + b'VitaSDK\0' + VITASDK_NOTE[20:], 7, 0),
             ('type', VITASDK_NOTE[:8] + struct.pack('<I', 2) + VITASDK_NOTE[12:], 7, 0),
             ('version', VITASDK_NOTE[:20] + struct.pack('<I', 2), 7, 0),
             ('second-version', VITASDK_NOTE + VITASDK_NOTE[:20] + struct.pack('<I', 2), 7, 0),

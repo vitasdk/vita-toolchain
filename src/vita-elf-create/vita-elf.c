@@ -544,7 +544,7 @@ vita_elf_t *vita_elf_load(const char *filename, int allow_unmarked, vita_export_
 {
 	static const unsigned char vitasdk_note[] = {
 		8, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0,
-		'V', 'i', 't', 'a', 'S', 'D', 'K', 0, 1, 0, 0, 0
+		'v', 'i', 't', 'a', 's', 'd', 'k', 0, 1, 0, 0, 0
 	};
 	vita_elf_t *ve = NULL;
 	GElf_Ehdr ehdr;
@@ -609,7 +609,7 @@ vita_elf_t *vita_elf_load(const char *filename, int allow_unmarked, vita_export_
 			/* An SDK linker and an older build script can both emit the note. */
 			for (offset = 0; offset < data->d_size; offset += sizeof(vitasdk_note)) {
 				if (memcmp((unsigned char *)data->d_buf + offset, vitasdk_note, sizeof(vitasdk_note)) != 0)
-					FAILX("Invalid .note.vitasdk marker (expected VitaSDK note version 1)");
+					FAILX("Invalid .note.vitasdk marker (expected vitasdk note version 1)");
 			}
 			has_vitasdk_note = 1;
 		}

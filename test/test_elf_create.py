@@ -33,7 +33,7 @@ def inspect_velf_sections(velf_path):
     return sections
 
 
-VITASDK_NOTE = struct.pack('<III8sI', 8, 4, 1, b'VitaSDK\0', 1)
+VITASDK_NOTE = struct.pack('<III8sI', 8, 4, 1, b'vitasdk\0', 1)
 
 
 def add_vitasdk_note(source_path, output_path, note=VITASDK_NOTE, section_type=7, flags=0):
