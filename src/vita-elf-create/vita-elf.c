@@ -540,8 +540,12 @@ failure:
 	return 0;
 }
 
-vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export)
+vita_elf_t *vita_elf_load(const char *filename, int allow_unmarked, vita_export_t *export)
 {
+	static const unsigned char vitasdk_note[] = {
+		8, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0, 0,
+		'v', 'i', 't', 'a', 's', 'd', 'k', 0, 1, 0, 0, 0
+	};
 	vita_elf_t *ve = NULL;
 	GElf_Ehdr ehdr;
 	Elf_Scn *scn;
@@ -549,6 +553,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	size_t shstrndx;
 	char *name;
 	const char **debug_name;
+	int has_vitasdk_note = 0;
 
 	GElf_Phdr phdr;
 	size_t segment_count, segndx, loaded_segments;
@@ -580,6 +585,9 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	if (ehdr.e_ident[EI_CLASS] != ELFCLASS32 || ehdr.e_ident[EI_DATA] != ELFDATA2LSB)
 		FAILX("%s is not a 32-bit, little-endian binary", filename);
 
+	if (ehdr.e_type != ET_EXEC)
+		FAILX("%s is not an ET_EXEC binary", filename);
+
 	ELF_ASSERT(elf_getshdrstrndx(ve->elf, &shstrndx) == 0);
 
 	scn = NULL;
@@ -588,6 +596,23 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		ELF_ASSERT(gelf_getshdr(scn, &shdr));
 
 		ELF_ASSERT(name = elf_strptr(ve->elf, shstrndx, shdr.sh_name));
+
+		if (strcmp(name, ".note.vitasdk") == 0) {
+			Elf_Data *data;
+			size_t offset;
+			if (shdr.sh_type != SHT_NOTE || (shdr.sh_flags & SHF_ALLOC) != 0
+					|| shdr.sh_size == 0 || shdr.sh_size % sizeof(vitasdk_note) != 0)
+				FAILX("Invalid .note.vitasdk marker");
+			ELF_ASSERT(data = elf_rawdata(scn, NULL));
+			if (data->d_size != shdr.sh_size || data->d_buf == NULL)
+				FAILX("Invalid .note.vitasdk marker");
+			/* An SDK linker and an older build script can both emit the note. */
+			for (offset = 0; offset < data->d_size; offset += sizeof(vitasdk_note)) {
+				if (memcmp((unsigned char *)data->d_buf + offset, vitasdk_note, sizeof(vitasdk_note)) != 0)
+					FAILX("Invalid .note.vitasdk marker (expected vitasdk note version 1)");
+			}
+			has_vitasdk_note = 1;
+		}
 
 		if (shdr.sh_type == SHT_PROGBITS && strncmp(name, ".vitalink.fstubs", strlen(".vitalink.fstubs")) == 0) {
 			int ndxscn = elf_ndxscn(scn);
@@ -623,14 +648,16 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		}
 	}
 
-	if (ve->fstubs_va.count == 0 && ve->vstubs_va.count == 0 && check_stub_count)
-		FAILX("No .vitalink stub sections in binary, probably not a Vita binary. If this is a vita binary, pass '-n' to squash this error.");
-
 	if (ve->symtab == NULL)
 		FAILX("No symbol table in binary, perhaps stripped out");
 
+	/* Older SDKs identify Vita imports but do not emit the target note. */
+	if (!has_vitasdk_note && ve->num_fstubs == 0 && ve->num_vstubs == 0 && !allow_unmarked)
+		FAILX("No VitaSDK ELF marker or legacy Vita import stubs; rebuild with the VitaSDK linker or pass '-n' for an unmarked Vita ELF");
+
+	/* Leaf-only modules may have no relocations even with --emit-relocs. */
 	if (ve->rela_tables == NULL && export != NULL && export->is_image_module == 0)
-		FAILX("No relocation sections in binary; use -Wl,-q while compiling");
+		warnx("No relocation sections in binary; ensure -Wl,-q was used while linking");
 
 	if (ve->fstubs_va.count != 0) {
 		if (!lookup_stub_symbols(ve, ve->num_fstubs, ve->fstubs, &ve->fstubs_va, STT_FUNC)) goto failure;

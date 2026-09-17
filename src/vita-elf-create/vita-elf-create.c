@@ -474,7 +474,7 @@ static int usage(int argc, char *argv[])
 	fprintf(stderr, "usage: %s [-v|vv|vvv] [-s] [-n] [[-e | -g] config.yml] [-l <long_name_option>] [-m start,stop,exit] input.elf output.velf\n"
 					"\t-v,-vv,-vvv:    logging verbosity (more v is more verbose)\n"
 					"\t-s         :    strip the output ELF\n"
-					"\t-n         :    allow empty imports\n"
+					"\t-n         :    allow unmarked legacy Vita ELFs\n"
 					"\t-e yml     :    optional config options\n"
 					"\t-g yml     :    generate an export config from ELF symbols\n"
 					"\t-m list    :    specify the list of module entrypoints\n"
@@ -512,7 +512,7 @@ int main(int argc, char *argv[])
 		TRACEF(VERBOSE, "export config loaded from file\n");
 	}
 
-	if ((ve = vita_elf_load(args.input, args.check_stub_count, exports)) == NULL)
+	if ((ve = vita_elf_load(args.input, args.allow_unmarked, exports)) == NULL)
 		return EXIT_FAILURE;
 
 	/* FIXME: save original segment sizes */

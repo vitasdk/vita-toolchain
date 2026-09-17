@@ -20,6 +20,17 @@ add_test(NAME test_elf_create
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_elf_create.py $<TARGET_FILE:vita-elf-create>
 )
 
+add_test(NAME test_elf_marker
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_elf_marker.py $<TARGET_FILE:vita-elf-create>
+)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_CROSSCOMPILING)
+  add_test(NAME test_cmake_elf_marker
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cmake_elf_marker.py
+      ${CMAKE_SOURCE_DIR}/cmake_toolchain/vita.toolchain.cmake ${CMAKE_C_COMPILER}
+  )
+endif()
+
 add_test(NAME test_make_fself
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_make_fself.py $<TARGET_FILE:vita-make-fself> $<TARGET_FILE:psp2rela>
 )

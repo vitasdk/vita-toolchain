@@ -28,7 +28,7 @@ format).
 usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
     -v,-vv,-vvv:    logging verbosity (more v is more verbose)
     -s         :    strip the output ELF
-    -n         :    allow empty imports
+    -n         :    allow unmarked legacy Vita ELFs
     -e yml     :    optional config options
     -g yml     :    generate an export config from ELF symbols
     -m list    :    specify the list of module entrypoints
@@ -38,6 +38,62 @@ usage: vita-elf-create [-v|vv|vvv] [-n] [-e config.yml] input.elf output.velf
 ```
 Converts a standard `ET_EXEC` ELF (outputted by `arm-vita-eabi-gcc` for example)
 to the Sony ELF format.
+
+Modules without imports are supported when the input carries the VitaSDK ELF
+target note described below. The `.vitalink.*` sections describe imports, not
+the target platform; they are not required for a marked module. For backwards
+compatibility, valid legacy Vita import stubs also identify an input built by
+an older SDK. An unmarked input without these stubs is rejected unless `-n` is
+explicitly supplied. This override does not bypass ELF format, architecture,
+symbol-table, or malformed-marker checks.
+
+#### VitaSDK ELF target note
+
+The CMake toolchain marks executable links automatically, including `-nostdlib`
+and import-free modules. The corresponding VitaSDK binutils linker update also
+emits `.note.vitasdk` on final links outside CMake. It is an `SHT_NOTE` section
+with no `SHF_ALLOC` flag, so it consumes no runtime memory and does not change
+loadable segment contents.
+It identifies the intended target, not the authenticity or correctness of the
+input. Generic ARM EABI flags, load addresses, and compiler version strings do
+not provide this identification.
+
+The version-1 note has 4-byte alignment and exactly 24 bytes:
+
+| Field | Value |
+|-------|-------|
+| `namesz` | 8 |
+| `descsz` | 4 |
+| `type` | 1 |
+| owner | `vitasdk` followed by a null byte |
+| descriptor | 32-bit value 1 (marker format version, not SDK release version) |
+
+All integers use the input ELF's little-endian encoding. Identical records may
+coexist when both the linker and a compatibility script supply the note. The
+converter checks the section type, allocation flag, size, owner, note type, and
+format version; the section name alone is insufficient.
+
+With an older SDK linker (GNU ld 2.41 or newer), an import-free module can be
+explicitly marked at link time using the installed augmenting linker script.
+The script uses `ASCIZ "vitasdk"` to emit the null-terminated owner string:
+
+```sh
+arm-vita-eabi-gcc -nostdlib -Wl,-q,-e,module_start \
+  -Wl,-T,"$VITASDK/share/vita-elf-note.ld" plugin.c -o plugin.elf
+```
+
+The script uses `INSERT AFTER .bss` to augment rather than replace the default
+layout. With a custom layout, put this `-T` option before the custom script's
+`-T` option and provide a `.bss` output section. The CMake toolchain supplies
+this ordering automatically. Custom scripts may instead emit the same
+non-allocated note directly. Prebuilt, unmarked Vita ELFs can still be
+converted with `-n` without modifying them.
+
+Continue linking with `-Wl,-q` to preserve any required relocation information.
+A module containing only leaf functions may have no relocation sections even
+with this option. For an explicitly configured relocatable module, missing
+relocation sections produce a warning rather than an error; the converter
+cannot distinguish such a module from one linked without `-Wl,-q`.
 
 vita-elf-create also adds special symbols defined programmatically to module info.
 

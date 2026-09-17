@@ -1,0 +1,15 @@
+sample_no_imports:
+  attributes: 0
+  process_image: false
+  imagemodule: false
+  version:
+    major: 1
+    minor: 1
+  main:
+    start: module_start
+    stop: module_stop
+    exit: module_exit
+  libraries:
+    simple:
+      functions:
+        - simple_greeting
