@@ -33,6 +33,34 @@ def inspect_velf_sections(velf_path):
     return sections
 
 
+VITASDK_NOTE = struct.pack('<III8sI', 8, 4, 1, b'VitaSDK\0', 1)
+
+
+def add_vitasdk_note(source_path, output_path, note=VITASDK_NOTE, section_type=7, flags=0):
+    with open(source_path, 'rb') as f:
+        data = bytearray(f.read())
+    shoff = struct.unpack_from('<I', data, 32)[0]
+    shentsize, shnum, shstrndx = struct.unpack_from('<HHH', data, 46)
+    assert shentsize == 40
+    headers = bytearray(data[shoff:shoff + shnum * shentsize])
+    str_offset, str_size = struct.unpack_from('<II', headers, shstrndx * shentsize + 16)
+    strings = data[str_offset:str_offset + str_size] + b'.note.vitasdk\0'
+    new_str_offset = len(data)
+    data.extend(strings)
+    struct.pack_into('<II', headers, shstrndx * shentsize + 16, new_str_offset, len(strings))
+    data.extend(b'\0' * (-len(data) % 4))
+    note_offset = len(data)
+    data.extend(note)
+    data.extend(b'\0' * (-len(data) % 4))
+    struct.pack_into('<I', data, 32, len(data))
+    struct.pack_into('<H', data, 48, shnum + 1)
+    data.extend(headers)
+    data.extend(struct.pack('<10I', str_size, section_type, flags, 0, note_offset,
+                            len(note), 0, 0, 4, 0))
+    with open(output_path, 'wb') as f:
+        f.write(data)
+
+
 def make_segment_end_reloc_fixture(source_path, output_path):
     """Patch sample.elf so one ABS32 relocation targets a symbol at PT_LOAD end."""
     with open(source_path, 'rb') as f:
@@ -155,6 +183,9 @@ def assert_empty_imports(velf):
 
 
 def test_empty_imports(elf_create, sample_elf, tmpdir):
+    marked_elf = os.path.join(tmpdir, 'marked_exidx.elf')
+    add_vitasdk_note(sample_elf, marked_elf)
+    sample_elf = marked_elf
     assert not any(name.startswith('.vitalink.') for name in inspect_velf_sections(sample_elf)), \
         "Empty-import regression fixture must not contain import stubs"
 
@@ -204,7 +235,8 @@ def test_empty_imports(elf_create, sample_elf, tmpdir):
 
 
 def test_import_free_plugin(elf_create, fixtures_dir, tmpdir):
-    sample_elf = os.path.join(fixtures_dir, 'sample_no_imports.elf')
+    sample_elf = os.path.join(tmpdir, 'marked_plugin.elf')
+    add_vitasdk_note(os.path.join(fixtures_dir, 'sample_no_imports.elf'), sample_elf)
     config = os.path.join(fixtures_dir, 'sample_no_imports.yml')
     source_sections = inspect_velf_sections(sample_elf)
     assert not any(name.startswith('.vitalink.') for name in source_sections), \
@@ -278,7 +310,7 @@ def main():
         
         # Test 2: Unwind and Exception tables (.ARM.exidx and .ARM.extab - PR #281)
         velf2 = os.path.join(tmpdir, "sample_exidx.velf")
-        res2 = subprocess.run([elf_create, sample_exidx_elf, velf2], capture_output=True, text=True)
+        res2 = subprocess.run([elf_create, '-n', sample_exidx_elf, velf2], capture_output=True, text=True)
         if res2.returncode != 0:
             print("Failed vita-elf-create on sample_exidx.elf:", res2.stderr)
             sys.exit(1)

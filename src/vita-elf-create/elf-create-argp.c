@@ -15,6 +15,7 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 	char *entrypoint_list = NULL;
 
 	arguments->log_level = 0;
+	arguments->allow_unmarked = 0;
 	arguments->is_test_stripping = 0;
 	arguments->is_bypass_stub_privilege_check = 0;
 
@@ -29,7 +30,7 @@ int parse_arguments(int argc, char *argv[], elf_create_args *arguments)
 			arguments->exports = optarg;
 			break;
 		case 'n':
-			/* Retained for compatibility with existing build scripts. */
+			arguments->allow_unmarked = 1;
 			break;
 		case 's':
 			arguments->is_test_stripping = 1;
