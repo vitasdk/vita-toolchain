@@ -281,15 +281,11 @@ int main(int argc, const char **argv) {
 	}
 
 	// convert elf phdr info to segment info that sony loader expects
-	// first round we assume no compression
+	// first round we write zero
 	fseek(fout, hdr.section_info_offset, SEEK_SET);
 	for (int i = 0; i < ehdr->e_phnum; ++i) {
 		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
 		segment_info sinfo = { 0 };
-		sinfo.offset = offset_to_real_elf + phdr->p_offset;
-		sinfo.length = phdr->p_filesz;
-		sinfo.compression = 1;
-		sinfo.encryption = 2;
 		if (fwrite(&sinfo, sizeof(sinfo), 1, fout) != 1) {
 			perror("Failed to write segment info");
 			goto error;
@@ -312,49 +308,61 @@ int main(int argc, const char **argv) {
 
 	fseek(fout, offset_to_real_elf, SEEK_SET);
 
-	if (!compressed) {
-		if (fwrite(input, sz, 1, fout) != 1) {
-			perror("Failed to write a copy of input ELF");
-			goto error;
-		}
-	} else {
-		for (int i = 0; i < ehdr->e_phnum; ++i) {
-			Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
-			segment_info sinfo = { 0 };
+	for (int i = 0; i < ehdr->e_phnum; ++i) {
+		Elf32_Phdr *phdr = (Elf32_Phdr*)(input + ehdr->e_phoff + ehdr->e_phentsize * i); // TODO: sanity checks
+		segment_info sinfo = { 0 };
+		sinfo.offset = ftell(fout);
+		sinfo.encryption = 2;
+
+		if(compressed) {
 			unsigned char *buf = malloc(2 * phdr->p_filesz + 12);
+			if(!buf) {
+				perror("malloc failed");
+				goto error;
+			}
 			sinfo.length = 2 * phdr->p_filesz + 12;
 			if (compress2(buf, (uLongf *)&sinfo.length, (unsigned char *)input + phdr->p_offset, phdr->p_filesz, Z_BEST_COMPRESSION) != Z_OK) {
 				free(buf);
 				perror("compress failed");
 				goto error;
 			}
-			// padding
-			uint64_t pad = ((sinfo.length + 3) & ~3) - sinfo.length;
-			for (int i = 0; i < pad; i++) {
-				buf[pad+sinfo.length] = 0;
-			}
-			sinfo.offset = ftell(fout);
 			sinfo.compression = 2;
-			sinfo.encryption = 2;
-			fseek(fout, hdr.section_info_offset + i * sizeof(segment_info), SEEK_SET);
-			if (fwrite(&sinfo, sizeof(sinfo), 1, fout) != 1) {
-				perror("Failed to write segment info");
-				free(buf);
-				goto error;
-			}
-			fseek(fout, sinfo.offset, SEEK_SET);
 			if (fwrite(buf, sinfo.length, 1, fout) != 1) {
+				free(buf);
 				perror("Failed to write segment to fself");
 				goto error;
 			}
 			free(buf);
+		} else {
+			sinfo.length = phdr->p_filesz;
+			sinfo.compression = 1;
+			if (fwrite((unsigned char *)input + phdr->p_offset, sinfo.length, 1, fout) != 1) {
+				perror("Failed to write segment to fself");
+				goto error;
+			}
+		}
+
+		// padding
+		static const unsigned char zeros[4] = { 0 };
+		uint64_t pad = ((sinfo.length + 3) & ~3) - sinfo.length;
+		if(pad) {
+			if (fwrite(zeros, pad, 1, fout) != 1) {
+				perror("Failed to write padding to fself");
+				goto error;
+			}
+		}
+		sinfo.length += pad;
+
+		fseek(fout, hdr.section_info_offset + i * sizeof(segment_info), SEEK_SET);
+		if (fwrite(&sinfo, sizeof(sinfo), 1, fout) != 1) {
+			perror("Failed to write segment info");
+			goto error;
+		}
 
 #define SEGMENT_ALIGNMENT (0x10)
-
-			pad = (ftell(fout) & (SEGMENT_ALIGNMENT - 1));
-			if (((i + 1) != ehdr->e_phnum) && (pad != 0)) {
-				fseek(fout, (ftell(fout) + (SEGMENT_ALIGNMENT - 1)) & ~(SEGMENT_ALIGNMENT - 1), SEEK_SET);
-			}
+		pad = (SEGMENT_ALIGNMENT - ((sinfo.offset + sinfo.length) & (SEGMENT_ALIGNMENT - 1))) & (SEGMENT_ALIGNMENT - 1);
+		if((i + 1) != ehdr->e_phnum) {
+			fseek(fout, sinfo.offset + sinfo.length + pad, SEEK_SET);
 		}
 	}
 

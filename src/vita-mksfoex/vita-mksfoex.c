@@ -49,26 +49,40 @@ struct EntryContainer
 	const char *data;
 };
 
+#define ATTRIBUTE_USE_LIBLOCATION             0x00000002
+#define ATTRIBUTE_SHOW_INFOBAR                0x00000080
+#define ATTRIBUTE_INFOBAR_WHITE               0x00000100
+#define ATTRIBUTE_INFOBAR_TRANSPARENT         0x00000200
+#define ATTRIBUTE_UPGRADABLE                  0x00000400
+#define ATTRIBUTE_NO_COMMUNICATION_ZONE       0x00008000
+#define ATTRIBUTE_DISABLE_LIVEAREA_SCREENSHOT 0x00010000
+#define ATTRIBUTE_HEALTH_WARNING              0x00200000
+#define ATTRIBUTE_BG_APP                      0x04000000
+#define ATTRIBUTE_TELEPORT                    0x08000000
+#define ATTRIBUTE_NO_TOUCH_EMU                0x10000000
+
+#define ATTRIBUTE2_MEM29                      0x00000004
+#define ATTRIBUTE2_MEM77                      0x00000008
+#define ATTRIBUTE2_MEM109                     0x0000000C
+
 struct EntryContainer g_defaults[] = {
-	{ "APP_VER", PSF_TYPE_STR, 0, "00.00" },
-	{ "ATTRIBUTE", PSF_TYPE_VAL, 0x8000, NULL },
-	{ "ATTRIBUTE2", PSF_TYPE_VAL, 0, NULL },
+	{ "APP_VER", PSF_TYPE_STR, 0, "01.00" },
+	{ "ATTRIBUTE", PSF_TYPE_VAL, ATTRIBUTE_NO_COMMUNICATION_ZONE, NULL },
+	{ "ATTRIBUTE2", PSF_TYPE_VAL, ATTRIBUTE2_MEM109, NULL },
 	{ "ATTRIBUTE_MINOR", PSF_TYPE_VAL, 0x10, NULL },
-	{ "BOOT_FILE", PSF_TYPE_STR, 32, "" },
 	{ "CATEGORY", PSF_TYPE_STR, 0, "gd" },
-	{ "CONTENT_ID", PSF_TYPE_STR, 48, "" },
-	{ "EBOOT_APP_MEMSIZE", PSF_TYPE_VAL, 0, NULL },
-	{ "EBOOT_ATTRIBUTE", PSF_TYPE_VAL, 0, NULL },
-	{ "EBOOT_PHY_MEMSIZE", PSF_TYPE_VAL, 0, NULL },
-	{ "LAREA_TYPE", PSF_TYPE_VAL, 0, NULL },
-	{ "NP_COMMUNICATION_ID", PSF_TYPE_STR, 16, "" },
+	{ "CONTENT_ID", PSF_TYPE_STR, 48, "HB0001-ABCD99999_00-0000000000000000" },
+	{ "GC_RO_SIZE", PSF_TYPE_VAL, 0, NULL },
+	{ "GC_RW_SIZE", PSF_TYPE_VAL, 0, NULL },
 	{ "PARENTAL_LEVEL", PSF_TYPE_VAL, 0, NULL },
 	{ "PSP2_DISP_VER", PSF_TYPE_STR, 0, "00.000" },
 	{ "PSP2_SYSTEM_VER", PSF_TYPE_VAL, 0, NULL },
+	{ "REGION_DENY", PSF_TYPE_VAL, 0, NULL },
+	{ "SAVEDATA_MAX_SIZE", PSF_TYPE_VAL, 1048576, NULL },
 	{ "STITLE", PSF_TYPE_STR, 52, "Homebrew" },
 	{ "TITLE", PSF_TYPE_STR, 0x80, "Homebrew" },
 	{ "TITLE_ID", PSF_TYPE_STR, 0, "ABCD99999" },
-	{ "VERSION", PSF_TYPE_STR, 0, "00.00" },
+	{ "VERSION", PSF_TYPE_STR, 0, "01.00" },
 };
 
 #define MAX_OPTIONS (256)
@@ -277,6 +291,7 @@ int main(int argc, char **argv)
 	char head[8192];
 	char keys[8192];
 	char data[8192];
+	char derived_content_id[49];
 	struct SfoHeader *h;
 	struct SfoEntry  *e;
 	char *k;
@@ -284,6 +299,7 @@ int main(int argc, char **argv)
 	unsigned int align;
 	unsigned int keyofs;
 	unsigned int count;
+	int have_content_id;
 
 	if(!process_args(argc, argv)) 
 	{
@@ -294,6 +310,8 @@ int main(int argc, char **argv)
 
 		return 1;
 	}
+
+	have_content_id = find_name("CONTENT_ID") != NULL;
 
 	if (!g_empty)
 	{
@@ -310,6 +328,20 @@ int main(int argc, char **argv)
 					return 0;
 				}
 				*entry = g_defaults[i];
+			}
+		}
+
+		if (!have_content_id)
+		{
+			struct EntryContainer *title_id = find_name("TITLE_ID");
+			struct EntryContainer *content_id = find_name("CONTENT_ID");
+
+			if (title_id && title_id->type == PSF_TYPE_STR && title_id->data &&
+					content_id && content_id->type == PSF_TYPE_STR)
+			{
+				snprintf(derived_content_id, sizeof(derived_content_id),
+						"HB0001-%.9s_00-0000000000000000", title_id->data);
+				content_id->data = derived_content_id;
 			}
 		}
 	}
