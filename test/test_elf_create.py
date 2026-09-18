@@ -193,7 +193,10 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         # Test 1: Standard sample.elf conversion
         velf1 = os.path.join(tmpdir, "sample.velf")
-        res1 = subprocess.run([elf_create, sample_elf, velf1], capture_output=True, text=True)
+        # Use a deterministic input basename so the default module name is
+        # identical on hosts with '/' and '\\' path separators.
+        res1 = subprocess.run([elf_create, "sample.elf", velf1],
+                              cwd=fixtures_dir, capture_output=True, text=True)
         if res1.returncode != 0:
             print("Failed vita-elf-create on sample.elf:", res1.stderr)
             sys.exit(1)
@@ -218,7 +221,8 @@ def main():
         
         # Test 2: Unwind and Exception tables (.ARM.exidx and .ARM.extab - PR #281)
         velf2 = os.path.join(tmpdir, "sample_exidx.velf")
-        res2 = subprocess.run([elf_create, "-n", sample_exidx_elf, velf2], capture_output=True, text=True)
+        res2 = subprocess.run([elf_create, "-n", "sample_exidx.elf", velf2],
+                              cwd=fixtures_dir, capture_output=True, text=True)
         if res2.returncode != 0:
             print("Failed vita-elf-create on sample_exidx.elf:", res2.stderr)
             sys.exit(1)
@@ -234,7 +238,8 @@ def main():
         assert exidx_top == 0x14, f"Expected exidx_top 0x14, got {hex(exidx_top)}"
         assert exidx_end == 0x24, f"Expected exidx_end 0x24, got {hex(exidx_end)}"
 
-        # Golden-master layout regression check (#47).
+        # Golden-master layout regression check (#47). Keep the comparison
+        # byte-exact; the deterministic basenames above make it host-independent.
         golden1 = os.path.join(fixtures_dir, "sample.velf")
         compare_to_golden(velf1, golden1, "sample.elf")
 
