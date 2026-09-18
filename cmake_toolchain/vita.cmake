@@ -25,6 +25,7 @@ include(CMakeParseArguments)
 ##                    [CONFIG file | GEN_EXPORTS file]
 ##                    [UNCOMPRESSED]
 ##                    [UNSAFE]
+##                    [SECRETSAFE]
 ##                    [STRIPPED]
 ##                    [NOASLR]
 ##                    [REL_OPTIMIZE]
@@ -41,6 +42,9 @@ include(CMakeParseArguments)
 ##   Do NOT compress the result SELF (compression is default)
 ## @param[opt] UNSAFE
 ##   The homebrew uses private/system APIs and requires extended permissions
+## @param[opt] SECRETSAFE
+##   Generate a secret-safe eboot (vita-make-fself -ss) instead of a safe one.
+##   Do not use this if you don't know what it does. Takes priority over UNSAFE.
 ## @param[opt] STRIPPED
 ##   Strip the ELF while converting to Sony ELF format
 ## @param[opt] NOASLR
@@ -62,7 +66,7 @@ macro(vita_create_self target source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
 
-  set(options UNCOMPRESSED UNSAFE STRIPPED NOASLR REL_OPTIMIZE)
+  set(options UNCOMPRESSED UNSAFE SECRETSAFE STRIPPED NOASLR REL_OPTIMIZE)
   set(oneValueArgs CONFIG GEN_EXPORTS ATTRIBUTE MEMSIZE MODULE_ENTRY)
   cmake_parse_arguments(vita_create_self "${options}" "${oneValueArgs}" "" ${ARGN})
 
@@ -97,7 +101,9 @@ macro(vita_create_self target source)
   if(vita_create_self_MEMSIZE)
     set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -m ${vita_create_self_MEMSIZE}")
   endif()
-  if(NOT vita_create_self_UNSAFE)
+  if(vita_create_self_SECRETSAFE)
+    set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -ss")
+  elseif(NOT vita_create_self_UNSAFE)
     set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -s")
   endif()
 
@@ -117,7 +123,7 @@ macro(vita_create_self target source)
   endif()
 
   ## VELF command
-  separate_arguments(VITA_ELF_CREATE_FLAGS)
+  separate_arguments(VITA_ELF_CREATE_FLAGS NATIVE_COMMAND "${VITA_ELF_CREATE_FLAGS}")
 
   if(vita_create_self_REL_OPTIMIZE)
     if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
@@ -197,7 +203,7 @@ macro(vita_create_self target source)
   set(self_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
 
   ## SELF command
-  separate_arguments(VITA_MAKE_FSELF_FLAGS)
+  separate_arguments(VITA_MAKE_FSELF_FLAGS NATIVE_COMMAND "${VITA_MAKE_FSELF_FLAGS}")
 
   if(vita_create_self_REL_OPTIMIZE)
     add_custom_command(OUTPUT ${self_outfile}
@@ -284,7 +290,7 @@ macro(vita_create_stubs target-dir source config)
   set(target_yml ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml)
 
   ## ELF EXPORT command
-  separate_arguments(VITA_ELF_EXPORT_FLAGS)
+  separate_arguments(VITA_ELF_EXPORT_FLAGS NATIVE_COMMAND "${VITA_ELF_EXPORT_FLAGS}")
   get_filename_component(fconfig ${config} ABSOLUTE)
 
   if (vita_create_stubs_GEN_EXPORTS)
@@ -302,7 +308,7 @@ macro(vita_create_stubs target-dir source config)
   )
 
   ## ELF EXPORT target
-  separate_arguments(VITA_LIBS_GEN_FLAGS)
+  separate_arguments(VITA_LIBS_GEN_FLAGS NATIVE_COMMAND "${VITA_LIBS_GEN_FLAGS}")
 
   set(stub_lib lib${target-lib}_stub.a)
   set(stub_weak_lib lib${target-lib}_stub_weak.a)
@@ -407,7 +413,7 @@ macro(vita_create_vpk target titleid eboot)
   get_filename_component(sourcefile ${sourcepath} NAME)
 
   ## PARAM.SFO command
-  separate_arguments(VITA_MKSFOEX_FLAGS)
+  separate_arguments(VITA_MKSFOEX_FLAGS NATIVE_COMMAND "${VITA_MKSFOEX_FLAGS}")
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     COMMAND ${VITA_MKSFOEX} ${VITA_MKSFOEX_FLAGS} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
@@ -418,7 +424,7 @@ macro(vita_create_vpk target titleid eboot)
   set(vpk_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
 
   ## VPK command
-  separate_arguments(VITA_PACK_VPK_FLAGS)
+  separate_arguments(VITA_PACK_VPK_FLAGS NATIVE_COMMAND "${VITA_PACK_VPK_FLAGS}")
   add_custom_command(OUTPUT ${vpk_outfile}
     COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${vpk_outfile}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
