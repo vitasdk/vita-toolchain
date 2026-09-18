@@ -324,11 +324,14 @@ static uint32_t decode_rel_target(uint32_t data, int type, uint32_t addr)
 #define REL_HANDLE_NORMAL 0
 #define REL_HANDLE_IGNORE -1
 #define REL_HANDLE_INVALID -2
+#define REL_HANDLE_TLS_UNSUPPORTED -3
 static int get_rel_handling(int type)
 {
 	switch(type) {
 		case R_ARM_NONE:
 		case R_ARM_V4BX:
+		/* TLS offset, already resolved by the linker */
+		case R_ARM_TLS_LE32:
 			return REL_HANDLE_IGNORE;
 		case R_ARM_ABS32:
 		case R_ARM_TARGET1:
@@ -343,12 +346,28 @@ static int get_rel_handling(int type)
 		case R_ARM_THM_MOVW_ABS_NC:
 		case R_ARM_THM_MOVT_ABS:
 			return REL_HANDLE_NORMAL;
+		case R_ARM_TLS_GOTDESC:
+		case R_ARM_TLS_CALL:
+		case R_ARM_TLS_DESCSEQ:
+		case R_ARM_THM_TLS_CALL:
+		case R_ARM_TLS_GD32:
+		case R_ARM_TLS_LDM32:
+		case R_ARM_TLS_LDO32:
+		case R_ARM_TLS_IE32:
+		case R_ARM_THM_TLS_DESCSEQ:
+			return REL_HANDLE_TLS_UNSUPPORTED;
 	}
 
 	return REL_HANDLE_INVALID;
 }
 
-static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
+/* export is NULL before the default export config is generated; that default is a process image */
+static int export_is_process_image(vita_export_t *export)
+{
+	return export == NULL || (export->is_process_image != 0 && export->is_image_module == 0);
+}
+
+static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn, vita_export_t *export)
 {
 	Elf_Scn *text_scn;
 	GElf_Shdr shdr, text_shdr;
@@ -407,10 +426,20 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		memcpy(&insn, text_data->d_buf+(rel.r_offset - text_shdr.sh_addr), sizeof(insn));
 		insn = le32toh(insn);
 
+		if (currela->type == R_ARM_TLS_LE32) {
+			if (!export_is_process_image(export))
+				FAILX("TLS relocation %s is only supported in a process image; this module is not one (process_image: false)",
+						elf_decode_r_type(currela->type));
+			ve->has_tls_le32_relocations = 1;
+		}
+
 		handling = get_rel_handling(currela->type);
 
 		if (handling == REL_HANDLE_IGNORE)
 			continue;
+		else if (handling == REL_HANDLE_TLS_UNSUPPORTED)
+			FAILX("Unsupported TLS relocation %s; only local-exec TLS (R_ARM_TLS_LE32) in a process image is supported",
+					elf_decode_r_type(currela->type));
 		else if (handling == REL_HANDLE_INVALID)
 			FAILX("Invalid relocation type %d!", currela->type);
 
@@ -553,6 +582,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	GElf_Phdr phdr;
 	size_t segment_count, segndx, loaded_segments;
 	vita_elf_segment_info_t *curseg;
+	int seen_pt_tls = 0;
 
 
 	if (elf_version(EV_CURRENT) == EV_NONE)
@@ -613,7 +643,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		} else if (shdr.sh_type == SHT_REL) {
 			if (!is_valid_relsection(ve, &shdr))
 				continue;
-			if (!load_rel_table(ve, scn))
+			if (!load_rel_table(ve, scn, export))
 				goto failure;
 		} else if (shdr.sh_type == SHT_RELA) {
 			if (!is_valid_relsection(ve, &shdr))
@@ -649,6 +679,33 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	for (segndx = 0; segndx < segment_count; segndx++) {
 		ELF_ASSERT(gelf_getphdr(ve->elf, segndx, &phdr));
 
+		if (phdr.p_type == PT_TLS) {
+			if (seen_pt_tls)
+				FAILX("ELF has more than one PT_TLS segment");
+			seen_pt_tls = 1;
+
+			if (phdr.p_filesz > phdr.p_memsz)
+				FAILX("PT_TLS p_filesz (0x%llx) exceeds p_memsz (0x%llx)",
+						(unsigned long long)phdr.p_filesz, (unsigned long long)phdr.p_memsz);
+
+			if (phdr.p_align & (phdr.p_align - 1))
+				FAILX("PT_TLS p_align (0x%llx) is not zero or a power of two", (unsigned long long)phdr.p_align);
+
+			if (phdr.p_align > 0x800)
+				FAILX("PT_TLS p_align (0x%llx) exceeds the maximum supported alignment of 0x800", (unsigned long long)phdr.p_align);
+
+			if (phdr.p_vaddr + phdr.p_memsz > 0xFFFFFFFFULL)
+				FAILX("PT_TLS range overflows 32 bits (p_vaddr=0x%llx, p_memsz=0x%llx)",
+						(unsigned long long)phdr.p_vaddr, (unsigned long long)phdr.p_memsz);
+
+			if (phdr.p_memsz > 0 && !export_is_process_image(export))
+				FAILX("TLS (PT_TLS) is only supported in a process image; this module is not one (process_image: false)");
+
+			ve->tls_vaddr = phdr.p_vaddr;
+			ve->tls_filesz = phdr.p_filesz;
+			ve->tls_memsz = phdr.p_memsz;
+		}
+
 		if (phdr.p_type != PT_LOAD) {
 			continue; // skip non-loadable segments
 		}
@@ -676,6 +733,50 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		loaded_segments++;
 	}
 	ve->num_segments = loaded_segments;
+
+	if (ve->has_tls_le32_relocations && (!seen_pt_tls || ve->tls_memsz == 0))
+		FAILX("R_ARM_TLS_LE32 relocations require a non-empty PT_TLS segment");
+
+	if (ve->tls_memsz > 0) {
+		int tls_segndx = -1;
+		int entry_segndx = -1;
+		uint64_t tls_file_end = (uint64_t)ve->tls_vaddr + ve->tls_filesz;
+
+		/* Inclusive of the segment's last address: a p_filesz == 0 (.tbss-only)
+		 * template legitimately starts exactly one past a segment's last byte */
+		for (int i = 0; i < ve->num_segments; i++) {
+			if (ehdr.e_entry >= ve->segments[i].vaddr
+					&& ehdr.e_entry < ve->segments[i].vaddr + ve->segments[i].memsz)
+				entry_segndx = i;
+			if (ve->tls_vaddr >= ve->segments[i].vaddr && ve->tls_vaddr <= ve->segments[i].vaddr + ve->segments[i].memsz) {
+				tls_segndx = i;
+			}
+		}
+
+		if (entry_segndx < 0)
+			FAILX("ELF entry point 0x%x does not lie within a loaded segment", (unsigned int)ehdr.e_entry);
+
+		if (tls_segndx < 0)
+			FAILX("PT_TLS range (vaddr=0x%x, memsz=0x%x) does not lie within any loaded segment",
+					ve->tls_vaddr, ve->tls_memsz);
+		/* Only p_filesz is backed by segment bytes; the .tbss zero-fill tail routinely runs past the segment */
+		if (ve->tls_vaddr + ve->tls_filesz > ve->segments[tls_segndx].vaddr + ve->segments[tls_segndx].memsz)
+			FAILX("PT_TLS file-backed range (vaddr=0x%x, filesz=0x%x) extends past the end of segment %d",
+					ve->tls_vaddr, ve->tls_filesz, tls_segndx);
+
+		/* tls_start is encoded relative to module_start's segment, so the
+		 * initialized template must be backed by that same PT_LOAD. A .tbss-only
+		 * template may start exactly at the segment end and its zero-fill tail may
+		 * extend beyond it. */
+		if (ve->tls_vaddr < ve->segments[entry_segndx].vaddr
+				|| ve->tls_vaddr > ve->segments[entry_segndx].vaddr + ve->segments[entry_segndx].memsz
+				|| (ve->tls_filesz != 0
+					&& tls_file_end > (uint64_t)ve->segments[entry_segndx].vaddr + ve->segments[entry_segndx].memsz))
+			FAILX("PT_TLS file-backed template (vaddr=0x%x, filesz=0x%x) must lie within module_start segment %d [0x%x, 0x%x]",
+					ve->tls_vaddr, ve->tls_filesz, entry_segndx,
+					ve->segments[entry_segndx].vaddr,
+					ve->segments[entry_segndx].vaddr + ve->segments[entry_segndx].memsz);
+	}
 
 	/* This part can only be done after the segments have been loaded */
 	if (lookup_vstub_relas(ve) == 0)

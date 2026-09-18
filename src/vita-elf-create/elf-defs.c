@@ -72,6 +72,16 @@ const char *elf_decode_r_type(int r_type)
 		R_ARM(MOVT_ABS);
 		R_ARM(THM_MOVW_ABS_NC);
 		R_ARM(THM_MOVT_ABS);
+		R_ARM(TLS_GOTDESC);
+		R_ARM(TLS_CALL);
+		R_ARM(TLS_DESCSEQ);
+		R_ARM(THM_TLS_CALL);
+		R_ARM(TLS_GD32);
+		R_ARM(TLS_LDM32);
+		R_ARM(TLS_LDO32);
+		R_ARM(TLS_IE32);
+		R_ARM(TLS_LE32);
+		R_ARM(THM_TLS_DESCSEQ);
 #undef R_ARM
 	}
 

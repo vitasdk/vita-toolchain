@@ -30,7 +30,7 @@ typedef struct SCE_TYPE(sce_module_info) { // size is 0x5C-bytes
 	SCE_PTR(struct sce_module_imports_t *)
 		import_end;			/* Offset to end of import table */
 	uint32_t module_nid;			/* NID of this module */
-	uint32_t tls_start;
+	SCE_PTR(const void *) tls_start;	/* Offset to start of TLS template (.tdata), 0 if unused */
 	uint32_t tls_filesz;
 	uint32_t tls_memsz;
 	SCE_PTR(const void *) module_start;	/* Offset to function to run when library is started, 0 to disable */
