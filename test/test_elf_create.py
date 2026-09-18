@@ -293,6 +293,75 @@ def main():
         assert found_segment_end_reloc, \
             "Regression: relocation against a symbol at the exact end of a PT_LOAD segment was dropped"
 
+        # Test 6: PIC binaries (Issue #274). R_ARM_BASE_PREL is represented as
+        # REL32 and the referenced GOT slot receives an ABS32 relocation.
+        sample_pic_elf = os.path.join(fixtures_dir, "sample_pic.elf")
+        velf_pic = os.path.join(tmpdir, "sample_pic.velf")
+        res_pic = subprocess.run([elf_create, sample_pic_elf, velf_pic], capture_output=True, text=True)
+        if res_pic.returncode != 0:
+            print("Regression (#274): vita-elf-create failed on a PIC binary:", res_pic.stderr)
+            sys.exit(1)
+
+        rel_pic = inspect_velf_sections(velf_pic)[".sce.rel"]["data"]
+        got_base_rel32 = got_slot_abs32 = False
+        for off in range(0, len(rel_pic), 12):
+            word1, word2, word3 = struct.unpack_from('<III', rel_pic, off)
+            code = (word1 >> 8) & 0xFF
+            if code == 3 and word3 == 0x1c4:
+                got_base_rel32 = True
+            if code == 2 and word3 == 0x18 and word2 == 0x24:
+                got_slot_abs32 = True
+        assert got_base_rel32, "Regression (#274): missing REL32 entry for the R_ARM_BASE_PREL literal"
+        assert got_slot_abs32, "Regression (#274): missing synthesized ABS32 entry for the GOT slot"
+
+        # Test 7: a PIC reference to an imported variable must turn the GOT
+        # slot into a variable-import ABS32 fixup. The slot is zero at static
+        # link time, so value-only GOT scanning cannot recover this relation.
+        sample_pic_imported_elf = os.path.join(fixtures_dir, "sample_pic_imported.elf")
+        velf_pic_imported = os.path.join(tmpdir, "sample_pic_imported.velf")
+        res_pic_imported = subprocess.run(
+            [elf_create, sample_pic_imported_elf, velf_pic_imported],
+            capture_output=True, text=True)
+        if res_pic_imported.returncode != 0:
+            print("PIC imported-variable conversion failed:", res_pic_imported.stderr)
+            sys.exit(1)
+
+        secs_pic_imported = inspect_velf_sections(velf_pic_imported)
+        vstub_data = secs_pic_imported[".sceVStub.rodata"]["data"]
+        assert len(vstub_data) == 16, \
+            f"Expected one GOT variable-import fixup (16-byte vstub), got {len(vstub_data)} bytes"
+        fixup_word1, fixup_offset = struct.unpack_from('<II', vstub_data, 8)
+        assert (fixup_word1 & 0xF) == 1, "Expected short variable-import relocation"
+        assert ((fixup_word1 >> 4) & 0xF) == 1, "Expected imported GOT slot in data segment 1"
+        assert ((fixup_word1 >> 8) & 0xFF) == 2, "Expected ABS32 variable-import fixup"
+        assert (fixup_word1 >> 16) == 0, "Expected zero addend for imported GOT slot"
+        assert fixup_offset == 0xC, f"Expected imported GOT slot offset 0xc, got {hex(fixup_offset)}"
+
+        # Test 8: GOT references retain symbol ownership for legitimate
+        # one-past-the-end symbols such as _end. The resulting relocation must
+        # target the data segment end instead of being dropped by half-open
+        # address lookup.
+        sample_pic_end_elf = os.path.join(fixtures_dir, "sample_pic_end.elf")
+        velf_pic_end = os.path.join(tmpdir, "sample_pic_end.velf")
+        res_pic_end = subprocess.run(
+            [elf_create, "-n", sample_pic_end_elf, velf_pic_end],
+            capture_output=True, text=True)
+        if res_pic_end.returncode != 0:
+            print("PIC segment-end conversion failed:", res_pic_end.stderr)
+            sys.exit(1)
+
+        rel_pic_end = inspect_velf_sections(velf_pic_end)[".sce.rel"]["data"]
+        found_pic_end = False
+        for off in range(0, len(rel_pic_end), 12):
+            word1, word2, word3 = struct.unpack_from('<III', rel_pic_end, off)
+            code = (word1 >> 8) & 0xFF
+            symseg = (word1 >> 4) & 0xF
+            datseg = (word1 >> 16) & 0xF
+            if code == 2 and datseg == 1 and symseg == 1 and word2 == 0x10 and word3 == 0xC:
+                found_pic_end = True
+                break
+        assert found_pic_end, "Regression (#274): GOT relocation to _end was dropped"
+
     print("test_elf_create: ALL TESTS PASSED")
 
 if __name__ == "__main__":
