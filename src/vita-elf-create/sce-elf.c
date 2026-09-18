@@ -1269,7 +1269,11 @@ static int sce_elf_symbol_to_segndx(const vita_elf_t *ve, const vita_elf_symbol_
 		uint64_t segment_start = ve->segments[i].vaddr;
 		uint64_t segment_end = segment_start + ve->segments[i].memsz;
 
-		if (section_start >= segment_start && section_start < segment_end &&
+		/* A zero-sized alloc section such as the linker-created .bss that owns
+		 * _end may start exactly at the segment end. The normal half-open lookup
+		 * above has already failed, so accepting that exact section boundary here
+		 * does not make ordinary address lookup inclusive. */
+		if (section_start >= segment_start && section_start <= segment_end &&
 				section_end == segment_end)
 			return i;
 	}

@@ -1,0 +1,9 @@
+version: 2
+modules:
+  TestModule:
+    nid: 0x11111111
+    libraries:
+      TestLib:
+        nid: 0x22222222
+        variables:
+          imported_value: 0x33333333

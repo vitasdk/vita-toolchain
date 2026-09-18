@@ -397,6 +397,11 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		/* R_ARM_THM_JUMP24 is functionally the same as R_ARM_THM_CALL, however Vita only supports the second one */
 		if (currela->type == R_ARM_THM_JUMP24)
 			currela->type = R_ARM_THM_CALL;
+		/* A PIC reference to the GOT base: the in-place value is GOT + A - P,
+		 * the same math as R_ARM_REL32 against _GLOBAL_OFFSET_TABLE_, so
+		 * encode it as one. */
+		if (currela->type == R_ARM_BASE_PREL)
+			currela->type = R_ARM_REL32;
 		/* This one comes from libstdc++.
 		 * Should be safe to ignore because it's pc-relative and already encoded in the file. */
 		if (currela->type == R_ARM_THM_PC11)
@@ -406,6 +411,19 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn)
 		/* Use memcpy for unaligned relocation. */
 		memcpy(&insn, text_data->d_buf+(rel.r_offset - text_shdr.sh_addr), sizeof(insn));
 		insn = le32toh(insn);
+
+		/* R_ARM_GOT_BREL resolves to the GOT-slot offset at static link time,
+		 * but keep the referenced symbol so we can turn that slot into an ABS32
+		 * relocation after the GOT address is known. This is required for
+		 * imported variables, whose GOT slot is intentionally zero here. */
+		if (currela->type == R_ARM_GOT_BREL) {
+			rel_sym = GELF_R_SYM(rel.r_info);
+			if (rel_sym >= ve->num_symbols)
+				FAILX("REL entry tried to access symbol %d, but only %d symbols loaded", rel_sym, ve->num_symbols);
+			currela->symbol = ve->symtab + rel_sym;
+			currela->addend = insn;
+			continue;
+		}
 
 		handling = get_rel_handling(currela->type);
 
@@ -540,6 +558,97 @@ failure:
 	return 0;
 }
 
+/* PIC binaries reference their globals through the GOT, but a static -Wl,-q
+ * link emits no relocations for the GOT slots themselves: they only hold the
+ * link-time addresses. Synthesize an R_ARM_ABS32 entry for every slot that
+ * points into a segment, so the loader rebases them like any other pointer. */
+static int got_slot_has_rela(vita_elf_t *ve, Elf32_Addr slot_vaddr)
+{
+	vita_elf_rela_table_t *rtable;
+	int i;
+
+	for (rtable = ve->rela_tables; rtable != NULL; rtable = rtable->next) {
+		for (i = 0; i < rtable->num_relas; i++) {
+			if (rtable->relas[i].type != R_ARM_NONE && rtable->relas[i].offset == slot_vaddr)
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
+static int synthesize_got_relas(vita_elf_t *ve, int got_ndxscn)
+{
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	Elf_Data *data;
+	vita_elf_rela_table_t *source_table;
+	vita_elf_rela_table_t *rtable = NULL;
+	vita_elf_rela_t *currela, *source_rela;
+	uint32_t word;
+	Elf32_Addr slot_vaddr;
+	int i, num_slots;
+
+	ELF_ASSERT(scn = elf_getscn(ve->elf, got_ndxscn));
+	ELF_ASSERT(gelf_getshdr(scn, &shdr));
+	data = elf_getdata(scn, NULL);
+	if (data == NULL || data->d_buf == NULL || data->d_size == 0)
+		return 1;
+
+	num_slots = data->d_size / 4;
+
+	/* Materialize every GOT_BREL reference as a relocation on its actual GOT
+	 * slot before variable-stub processing. Keeping the symbol is important:
+	 * imported-variable slots are zero until the loader fills them, and symbols
+	 * such as _end may legally point exactly one byte past a PT_LOAD. */
+	for (source_table = ve->rela_tables; source_table != NULL; source_table = source_table->next) {
+		for (i = 0; i < source_table->num_relas; i++) {
+			source_rela = source_table->relas + i;
+			if (source_rela->type != R_ARM_GOT_BREL)
+				continue;
+			if ((source_rela->addend & 3) != 0 || source_rela->addend < 0
+					|| (uint32_t)source_rela->addend + 4 > shdr.sh_size)
+				FAILX("R_ARM_GOT_BREL produced invalid GOT slot offset 0x%x", (unsigned int)source_rela->addend);
+
+			source_rela->type = R_ARM_ABS32;
+			source_rela->offset = shdr.sh_addr + source_rela->addend;
+			source_rela->addend = 0;
+		}
+	}
+
+	rtable = calloc(1, sizeof(vita_elf_rela_table_t));
+	ASSERT(rtable != NULL);
+	rtable->relas = calloc(num_slots, sizeof(vita_elf_rela_t));
+	ASSERT(rtable->relas != NULL);
+
+	for (i = 0; i < num_slots; i++) {
+		slot_vaddr = shdr.sh_addr + i * 4;
+		if (got_slot_has_rela(ve, slot_vaddr))
+			continue;
+		memcpy(&word, (char *)data->d_buf + i * 4, sizeof(word));
+		word = le32toh(word);
+		if (word == 0 || vita_elf_vaddr_to_segndx(ve, word) < 0)
+			continue;
+		currela = rtable->relas + rtable->num_relas++;
+		currela->type = R_ARM_ABS32;
+		currela->symbol = NULL;
+		currela->offset = slot_vaddr;
+		currela->addend = word;
+	}
+
+	if (rtable->num_relas == 0) {
+		free_rela_table(rtable);
+		return 1;
+	}
+
+	rtable->next = ve->rela_tables;
+	ve->rela_tables = rtable;
+	return 1;
+failure:
+	free_rela_table(rtable);
+	return 0;
+}
+
 vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export)
 {
 	vita_elf_t *ve = NULL;
@@ -549,6 +658,7 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	size_t shstrndx;
 	char *name;
 	const char **debug_name;
+	int got_ndxscn = -1;
 
 	GElf_Phdr phdr;
 	size_t segment_count, segndx, loaded_segments;
@@ -605,6 +715,8 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		} else if (shdr.sh_type == SHT_PROGBITS && strncmp(name, ".ARM.extab", strlen(".ARM.extab")) == 0) {
 			ve->extab_sh_addr = shdr.sh_addr;
 			ve->extab_sh_size = shdr.sh_size;
+		} else if (shdr.sh_type == SHT_PROGBITS && strcmp(name, ".got") == 0) {
+			got_ndxscn = elf_ndxscn(scn);
 		}
 
 		if (shdr.sh_type == SHT_SYMTAB) {
@@ -677,7 +789,10 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	}
 	ve->num_segments = loaded_segments;
 
-	/* This part can only be done after the segments have been loaded */
+	if (got_ndxscn >= 0 && !synthesize_got_relas(ve, got_ndxscn))
+		FAILX("Failed to synthesize relocations for the GOT");
+
+	/* This part can only be done after the segments and GOT fixups are loaded. */
 	if (lookup_vstub_relas(ve) == 0)
 		FAILX("Failed to lookup the vstub relocations");
 
