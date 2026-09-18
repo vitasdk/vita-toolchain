@@ -32,6 +32,45 @@ def inspect_velf_sections(velf_path):
         }
     return sections
 
+def compare_to_golden(generated_path, golden_path, label):
+    with open(generated_path, 'rb') as f:
+        gen_data = f.read()
+    with open(golden_path, 'rb') as f:
+        golden_data = f.read()
+
+    if gen_data == golden_data:
+        return
+
+    gen_secs = inspect_velf_sections(generated_path)
+    golden_secs = inspect_velf_sections(golden_path)
+    gen_names = list(gen_secs.keys())
+    golden_names = list(golden_secs.keys())
+
+    lines = [f"{label}: generated VELF does not match golden fixture {golden_path}"]
+    if gen_names != golden_names:
+        lines.append(f"  section order differs:\n    golden:    {golden_names}\n    generated: {gen_names}")
+    else:
+        for name in golden_names:
+            g, n = golden_secs[name], gen_secs[name]
+            if g['offset'] != n['offset'] or g['size'] != n['size']:
+                lines.append(
+                    f"  {name}: golden offset=0x{g['offset']:x} size=0x{g['size']:x}"
+                    f"  generated offset=0x{n['offset']:x} size=0x{n['size']:x}"
+                )
+    if len(gen_data) != len(golden_data):
+        lines.append(f"  file size differs: golden={len(golden_data)} generated={len(gen_data)}")
+
+    diff_offset = next((i for i in range(min(len(gen_data), len(golden_data))) if gen_data[i] != golden_data[i]), None)
+    if diff_offset is not None:
+        containing = next(
+            (name for name, s in golden_secs.items() if s['offset'] <= diff_offset < s['offset'] + s['size']),
+            "(no known section / in ELF/program headers)"
+        )
+        lines.append(f"  first differing byte at file offset 0x{diff_offset:x}, inside section {containing}")
+
+    lines.append("  If this is an intentional layout change, regenerate with: test/regen_golden.sh <path-to-vita-elf-create>")
+    raise AssertionError("\n".join(lines))
+
 
 def make_segment_end_reloc_fixture(source_path, output_path):
     """Patch sample.elf so one ABS32 relocation targets a symbol at PT_LOAD end."""
@@ -154,7 +193,10 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         # Test 1: Standard sample.elf conversion
         velf1 = os.path.join(tmpdir, "sample.velf")
-        res1 = subprocess.run([elf_create, sample_elf, velf1], capture_output=True, text=True)
+        # Use a deterministic input basename so the default module name is
+        # identical on hosts with '/' and '\\' path separators.
+        res1 = subprocess.run([elf_create, "sample.elf", velf1],
+                              cwd=fixtures_dir, capture_output=True, text=True)
         if res1.returncode != 0:
             print("Failed vita-elf-create on sample.elf:", res1.stderr)
             sys.exit(1)
@@ -179,7 +221,8 @@ def main():
         
         # Test 2: Unwind and Exception tables (.ARM.exidx and .ARM.extab - PR #281)
         velf2 = os.path.join(tmpdir, "sample_exidx.velf")
-        res2 = subprocess.run([elf_create, "-n", sample_exidx_elf, velf2], capture_output=True, text=True)
+        res2 = subprocess.run([elf_create, "-n", "sample_exidx.elf", velf2],
+                              cwd=fixtures_dir, capture_output=True, text=True)
         if res2.returncode != 0:
             print("Failed vita-elf-create on sample_exidx.elf:", res2.stderr)
             sys.exit(1)
@@ -194,6 +237,14 @@ def main():
         assert extab_end == 0x14, f"Expected extab_end 0x14, got {hex(extab_end)}"
         assert exidx_top == 0x14, f"Expected exidx_top 0x14, got {hex(exidx_top)}"
         assert exidx_end == 0x24, f"Expected exidx_end 0x24, got {hex(exidx_end)}"
+
+        # Golden-master layout regression check (#47). Keep the comparison
+        # byte-exact; the deterministic basenames above make it host-independent.
+        golden1 = os.path.join(fixtures_dir, "sample.velf")
+        compare_to_golden(velf1, golden1, "sample.elf")
+
+        golden2 = os.path.join(fixtures_dir, "sample_exidx.velf")
+        compare_to_golden(velf2, golden2, "sample_exidx.elf")
 
         # Test 3: MOVW/MOVT relocations against an imported stub symbol survive
         # into the SCE relocation table (Issue #225). The fixture was built with
