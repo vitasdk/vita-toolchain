@@ -42,7 +42,8 @@ typedef struct SCE_TYPE(sce_module_info) { // size is 0x5C-bytes
 } SCE_TYPE(sce_module_info);
 
 typedef struct SCE_TYPE(sce_module_exports) {
-	uint16_t size;				/* Size of this struct, set to 0x20 */
+	uint8_t size;				/* Size of this struct, set to 0x20 */
+	uint8_t reserved0;			/* Set to 0 */
 	uint16_t version;			/* 0x1 for normal export, 0x0 for main module export */
 	uint16_t flags;				/* 0x1 for normal export, 0x8000 for main module export */
 	uint16_t num_syms_funcs;		/* Number of function exports */
@@ -55,7 +56,8 @@ typedef struct SCE_TYPE(sce_module_exports) {
 } SCE_TYPE(sce_module_exports);
 
 typedef struct SCE_TYPE(sce_module_imports) {
-	uint16_t size;				/* Size of this struct, set to 0x34 */
+	uint8_t size;				/* Size of this struct, set to 0x34 */
+	uint8_t reserved0;			/* Set to 0 */
 	uint16_t version;			/* Set to 0x1 */
 	uint16_t flags;				/* Set to 0x0 */
 	uint16_t num_syms_funcs;		/* Number of function imports */
@@ -76,7 +78,8 @@ typedef struct SCE_TYPE(sce_module_imports) {
 
 /* alternative module imports struct with a size of 0x24 */
 typedef struct SCE_TYPE(sce_module_imports_short) {
-	uint16_t size;				/* Size of this struct, set to 0x24 */
+	uint8_t size;				/* Size of this struct, set to 0x24 */
+	uint8_t reserved0;			/* Set to 0 */
 	uint16_t version;			/* Set to 0x1 */
 	uint16_t flags;				/* Set to 0x0 */
 	uint16_t num_syms_funcs;		/* Number of function imports */

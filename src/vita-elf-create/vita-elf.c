@@ -426,9 +426,12 @@ static int load_rel_table(vita_elf_t *ve, Elf_Scn *scn, vita_export_t *export)
 		memcpy(&insn, text_data->d_buf+(rel.r_offset - text_shdr.sh_addr), sizeof(insn));
 		insn = le32toh(insn);
 
-		if (currela->type == R_ARM_TLS_LE32 && !export_is_process_image(export))
-			FAILX("TLS relocation %s is only supported in a process image; this module is not one (process_image: false)",
-					elf_decode_r_type(currela->type));
+		if (currela->type == R_ARM_TLS_LE32) {
+			if (!export_is_process_image(export))
+				FAILX("TLS relocation %s is only supported in a process image; this module is not one (process_image: false)",
+						elf_decode_r_type(currela->type));
+			ve->has_tls_le32_relocations = 1;
+		}
 
 		handling = get_rel_handling(currela->type);
 
@@ -731,17 +734,27 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	}
 	ve->num_segments = loaded_segments;
 
+	if (ve->has_tls_le32_relocations && (!seen_pt_tls || ve->tls_memsz == 0))
+		FAILX("R_ARM_TLS_LE32 relocations require a non-empty PT_TLS segment");
+
 	if (ve->tls_memsz > 0) {
 		int tls_segndx = -1;
+		int entry_segndx = -1;
+		uint64_t tls_file_end = (uint64_t)ve->tls_vaddr + ve->tls_filesz;
 
 		/* Inclusive of the segment's last address: a p_filesz == 0 (.tbss-only)
 		 * template legitimately starts exactly one past a segment's last byte */
 		for (int i = 0; i < ve->num_segments; i++) {
+			if (ehdr.e_entry >= ve->segments[i].vaddr
+					&& ehdr.e_entry < ve->segments[i].vaddr + ve->segments[i].memsz)
+				entry_segndx = i;
 			if (ve->tls_vaddr >= ve->segments[i].vaddr && ve->tls_vaddr <= ve->segments[i].vaddr + ve->segments[i].memsz) {
 				tls_segndx = i;
-				break;
 			}
 		}
+
+		if (entry_segndx < 0)
+			FAILX("ELF entry point 0x%x does not lie within a loaded segment", (unsigned int)ehdr.e_entry);
 
 		if (tls_segndx < 0)
 			FAILX("PT_TLS range (vaddr=0x%x, memsz=0x%x) does not lie within any loaded segment",
@@ -750,6 +763,19 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 		if (ve->tls_vaddr + ve->tls_filesz > ve->segments[tls_segndx].vaddr + ve->segments[tls_segndx].memsz)
 			FAILX("PT_TLS file-backed range (vaddr=0x%x, filesz=0x%x) extends past the end of segment %d",
 					ve->tls_vaddr, ve->tls_filesz, tls_segndx);
+
+		/* tls_start is encoded relative to module_start's segment, so the
+		 * initialized template must be backed by that same PT_LOAD. A .tbss-only
+		 * template may start exactly at the segment end and its zero-fill tail may
+		 * extend beyond it. */
+		if (ve->tls_vaddr < ve->segments[entry_segndx].vaddr
+				|| ve->tls_vaddr > ve->segments[entry_segndx].vaddr + ve->segments[entry_segndx].memsz
+				|| (ve->tls_filesz != 0
+					&& tls_file_end > (uint64_t)ve->segments[entry_segndx].vaddr + ve->segments[entry_segndx].memsz))
+			FAILX("PT_TLS file-backed template (vaddr=0x%x, filesz=0x%x) must lie within module_start segment %d [0x%x, 0x%x]",
+					ve->tls_vaddr, ve->tls_filesz, entry_segndx,
+					ve->segments[entry_segndx].vaddr,
+					ve->segments[entry_segndx].vaddr + ve->segments[entry_segndx].memsz);
 	}
 
 	/* This part can only be done after the segments have been loaded */

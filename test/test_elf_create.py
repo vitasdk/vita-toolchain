@@ -152,6 +152,102 @@ def run_convert(elf_create, elf_bytes, tmpdir, name, extra_args=()):
     res = subprocess.run([elf_create, *extra_args, elf_path, velf_path], capture_output=True, text=True)
     return res, velf_path
 
+def make_segment_end_reloc_fixture(source_path, output_path):
+    """Patch sample.elf so one ABS32 relocation targets a symbol at PT_LOAD end."""
+    with open(source_path, 'rb') as f:
+        data = bytearray(f.read())
+
+    assert data[:4] == b'\x7fELF', "Invalid ELF fixture"
+    header = struct.unpack_from('<16sHHIIIIIHHHHHH', data, 0)
+    e_phoff, e_shoff = header[5], header[6]
+    e_phentsize, e_phnum = header[9], header[10]
+    e_shentsize, e_shnum, e_shstrndx = header[11], header[12], header[13]
+
+    load_segments = []
+    for i in range(e_phnum):
+        ph = struct.unpack_from('<IIIIIIII', data, e_phoff + i * e_phentsize)
+        p_type, p_offset, p_vaddr, _, p_filesz, p_memsz, _, _ = ph
+        if p_type == PT_LOAD:
+            load_segments.append({
+                'offset': p_offset,
+                'vaddr': p_vaddr,
+                'filesz': p_filesz,
+                'memsz': p_memsz,
+            })
+
+    sections = []
+    for i in range(e_shnum):
+        sh = struct.unpack_from('<IIIIIIIIII', data, e_shoff + i * e_shentsize)
+        sections.append({
+            'name_off': sh[0], 'type': sh[1], 'flags': sh[2], 'addr': sh[3],
+            'offset': sh[4], 'size': sh[5], 'link': sh[6], 'info': sh[7],
+            'entsize': sh[9],
+        })
+
+    shstr = sections[e_shstrndx]
+    shstr_data = data[shstr['offset']:shstr['offset'] + shstr['size']]
+
+    def section_name(section):
+        start = section['name_off']
+        end = shstr_data.find(b'\0', start)
+        return shstr_data[start:end].decode('latin1')
+
+    bss_ndx = next(i for i, section in enumerate(sections) if section_name(section) == '.bss')
+    bss = sections[bss_ndx]
+    bss_end = bss['addr'] + bss['size']
+
+    symseg = None
+    for i, segment in enumerate(load_segments):
+        segment_end = segment['vaddr'] + segment['memsz']
+        if bss['addr'] >= segment['vaddr'] and bss_end == segment_end:
+            symseg = i
+            symoff = bss_end - segment['vaddr']
+            break
+    assert symseg is not None, ".bss must end exactly at a PT_LOAD boundary for this regression"
+
+    symtab_ndx = next(i for i, section in enumerate(sections) if section['type'] == SHT_SYMTAB)
+    symtab = sections[symtab_ndx]
+    strtab = sections[symtab['link']]
+    strtab_data = data[strtab['offset']:strtab['offset'] + strtab['size']]
+    sym_entsize = symtab['entsize'] or 16
+
+    end_sym_ndx = None
+    for i in range(symtab['size'] // sym_entsize):
+        sym_off = symtab['offset'] + i * sym_entsize
+        st_name = struct.unpack_from('<I', data, sym_off)[0]
+        name_end = strtab_data.find(b'\0', st_name)
+        name = strtab_data[st_name:name_end].decode('latin1')
+        if name == '__bss_end__':
+            end_sym_ndx = i
+            struct.pack_into('<I', data, sym_off + 4, bss_end)
+            struct.pack_into('<H', data, sym_off + 14, bss_ndx)
+            break
+    assert end_sym_ndx is not None, "sample.elf is missing __bss_end__"
+
+    rel = next(section for section in sections if section['type'] == 9 and section['size'] >= 8)
+    target = sections[rel['info']]
+    assert target['size'] >= 4 and (target['flags'] & 0x2), "REL target must be allocatable"
+    target_vaddr = target['addr']
+
+    datseg = None
+    target_file_offset = None
+    for i, segment in enumerate(load_segments):
+        if (target_vaddr >= segment['vaddr']
+                and target_vaddr + 4 <= segment['vaddr'] + segment['filesz']):
+            datseg = i
+            datoff = target_vaddr - segment['vaddr']
+            target_file_offset = segment['offset'] + datoff
+            break
+    assert datseg is not None, "REL target is not file-backed by a PT_LOAD segment"
+
+    struct.pack_into('<I', data, target_file_offset, bss_end)
+    struct.pack_into('<II', data, rel['offset'], target_vaddr, (end_sym_ndx << 8) | R_ARM_ABS32)
+
+    with open(output_path, 'wb') as f:
+        f.write(data)
+
+    return datseg, datoff, symseg, symoff
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: test_elf_create.py <path-to-vita-elf-create>")
@@ -165,7 +261,10 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         # Test 1: Standard sample.elf conversion
         velf1 = os.path.join(tmpdir, "sample.velf")
-        res1 = subprocess.run([elf_create, sample_elf, velf1], capture_output=True, text=True)
+        # Keep the default module name independent of host path separators so
+        # the byte-exact no-TLS golden below is deterministic on Windows too.
+        res1 = subprocess.run([elf_create, "sample.elf", velf1],
+                              cwd=fixtures_dir, capture_output=True, text=True)
         if res1.returncode != 0:
             print("Failed vita-elf-create on sample.elf:", res1.stderr)
             sys.exit(1)
@@ -176,6 +275,13 @@ def main():
         assert ".sceLib.stubs" in secs1, "Missing .sceLib.stubs in generated VELF"
         assert ".sceFNID.rodata" in secs1, "Missing .sceFNID.rodata in generated VELF"
         assert ".sceVNID.rodata" in secs1, "Missing .sceVNID.rodata in generated VELF"
+
+        ent_data = secs1[".sceLib.ent"]["data"]
+        assert ent_data[0] == 0x20 and ent_data[1] == 0x00, \
+            f"Regression (#114): sce_module_exports must start 0x20,0x00, got {ent_data[0]:#x},{ent_data[1]:#x}"
+        stub_data = secs1[".sceLib.stubs"]["data"]
+        assert stub_data[0] in (0x24, 0x34) and stub_data[1] == 0x00, \
+            f"Regression (#114): sce_module_imports must start 0x24/0x34,0x00, got {stub_data[0]:#x},{stub_data[1]:#x}"
 
         # Test 2: Unwind and Exception tables (.ARM.exidx and .ARM.extab - PR #281)
         velf2 = os.path.join(tmpdir, "sample_exidx.velf")
@@ -237,7 +343,45 @@ def main():
         assert found_movw, "Regression (#225): MOVW relocation against scePowerIsPowerOnline missing from .sce.rel"
         assert found_movt, "Regression (#225): MOVT relocation against scePowerIsPowerOnline missing from .sce.rel"
 
-        # Test 4: native TLS in a process image, .tdata + .tbss from two translation
+        # Test 4: module attributes from the export yml reach the VELF module info.
+        attr_yml = os.path.join(tmpdir, "attr.yml")
+        with open(attr_yml, "w") as f:
+            f.write(
+                "SampleAttr:\n"
+                "  attributes: 0x1234\n"
+                "  version:\n"
+                "    major: 1\n"
+                "    minor: 1\n"
+                "  nid: 0xDEADBEEF\n"
+            )
+        velf_attr = os.path.join(tmpdir, "sample_attr.velf")
+        res_attr = subprocess.run([elf_create, "-e", attr_yml, sample_elf, velf_attr],
+                                  capture_output=True, text=True)
+        assert res_attr.returncode == 0, f"Failed vita-elf-create with export yml: {res_attr.stderr}"
+        mod_info_attr = inspect_velf_sections(velf_attr)[".sceModuleInfo.rodata"]["data"]
+        attributes, version = struct.unpack_from('<HH', mod_info_attr, 0)
+        assert version == 0x0101, f"Expected module version 0x0101, got {hex(version)}"
+        assert attributes == 0x1234, f"Regression (#200): expected module attributes 0x1234, got {hex(attributes)}"
+
+        # Test 5: preserve relocations to a symbol exactly at a PT_LOAD end.
+        segment_end_elf = os.path.join(tmpdir, "sample_segment_end.elf")
+        expected_datseg, expected_datoff, expected_symseg, expected_symoff = \
+            make_segment_end_reloc_fixture(sample_elf, segment_end_elf)
+        velf_segment_end = os.path.join(tmpdir, "sample_segment_end.velf")
+        res_segment_end = subprocess.run([elf_create, segment_end_elf, velf_segment_end],
+                                         capture_output=True, text=True)
+        assert res_segment_end.returncode == 0, \
+            f"Failed vita-elf-create on segment-end fixture: {res_segment_end.stderr}"
+        found_segment_end_reloc = any(
+            r['code'] == R_ARM_ABS32
+            and r['datseg'] == expected_datseg and r['offset'] == expected_datoff
+            and r['symseg'] == expected_symseg and r['addend'] == expected_symoff
+            for r in sce_rel_entries(velf_segment_end)
+        )
+        assert found_segment_end_reloc, \
+            "Regression: relocation against a symbol at the exact end of a PT_LOAD segment was dropped"
+
+        # Test 6: native TLS in a process image, .tdata + .tbss from two translation
         # units (rule 4a). .tdata carries its own R_ARM_ABS32 relocation (tls_ptr
         # holds &global_var), which must survive into .sce.rel unmangled. Expected
         # tls_start/tls_filesz/tls_memsz are computed from the fixture's own PT_TLS
@@ -278,7 +422,7 @@ def main():
                 found_abs32 = True
         assert found_abs32, "R_ARM_ABS32 relocation inside .tdata missing/incorrect in output .sce.rel"
 
-        # Test 5: .tbss-only TLS template - p_filesz == 0, p_memsz > 0 (rule 4b).
+        # Test 7: .tbss-only TLS template - p_filesz == 0, p_memsz > 0 (rule 4b).
         # Must still convert and produce a correct (non-zero) tls_start; only
         # p_memsz == 0 means "no TLS present". See fixtures/sample_tls_tbss.c.
         sample_tls_tbss_elf = os.path.join(fixtures_dir, "sample_tls_tbss.elf")
@@ -299,7 +443,7 @@ def main():
         assert tls_filesz5 == 0, f"expected tls_filesz 0, got {tls_filesz5}"
         assert tls_memsz5 == tls_phdr5['memsz'], f"tls_memsz {tls_memsz5} != expected {tls_phdr5['memsz']}"
 
-        # Test 6: the rule 4a fixture converted as a module (process_image: false)
+        # Test 8: the rule 4a fixture converted as a module (process_image: false)
         # must be rejected (rule 1). See fixtures/sample_tls_module.yml.
         sample_tls_module_yml = os.path.join(fixtures_dir, "sample_tls_module.yml")
         res6 = subprocess.run([elf_create, "-n", "-e", sample_tls_module_yml, sample_tls_two_tu_elf,
@@ -308,7 +452,7 @@ def main():
         assert "process image" in res6.stderr and "not one" in res6.stderr, \
             f"Expected a 'process image ... not one' error, got: {res6.stderr}"
 
-        # Test 7: an unsupported TLS relocation model (R_ARM_TLS_IE32, built with
+        # Test 9: an unsupported TLS relocation model (R_ARM_TLS_IE32, built with
         # -fPIC -ftls-model=initial-exec) must be rejected by name (rule 2). See
         # fixtures/sample_tls_ie32_{def,use}.c.
         sample_tls_ie32_elf = os.path.join(fixtures_dir, "sample_tls_ie32.elf")
@@ -317,7 +461,7 @@ def main():
         assert res7.returncode != 0, "Expected conversion to fail for an unsupported TLS relocation"
         assert "R_ARM_TLS_IE32" in res7.stderr, f"Expected the error to name R_ARM_TLS_IE32, got: {res7.stderr}"
 
-        # Test 8: malformed PT_TLS program headers, produced by patching a copy of
+        # Test 10: malformed PT_TLS program headers, produced by patching a copy of
         # sample_tls_two_tu.elf's program header table in Python (rule 4e). Each
         # mutation must be independently rejected.
         def mutate_filesz_gt_memsz(data, ehdr, off):
@@ -350,7 +494,42 @@ def main():
             assert expect_in_stderr in res8.stderr, \
                 f"Expected '{expect_in_stderr}' in error for malformed PT_TLS ({label}), got: {res8.stderr}"
 
-        # Test 9: byte-identical output regression (rule 3). Converting a fixture
+        # Test 11: local-exec TLS relocations require runtime TLS metadata.
+        def mutate_remove_pt_tls(data, ehdr, off):
+            struct.pack_into('<I', data, off, 0)  # PT_NULL
+
+        no_tls_phdr = patch_pt_tls(sample_tls_two_tu_elf, mutate_remove_pt_tls)
+        res_no_tls, _ = run_convert(elf_create, no_tls_phdr, tmpdir,
+                                    "sample_tls_missing_phdr", extra_args=("-n",))
+        assert res_no_tls.returncode != 0, "Expected R_ARM_TLS_LE32 without PT_TLS to be rejected"
+        assert "R_ARM_TLS_LE32" in res_no_tls.stderr and "PT_TLS" in res_no_tls.stderr, \
+            f"Expected a missing PT_TLS diagnostic, got: {res_no_tls.stderr}"
+
+        # Test 12: the initialized template must be in module_start's PT_LOAD,
+        # because tls_start is encoded relative to that segment.
+        def mutate_tls_to_other_load(data, ehdr, off):
+            for i in range(ehdr['e_phnum']):
+                phoff = ehdr['e_phoff'] + i * ehdr['e_phentsize']
+                ph = struct.unpack_from('<8I', data, phoff)
+                p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align = ph
+                if p_type != PT_LOAD:
+                    continue
+                if p_vaddr <= ehdr['e_entry'] < p_vaddr + p_memsz:
+                    continue
+                assert p_filesz > 0 and p_memsz > 0, "fixture needs a second file-backed PT_LOAD"
+                struct.pack_into('<8I', data, off, PT_TLS, p_offset, p_vaddr, p_paddr,
+                                 min(p_filesz, 4), min(p_memsz, 4), 4, 4)
+                return
+            assert False, "fixture has no PT_LOAD separate from module_start"
+
+        wrong_seg_tls = patch_pt_tls(sample_tls_two_tu_elf, mutate_tls_to_other_load)
+        res_wrong_seg, _ = run_convert(elf_create, wrong_seg_tls, tmpdir,
+                                       "sample_tls_wrong_segment", extra_args=("-n",))
+        assert res_wrong_seg.returncode != 0, "Expected PT_TLS in a different PT_LOAD to be rejected"
+        assert "module_start segment" in res_wrong_seg.stderr, \
+            f"Expected a module_start-segment diagnostic, got: {res_wrong_seg.stderr}"
+
+        # Test 13: byte-identical output regression (rule 3). Converting a fixture
         # with no PT_TLS at all must produce output identical, byte for byte, to
         # vita-elf-create before this whole native-TLS-validation change (commit
         # 156f66b). fixtures/sample_156f66b.velf is that commit's own output for

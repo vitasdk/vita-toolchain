@@ -291,6 +291,7 @@ int main(int argc, char **argv)
 	char head[8192];
 	char keys[8192];
 	char data[8192];
+	char derived_content_id[49];
 	struct SfoHeader *h;
 	struct SfoEntry  *e;
 	char *k;
@@ -298,6 +299,7 @@ int main(int argc, char **argv)
 	unsigned int align;
 	unsigned int keyofs;
 	unsigned int count;
+	int have_content_id;
 
 	if(!process_args(argc, argv)) 
 	{
@@ -308,6 +310,8 @@ int main(int argc, char **argv)
 
 		return 1;
 	}
+
+	have_content_id = find_name("CONTENT_ID") != NULL;
 
 	if (!g_empty)
 	{
@@ -324,6 +328,20 @@ int main(int argc, char **argv)
 					return 0;
 				}
 				*entry = g_defaults[i];
+			}
+		}
+
+		if (!have_content_id)
+		{
+			struct EntryContainer *title_id = find_name("TITLE_ID");
+			struct EntryContainer *content_id = find_name("CONTENT_ID");
+
+			if (title_id && title_id->type == PSF_TYPE_STR && title_id->data &&
+					content_id && content_id->type == PSF_TYPE_STR)
+			{
+				snprintf(derived_content_id, sizeof(derived_content_id),
+						"HB0001-%.9s_00-0000000000000000", title_id->data);
+				content_id->data = derived_content_id;
 			}
 		}
 	}

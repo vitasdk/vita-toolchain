@@ -444,6 +444,7 @@ sce_module_info_t *sce_elf_module_info_create(vita_elf_t *ve, vita_export_t *exp
 	ASSERT(module_info != NULL);
 
 	module_info->type = 6;
+	module_info->attributes = exports->attributes;
 	module_info->version = (exports->ver_major << 8) | exports->ver_minor;
 	
 	strncpy(module_info->name, exports->name, sizeof(module_info->name) - 1);
@@ -909,7 +910,7 @@ void *sce_elf_module_info_encode(
 		export_raw = (sce_module_exports_raw *)ADDR(sceLib_ent);
 		INCR(sceLib_ent, sizeof(sce_module_exports_raw));
 
-		export_raw->size = htole16(sizeof(sce_module_exports_raw));
+		export_raw->size = sizeof(sce_module_exports_raw);
 		CONVERT16(export, version);
 		CONVERT16(export, flags);
 		CONVERT16(export, num_syms_funcs);
@@ -946,7 +947,7 @@ void *sce_elf_module_info_encode(
 		import_raw = (sce_module_imports_raw *)ADDR(sceLib_stubs);
 		INCR(sceLib_stubs, sizeof(sce_module_imports_raw));
 
-		import_raw->size = htole16(sizeof(sce_module_imports_raw));
+		import_raw->size = sizeof(sce_module_imports_raw);
 		CONVERT16(import, version);
 		CONVERT16(import, flags);
 		CONVERT16(import, num_syms_funcs);
@@ -1253,6 +1254,48 @@ int sce_elf_discard_invalid_relocs(const vita_elf_t *ve, vita_elf_rela_table_t *
 	return 1;
 }
 
+
+static int sce_elf_symbol_to_segndx(const vita_elf_t *ve, const vita_elf_symbol_t *symbol)
+{
+	int segndx;
+	Elf_Scn *scn;
+	GElf_Shdr shdr;
+	uint64_t section_start, section_end;
+
+	segndx = vita_elf_vaddr_to_segndx(ve, symbol->value);
+	if (segndx != -1)
+		return segndx;
+
+	/* A symbol may legally denote one-past-the-end of its section. If that
+	 * section is the last one in a loadable segment, preserve the relocation
+	 * by associating the symbol with that segment. Keep normal address lookup
+	 * strict so relocation sites at p_vaddr + p_memsz remain invalid. */
+	if (symbol->shndx <= 0 || symbol->shndx >= SHN_LORESERVE)
+		return -1;
+
+	scn = elf_getscn(ve->elf, symbol->shndx);
+	if (scn == NULL || gelf_getshdr(scn, &shdr) == NULL)
+		return -1;
+	if (!(shdr.sh_flags & SHF_ALLOC))
+		return -1;
+
+	section_start = shdr.sh_addr;
+	section_end = section_start + shdr.sh_size;
+	if ((uint64_t)symbol->value != section_end)
+		return -1;
+
+	for (int i = 0; i < ve->num_segments; i++) {
+		uint64_t segment_start = ve->segments[i].vaddr;
+		uint64_t segment_end = segment_start + ve->segments[i].memsz;
+
+		if (section_start >= segment_start && section_start < segment_end &&
+				section_end == segment_end)
+			return i;
+	}
+
+	return -1;
+}
+
 int sce_elf_write_rela_sections(
 		Elf *dest, const vita_elf_t *ve, const vita_elf_rela_table_t *rtable)
 {
@@ -1295,7 +1338,10 @@ encode_relas:
 			} else {
 				symvaddr = vrela->addend;
 			}
-			symseg = vita_elf_vaddr_to_segndx(ve, vrela->symbol ? vrela->symbol->value : vrela->addend);
+			if (vrela->symbol)
+				symseg = sce_elf_symbol_to_segndx(ve, vrela->symbol);
+			else
+				symseg = vita_elf_vaddr_to_segndx(ve, vrela->addend);
 			if (symseg == -1)
 				continue;
 			symoff = vita_elf_vaddr_to_segoffset(ve, symvaddr, symseg);
