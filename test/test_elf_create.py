@@ -237,8 +237,32 @@ def main():
         assert found_movw, "Regression (#225): MOVW relocation against scePowerIsPowerOnline missing from .sce.rel"
         assert found_movt, "Regression (#225): MOVT relocation against scePowerIsPowerOnline missing from .sce.rel"
 
+        # Test 4: module attributes from the export yml reach the velf module
+        # info (Issue #200). attributes lives at offset 0 of sce_module_info,
+        # right before version (0x0101).
+        attr_yml = os.path.join(tmpdir, "attr.yml")
+        with open(attr_yml, "w") as f:
+            f.write(
+                "SampleAttr:\n"
+                "  attributes: 0x1234\n"
+                "  version:\n"
+                "    major: 1\n"
+                "    minor: 1\n"
+                "  nid: 0xDEADBEEF\n"
+            )
+        velf4 = os.path.join(tmpdir, "sample_attr.velf")
+        res4 = subprocess.run([elf_create, "-e", attr_yml, sample_elf, velf4], capture_output=True, text=True)
+        if res4.returncode != 0:
+            print("Failed vita-elf-create with export yml:", res4.stderr)
+            sys.exit(1)
 
-        # Test 4: A symbol can legally denote one-past-the-end of its section.
+        secs4 = inspect_velf_sections(velf4)
+        mod_info4 = secs4[".sceModuleInfo.rodata"]["data"]
+        attributes, version = struct.unpack_from('<HH', mod_info4, 0)
+        assert version == 0x0101, f"Expected module version 0x0101, got {hex(version)}"
+        assert attributes == 0x1234, f"Regression (#200): expected module attributes 0x1234, got {hex(attributes)}"
+
+        # Test 5: A symbol can legally denote one-past-the-end of its section.
         # If that section also ends at a PT_LOAD boundary, vita-elf-create must
         # still emit the relocation using an offset equal to p_memsz.
         segment_end_elf = os.path.join(tmpdir, "sample_segment_end.elf")
