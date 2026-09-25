@@ -326,7 +326,8 @@ def main():
 
         # Test 2: Unwind and Exception tables (.ARM.exidx and .ARM.extab - PR #281)
         velf2 = os.path.join(tmpdir, "sample_exidx.velf")
-        res2 = subprocess.run([elf_create, "-n", "sample_exidx.elf", velf2],\n                              cwd=fixtures_dir, capture_output=True, text=True)
+        res2 = subprocess.run([elf_create, "-n", "sample_exidx.elf", velf2],
+                              cwd=fixtures_dir, capture_output=True, text=True)
         if res2.returncode != 0:
             print("Failed vita-elf-create on sample_exidx.elf:", res2.stderr)
             sys.exit(1)
