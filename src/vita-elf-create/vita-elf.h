@@ -95,6 +95,11 @@ typedef struct vita_elf_t {
 	Elf32_Word exidx_sh_size;
 	Elf32_Addr extab_sh_addr;
 	Elf32_Word extab_sh_size;
+
+	Elf32_Addr tls_vaddr;
+	Elf32_Word tls_filesz;
+	Elf32_Word tls_memsz;
+	int has_tls_le32_relocations;
 } vita_elf_t;
 
 vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_export_t *export);
