@@ -654,7 +654,10 @@ vita_elf_t *vita_elf_load(const char *filename, int check_stub_count, vita_expor
 	}
 
 	if (ve->fstubs_va.count == 0 && ve->vstubs_va.count == 0 && check_stub_count)
-		FAILX("No .vitalink stub sections in binary, probably not a Vita binary. If this is a vita binary, pass '-n' to squash this error.");
+		FAILX("No Vita import stub sections were found. "
+		      "This can be valid for a Vita binary with no imports. "
+		      "If this is intentional, pass '-n'; otherwise check that the binary "
+		      "was linked with the vitasdk toolchain.");
 
 	if (ve->symtab == NULL)
 		FAILX("No symbol table in binary, perhaps stripped out");
