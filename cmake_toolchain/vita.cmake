@@ -123,12 +123,12 @@ macro(vita_create_self target source)
   endif()
 
   ## VELF command
-  separate_arguments(VITA_ELF_CREATE_FLAGS NATIVE_COMMAND "${VITA_ELF_CREATE_FLAGS}")
+  separate_arguments(_elf_create_flags NATIVE_COMMAND "${VITA_ELF_CREATE_FLAGS}")
 
   if(vita_create_self_REL_OPTIMIZE)
     if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
       add_custom_target(${targetname} ALL
-        COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         DEPENDS ${sourcepath}
         COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
@@ -147,7 +147,7 @@ macro(vita_create_self target source)
     else()
       if(vita_create_self_GEN_EXPORTS)
         add_custom_target(${targetname} ALL
-          COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
           BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${fconfig}
@@ -155,7 +155,7 @@ macro(vita_create_self target source)
         )
       else()
         add_custom_target(${targetname} ALL
-          COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
           BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
@@ -166,7 +166,7 @@ macro(vita_create_self target source)
   else()
     if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
       add_custom_target(${targetname} ALL
-        COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         DEPENDS ${sourcepath}
         COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
       )
@@ -184,14 +184,14 @@ macro(vita_create_self target source)
     else()
       if(vita_create_self_GEN_EXPORTS)
         add_custom_target(${targetname} ALL
-          COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
           BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${fconfig}
           COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
         )
       else()
         add_custom_target(${targetname} ALL
-          COMMAND ${VITA_ELF_CREATE} ${VITA_ELF_CREATE_FLAGS} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
           BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
@@ -203,18 +203,18 @@ macro(vita_create_self target source)
   set(self_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
 
   ## SELF command
-  separate_arguments(VITA_MAKE_FSELF_FLAGS NATIVE_COMMAND "${VITA_MAKE_FSELF_FLAGS}")
+  separate_arguments(_make_fself_flags NATIVE_COMMAND "${VITA_MAKE_FSELF_FLAGS}")
 
   if(vita_create_self_REL_OPTIMIZE)
     add_custom_command(OUTPUT ${self_outfile}
-      COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
+      COMMAND ${VITA_MAKE_FSELF} ${_make_fself_flags} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
       COMMAND psp2rela -src=${self_outfile} -dst=${self_outfile}
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
       COMMENT "Creating SELF ${target}"
     )
   else()
     add_custom_command(OUTPUT ${self_outfile}
-      COMMAND ${VITA_MAKE_FSELF} ${VITA_MAKE_FSELF_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
+      COMMAND ${VITA_MAKE_FSELF} ${_make_fself_flags} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
       COMMENT "Creating SELF ${target}"
     )
@@ -290,7 +290,7 @@ macro(vita_create_stubs target-dir source config)
   set(target_yml ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml)
 
   ## ELF EXPORT command
-  separate_arguments(VITA_ELF_EXPORT_FLAGS NATIVE_COMMAND "${VITA_ELF_EXPORT_FLAGS}")
+  separate_arguments(_elf_export_flags NATIVE_COMMAND "${VITA_ELF_EXPORT_FLAGS}")
   get_filename_component(fconfig ${config} ABSOLUTE)
 
   if (vita_create_stubs_GEN_EXPORTS)
@@ -305,21 +305,21 @@ macro(vita_create_stubs target-dir source config)
   endif()
 
   add_custom_command(OUTPUT ${target_yml}
-    COMMAND ${VITA_ELF_EXPORT} ${kind} ${VITA_ELF_EXPORT_FLAGS} ${sourcepath} ${fconfig} ${target_yml}
+    COMMAND ${VITA_ELF_EXPORT} ${kind} ${_elf_export_flags} ${sourcepath} ${fconfig} ${target_yml}
     DEPENDS ${sourcepath}
     DEPENDS ${fconfig}
     COMMENT "Generating imports YAML for ${sourcefile}"
   )
 
   ## ELF EXPORT target
-  separate_arguments(VITA_LIBS_GEN_FLAGS NATIVE_COMMAND "${VITA_LIBS_GEN_FLAGS}")
+  separate_arguments(_libs_gen_flags NATIVE_COMMAND "${VITA_LIBS_GEN_FLAGS}")
 
   set(stub_lib lib${target-lib}_stub.a)
   set(stub_weak_lib lib${target-lib}_stub_weak.a)
 
   add_custom_target(${target-dir}
     ALL
-    COMMAND ${VITA_LIBS_GEN} ${VITA_LIBS_GEN_FLAGS} ${target_yml} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
+    COMMAND ${VITA_LIBS_GEN} ${_libs_gen_flags} ${target_yml} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
     COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
     COMMAND ${CMAKE_COMMAND} -E copy
       "${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_lib}"
@@ -417,9 +417,9 @@ macro(vita_create_vpk target titleid eboot)
   get_filename_component(sourcefile ${sourcepath} NAME)
 
   ## PARAM.SFO command
-  separate_arguments(VITA_MKSFOEX_FLAGS NATIVE_COMMAND "${VITA_MKSFOEX_FLAGS}")
+  separate_arguments(_mkfoex_flags NATIVE_COMMAND "${VITA_MKSFOEX_FLAGS}")
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
-    COMMAND ${VITA_MKSFOEX} ${VITA_MKSFOEX_FLAGS} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
+    COMMAND ${VITA_MKSFOEX} ${_mkfoex_flags} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
     COMMENT "Generating param.sfo for ${target}"
     VERBATIM
@@ -428,9 +428,9 @@ macro(vita_create_vpk target titleid eboot)
   set(vpk_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
 
   ## VPK command
-  separate_arguments(VITA_PACK_VPK_FLAGS NATIVE_COMMAND "${VITA_PACK_VPK_FLAGS}")
+  separate_arguments(_pack_vpk_flags NATIVE_COMMAND "${VITA_PACK_VPK_FLAGS}")
   add_custom_command(OUTPUT ${vpk_outfile}
-    COMMAND ${VITA_PACK_VPK} ${VITA_PACK_VPK_FLAGS} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${vpk_outfile}
+    COMMAND ${VITA_PACK_VPK} ${_pack_vpk_flags} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${vpk_outfile}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
     DEPENDS ${resources}
