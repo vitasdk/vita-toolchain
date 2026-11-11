@@ -325,6 +325,22 @@ def main():
             f"Regression (#114): sce_module_imports must start 0x24/0x34,0x00, got {stub_data[0]:#x},{stub_data[1]:#x}"
 
         # Test 2: Unwind and Exception tables (.ARM.exidx and .ARM.extab - PR #281)
+        assert not any(name.startswith(".vitalink.") for name in inspect_velf_sections(sample_exidx_elf)), \
+            "The import-free fixture must not contain Vita import stub sections"
+        rejected_velf = os.path.join(tmpdir, "sample_exidx_without_n.velf")
+        res_no_imports = subprocess.run([elf_create, "sample_exidx.elf", rejected_velf],
+                                       cwd=fixtures_dir, capture_output=True, text=True)
+        assert res_no_imports.returncode == 1, "Import-free input must still require an explicit -n"
+        assert not os.path.exists(rejected_velf), "Rejected input must not produce a VELF"
+        for guidance in (
+            "No Vita import stub sections were found.",
+            "This can be valid for a Vita binary with no imports.",
+            "If this is intentional, pass '-n';",
+            "otherwise check that the binary was linked with the vitasdk toolchain.",
+        ):
+            assert guidance in res_no_imports.stderr, \
+                f"Missing import-free guidance {guidance!r} in: {res_no_imports.stderr}"
+
         velf2 = os.path.join(tmpdir, "sample_exidx.velf")
         res2 = subprocess.run([elf_create, "-n", "sample_exidx.elf", velf2],
                               cwd=fixtures_dir, capture_output=True, text=True)
