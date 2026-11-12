@@ -1,3 +1,10 @@
-install(PROGRAMS arm-vita-eabi-pkg-config
-  DESTINATION bin
-)
+if(WIN32)
+  add_executable(arm-vita-eabi-pkg-config arm-vita-eabi-pkg-config-windows.c)
+  target_compile_features(arm-vita-eabi-pkg-config PRIVATE c_std_99)
+  if(MINGW)
+    target_link_options(arm-vita-eabi-pkg-config PRIVATE -municode)
+  endif()
+  install(TARGETS arm-vita-eabi-pkg-config RUNTIME DESTINATION bin)
+else()
+  install(PROGRAMS arm-vita-eabi-pkg-config DESTINATION bin)
+endif()
