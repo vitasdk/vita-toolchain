@@ -84,6 +84,7 @@ set( VITA_LIBS_GEN      "${VITASDK}/bin/vita-libs-gen${TOOL_OS_SUFFIX}"         
 set( VITA_MAKE_FSELF    "${VITASDK}/bin/vita-make-fself${TOOL_OS_SUFFIX}"       CACHE PATH "vita-make-fself" )
 set( VITA_MKSFOEX       "${VITASDK}/bin/vita-mksfoex${TOOL_OS_SUFFIX}"          CACHE PATH "vita-mksfoex" )
 set( VITA_PACK_VPK      "${VITASDK}/bin/vita-pack-vpk${TOOL_OS_SUFFIX}"         CACHE PATH "vita-pack-vpk" )
+set( VITA_PSP2RELA      "${VITASDK}/bin/psp2rela${TOOL_OS_SUFFIX}"              CACHE PATH "psp2rela" )
 
 # cache flags
 set( CMAKE_CXX_FLAGS           ""                        CACHE STRING "c++ flags" )

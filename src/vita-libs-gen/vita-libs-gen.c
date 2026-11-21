@@ -208,13 +208,14 @@ int generate_cmake_user(FILE *fp, const char *postfix, vita_imports_module_t *mo
 {
 	int i;
 	int found_libs = 0;
+	int aggregate_kernel = strcmp(module->name, KERNEL_LIBS_STUB) == 0;
 
 	for (i = 0; i < module->n_libs; i++)
 	{
 		vita_imports_lib_t *library = module->libs[i];
 
-		// skip kernel
-		if (library->is_kernel)
+		// SceKernel keeps the aggregate archive used by existing consumers.
+		if (library->is_kernel && !aggregate_kernel)
 			continue;
 
 		if (!found_libs)
@@ -234,6 +235,28 @@ int generate_cmake_user(FILE *fp, const char *postfix, vita_imports_module_t *mo
 	return found_libs;
 }
 
+int generate_cmake_anchor(FILE *fp, const char *postfix, vita_imports_module_t *module)
+{
+	char filename[4096];
+	FILE *anchor;
+
+	// CMake requires a source for otherwise-empty module archives emitted for
+	// pure-kernel modules.
+	snprintf(filename, sizeof(filename), "%s%s_empty.S", module->name, postfix);
+	if ((anchor = fopen(filename, "w")) == NULL)
+		return 0;
+	fputs(".section .note.GNU-stack,\"\",%progbits\n", anchor);
+	fclose(anchor);
+
+	fprintf(fp,
+		"set(%s%s_ASM\n"
+		"\t\"%s\"\n"
+		")\n\n",
+		module->name, postfix, filename);
+
+	return 1;
+}
+
 int generate_cmake_kernel(FILE *fp, const char *modname, const char *postfix, vita_imports_lib_t *library)
 {
 	if (!library->n_functions && !library->n_variables)
@@ -248,8 +271,7 @@ int generate_cmake_kernel(FILE *fp, const char *modname, const char *postfix, vi
 
 int generate_cmake(vita_imports_t **imports, int imports_count)
 {
-	int h, i, j, k;
-	int is_special;
+	int h, i, j;
 
 	// TODO: something dynamic
 	libs_t user_libs = {0};
@@ -268,8 +290,11 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 		"\t\tmessage(FATAL_ERROR \"Please define VITASDK to point to your SDK path!\")\n"
 		"\tendif()\n"
 		"endif()\n"
-		"project(vitalibs)\n"
-		"enable_language(ASM)\n\n", fp);
+		"project(vitalibs LANGUAGES ASM)\n\n"
+		"set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"${CMAKE_CURRENT_BINARY_DIR}\")\n"
+		"foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)\n"
+		"\tset(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${config} \"${CMAKE_CURRENT_BINARY_DIR}\")\n"
+		"endforeach()\n\n", fp);
 
 	for (h = 0; h < imports_count; ++h)
 	{
@@ -280,12 +305,13 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 			vita_imports_module_t *module = imp->modules[i];
 
 			// generate user libs first
-			if (generate_cmake_user(fp, imp->postfix, module))
-			{
-				user_libs.names[user_libs.num].name = module->name;
-				user_libs.names[user_libs.num].postfix = imp->postfix;
-				user_libs.num++;
-			}
+			if (!generate_cmake_user(fp, imp->postfix, module) &&
+				!generate_cmake_anchor(fp, imp->postfix, module))
+				return 0;
+
+			user_libs.names[user_libs.num].name = module->name;
+			user_libs.names[user_libs.num].postfix = imp->postfix;
+			user_libs.num++;
 
 			for (j = 0; j < imp->modules[i]->n_libs; j++)
 			{
