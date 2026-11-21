@@ -208,14 +208,13 @@ int generate_cmake_user(FILE *fp, const char *postfix, vita_imports_module_t *mo
 {
 	int i;
 	int found_libs = 0;
-	int include_kernel = strcmp(module->name, KERNEL_LIBS_STUB) == 0;
 
 	for (i = 0; i < module->n_libs; i++)
 	{
 		vita_imports_lib_t *library = module->libs[i];
 
-		// The legacy SceKernel module archive includes its own kernel libraries.
-		if (library->is_kernel && !include_kernel)
+		// Kernel libraries are emitted as their own strong archives.
+		if (library->is_kernel)
 			continue;
 
 		if (!found_libs)
