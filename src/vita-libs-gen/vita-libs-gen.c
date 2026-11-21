@@ -208,14 +208,14 @@ int generate_cmake_user(FILE *fp, const char *postfix, vita_imports_module_t *mo
 {
 	int i;
 	int found_libs = 0;
-	int aggregate_kernel = strcmp(module->name, KERNEL_LIBS_STUB) == 0;
+	int include_kernel = strcmp(module->name, KERNEL_LIBS_STUB) == 0;
 
 	for (i = 0; i < module->n_libs; i++)
 	{
 		vita_imports_lib_t *library = module->libs[i];
 
-		// SceKernel keeps the aggregate archive used by existing consumers.
-		if (library->is_kernel && !aggregate_kernel)
+		// The legacy SceKernel module archive includes its own kernel libraries.
+		if (library->is_kernel && !include_kernel)
 			continue;
 
 		if (!found_libs)
@@ -291,9 +291,10 @@ int generate_cmake(vita_imports_t **imports, int imports_count)
 		"\tendif()\n"
 		"endif()\n"
 		"project(vitalibs LANGUAGES ASM)\n\n"
-		"set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"${CMAKE_CURRENT_BINARY_DIR}\")\n"
+		"set(VITA_STUBS_OUTPUT_DIRECTORY \"${CMAKE_CURRENT_BINARY_DIR}\" CACHE PATH \"Stub archive output directory\")\n"
+		"set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"${VITA_STUBS_OUTPUT_DIRECTORY}\")\n"
 		"foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)\n"
-		"\tset(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${config} \"${CMAKE_CURRENT_BINARY_DIR}\")\n"
+		"\tset(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${config} \"${VITA_STUBS_OUTPUT_DIRECTORY}\")\n"
 		"endforeach()\n\n", fp);
 
 	for (h = 0; h < imports_count; ++h)

@@ -190,13 +190,17 @@ vita_create_stubs(stubs "${{module_file}}" "${{config_file}}" ${{stub_flags}})
 
             strong = build / "libSampleModule_stub.a"
             weak = build / "libSampleModule_stub_weak.a"
+            generated_strong = build / "stubs" / strong.name
+            generated_weak = build / "stubs" / weak.name
             self.assertTrue(strong.is_file(), strong)
             self.assertTrue(weak.is_file(), weak)
-            tracked_archives = [strong, weak]
+            self.assertTrue(generated_strong.is_file(), generated_strong)
+            self.assertTrue(generated_weak.is_file(), generated_weak)
+            tracked_archives = [strong, weak, generated_strong, generated_weak]
             if mode == "kernel":
-                kernel_archives = list(build.rglob("libKernelLibrary_stub.a"))
-                self.assertTrue(kernel_archives, "kernel library archive was not generated")
-                tracked_archives.append(kernel_archives[0])
+                kernel_archive = build / "stubs" / "libKernelLibrary_stub.a"
+                self.assertTrue(kernel_archive.is_file(), kernel_archive)
+                tracked_archives.append(kernel_archive)
 
             before = tuple(path.stat().st_mtime_ns for path in tracked_archives)
             time.sleep(1.1)
@@ -236,6 +240,8 @@ vita_create_stubs(stubs "${{module_file}}" "${{config_file}}" ${{stub_flags}})
             self.assertEqual(cleaned.returncode, 0, cleaned.stdout + cleaned.stderr)
             self.assertFalse(strong.exists())
             self.assertFalse(weak.exists())
+            self.assertFalse(generated_strong.exists())
+            self.assertFalse(generated_weak.exists())
 
             final = subprocess.run(
                 ["cmake", "--build", str(build), "--target", "stubs"],
@@ -246,6 +252,10 @@ vita_create_stubs(stubs "${{module_file}}" "${{config_file}}" ${{stub_flags}})
             self.assertEqual(final.returncode, 0, final.stdout + final.stderr)
             self.assertTrue(strong.is_file())
             self.assertTrue(weak.is_file())
+            self.assertTrue(generated_strong.is_file())
+            self.assertTrue(generated_weak.is_file())
+            if mode == "kernel":
+                self.assertTrue(kernel_archive.is_file())
 
     def test_ninja_ordinary_yaml(self):
         self.run_case("Ninja", "ordinary")

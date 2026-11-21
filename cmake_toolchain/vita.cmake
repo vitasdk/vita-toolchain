@@ -345,6 +345,9 @@ macro(vita_create_stubs target-dir source config)
   if(CMAKE_BUILD_TYPE)
     list(APPEND _vita_stubs_configure_args "-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}")
   endif()
+  list(APPEND _vita_stubs_configure_args
+    "-DVITA_STUBS_OUTPUT_DIRECTORY:PATH=${_vita_stubs_source_dir}"
+  )
 
   set(_vita_stubs_build_args --build "${_vita_stubs_build_dir}")
   if(CMAKE_CONFIGURATION_TYPES)
@@ -357,10 +360,10 @@ macro(vita_create_stubs target-dir source config)
     COMMAND ${CMAKE_COMMAND} ${_vita_stubs_configure_args}
     COMMAND ${CMAKE_COMMAND} ${_vita_stubs_build_args}
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${_vita_stubs_build_dir}/${stub_lib}"
+      "${_vita_stubs_source_dir}/${stub_lib}"
       "${_vita_stubs_output}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "${_vita_stubs_build_dir}/${stub_weak_lib}"
+      "${_vita_stubs_source_dir}/${stub_weak_lib}"
       "${_vita_stubs_weak_output}"
     COMMAND ${CMAKE_COMMAND} -E touch "${_vita_stubs_stamp}"
     DEPENDS "${target_yml}"
