@@ -29,10 +29,16 @@ def normalized(path: str | Path) -> str:
     return os.path.normcase(os.path.normpath(str(path)))
 
 
-def run(wrapper: Path, env: dict[str, str], *arguments: str) -> tuple[subprocess.CompletedProcess[str], Path, list[str], dict[str, str]]:
+def run(
+    wrapper: Path,
+    env: dict[str, str],
+    *arguments: str,
+    cwd: Path | None = None,
+) -> tuple[subprocess.CompletedProcess[str], Path, list[str], dict[str, str]]:
     result = subprocess.run(
         [str(wrapper), *arguments],
         env=env,
+        cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
@@ -69,6 +75,10 @@ def main() -> None:
                 "PKG_CONFIG_DIR": "polluted-dir",
                 "PKG_CONFIG_PATH": "polluted-path",
                 "PKG_CONFIG_SYSROOT_DIR": "polluted-sysroot",
+                "PKG_CONFIG_PRELOADED_FILES": "polluted-preloaded",
+                "PKG_CONFIG_MSVC_SYNTAX": "polluted-msvc",
+                "PKG_CONFIG_SYSTEM_INCLUDE_PATH": "polluted-system-include",
+                "PKG_CONFIG_SYSTEM_LIBRARY_PATH": "polluted-system-library",
                 "PKG_CONFIG_LIBDIR": "polluted-libdir",
             }
         )
@@ -103,6 +113,10 @@ def main() -> None:
         assert captured_environment["PKG_CONFIG_DIR"] in ("", "<unset>")
         assert captured_environment["PKG_CONFIG_PATH"] in ("", "<unset>")
         assert captured_environment["PKG_CONFIG_SYSROOT_DIR"] in ("", "<unset>")
+        assert captured_environment["PKG_CONFIG_PRELOADED_FILES"] in ("", "<unset>")
+        assert captured_environment["PKG_CONFIG_MSVC_SYNTAX"] in ("", "<unset>")
+        assert captured_environment["PKG_CONFIG_SYSTEM_INCLUDE_PATH"] in ("", "<unset>")
+        assert captured_environment["PKG_CONFIG_SYSTEM_LIBRARY_PATH"] in ("", "<unset>")
         libdirs = captured_environment["PKG_CONFIG_LIBDIR"].split(";")
         assert all("\\" not in path for path in libdirs)
         assert [normalized(path) for path in libdirs] == [normalized(lib_pc), normalized(share_pc)]
@@ -129,6 +143,22 @@ def main() -> None:
         assert normalized(program) == normalized(host_backend)
         assert arguments[-2:] == ["--modversion", "sample"]
 
+        project_dir = root / "project"
+        project_dir.mkdir()
+        current_directory_backend = project_dir / "pkgconf.exe"
+        shutil.copy2(source_capture, current_directory_backend)
+        result, program, arguments, _ = run(
+            wrapper,
+            fallback_env,
+            "--modversion",
+            "sample",
+            cwd=project_dir,
+        )
+        assert result.returncode == 0, result.stderr
+        assert normalized(program) == normalized(host_backend)
+        assert arguments[-2:] == ["--modversion", "sample"]
+
+        current_directory_backend.unlink()
         host_backend.unlink()
         missing = subprocess.run(
             [str(wrapper), "--version"],

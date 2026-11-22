@@ -17,6 +17,10 @@ int wmain(int argc, wchar_t **argv) {
     print_environment(L"PKG_CONFIG_DIR");
     print_environment(L"PKG_CONFIG_PATH");
     print_environment(L"PKG_CONFIG_SYSROOT_DIR");
+    print_environment(L"PKG_CONFIG_PRELOADED_FILES");
+    print_environment(L"PKG_CONFIG_MSVC_SYNTAX");
+    print_environment(L"PKG_CONFIG_SYSTEM_INCLUDE_PATH");
+    print_environment(L"PKG_CONFIG_SYSTEM_LIBRARY_PATH");
     print_environment(L"PKG_CONFIG_LIBDIR");
 
     const wchar_t *exit_text = _wgetenv(L"PKGCONF_CAPTURE_EXIT");

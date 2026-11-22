@@ -18,9 +18,19 @@ if(MINGW)
   target_link_options(pkgconf-capture PRIVATE -municode)
 endif()
 
+add_executable(pkgconfig-error-preservation ../pkgconfig_windows_error.c)
+if(MINGW)
+  target_link_options(pkgconfig-error-preservation PRIVATE -municode)
+endif()
+
 add_test(NAME test_pkg_config_windows
   COMMAND ${Python3_EXECUTABLE} ${VITA_TOOLCHAIN_SOURCE}/test/test_pkg_config_windows.py
     $<TARGET_FILE:arm-vita-eabi-pkg-config>
+    $<TARGET_FILE:pkgconf-capture>
+)
+
+add_test(NAME test_pkg_config_windows_error
+  COMMAND $<TARGET_FILE:pkgconfig-error-preservation>
     $<TARGET_FILE:pkgconf-capture>
 )
 

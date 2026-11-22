@@ -16,6 +16,8 @@ def write_backend(path: Path, name: str) -> None:
         f"payload = {{'backend': {name!r}, 'argv': sys.argv[1:], "
         "'env': {key: os.environ.get(key) for key in "
         "['PKG_CONFIG_DIR', 'PKG_CONFIG_PATH', 'PKG_CONFIG_SYSROOT_DIR', "
+        "'PKG_CONFIG_PRELOADED_FILES', 'PKG_CONFIG_MSVC_SYNTAX', "
+        "'PKG_CONFIG_SYSTEM_INCLUDE_PATH', 'PKG_CONFIG_SYSTEM_LIBRARY_PATH', "
         "'PKG_CONFIG_LIBDIR']}}\n"
         "print(json.dumps(payload))\n"
         "sys.exit(23 if '--fail' in sys.argv else 0)\n",
@@ -67,6 +69,10 @@ def main() -> None:
                 "PKG_CONFIG_DIR": "polluted-dir",
                 "PKG_CONFIG_PATH": "polluted-path",
                 "PKG_CONFIG_SYSROOT_DIR": "polluted-sysroot",
+                "PKG_CONFIG_PRELOADED_FILES": "polluted-preloaded",
+                "PKG_CONFIG_MSVC_SYNTAX": "polluted-msvc",
+                "PKG_CONFIG_SYSTEM_INCLUDE_PATH": "polluted-system-include",
+                "PKG_CONFIG_SYSTEM_LIBRARY_PATH": "polluted-system-library",
                 "PKG_CONFIG_LIBDIR": "polluted-libdir",
             }
         )
@@ -86,6 +92,10 @@ def main() -> None:
             "PKG_CONFIG_DIR": "",
             "PKG_CONFIG_PATH": "",
             "PKG_CONFIG_SYSROOT_DIR": "",
+            "PKG_CONFIG_PRELOADED_FILES": "",
+            "PKG_CONFIG_MSVC_SYNTAX": "",
+            "PKG_CONFIG_SYSTEM_INCLUDE_PATH": "",
+            "PKG_CONFIG_SYSTEM_LIBRARY_PATH": "",
             "PKG_CONFIG_LIBDIR": f"{lib_pc}:{share_pc}",
         }
 
