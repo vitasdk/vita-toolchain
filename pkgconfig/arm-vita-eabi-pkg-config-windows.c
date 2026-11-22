@@ -182,19 +182,45 @@ static int regular_file_exists(const wchar_t *path) {
     return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
 }
 
+static wchar_t *environment_value(const wchar_t *name) {
+    DWORD capacity = GetEnvironmentVariableW(name, NULL, 0);
+    while (capacity) {
+        wchar_t *value = calloc(capacity, sizeof(*value));
+        if (!value) {
+            return NULL;
+        }
+
+        DWORD length = GetEnvironmentVariableW(name, value, capacity);
+        if (length && length < capacity) {
+            return value;
+        }
+        free(value);
+        capacity = length;
+    }
+    return NULL;
+}
+
 static wchar_t *search_path(const wchar_t *name) {
+    wchar_t *environment_path = environment_value(L"PATH");
+    if (!environment_path) {
+        return NULL;
+    }
+
     DWORD capacity = 512;
     for (;;) {
         wchar_t *path = calloc(capacity, sizeof(*path));
         if (!path) {
+            free(environment_path);
             return NULL;
         }
-        DWORD length = SearchPathW(NULL, name, NULL, capacity, path, NULL);
+        DWORD length = SearchPathW(environment_path, name, NULL, capacity, path, NULL);
         if (!length) {
             free(path);
+            free(environment_path);
             return NULL;
         }
         if (length < capacity) {
+            free(environment_path);
             return path;
         }
         free(path);
@@ -238,49 +264,92 @@ static wchar_t *pkgconf_path(const wchar_t *path) {
     return normalized;
 }
 
+static int configure_environment(const wchar_t *root, const wchar_t *libdir) {
+    static const wchar_t *variables_to_clear[] = {
+        L"PKG_CONFIG_DIR",
+        L"PKG_CONFIG_PATH",
+        L"PKG_CONFIG_SYSROOT_DIR",
+        L"PKG_CONFIG_PRELOADED_FILES",
+        L"PKG_CONFIG_MSVC_SYNTAX",
+        L"PKG_CONFIG_SYSTEM_INCLUDE_PATH",
+        L"PKG_CONFIG_SYSTEM_LIBRARY_PATH",
+    };
+
+    if (!SetEnvironmentVariableW(L"VITASDK", root)) {
+        return 0;
+    }
+    for (size_t index = 0; index < sizeof(variables_to_clear) / sizeof(variables_to_clear[0]);
+         index++) {
+        if (!SetEnvironmentVariableW(variables_to_clear[index], NULL)) {
+            return 0;
+        }
+    }
+    return SetEnvironmentVariableW(L"PKG_CONFIG_LIBDIR", libdir);
+}
+
 static int run_backend(const wchar_t *backend, int argc, wchar_t **argv,
                        const wchar_t *define_argument, DWORD *exit_code) {
     WideBuffer command_line = {0};
+    STARTUPINFOW startup = {0};
+    PROCESS_INFORMATION process = {0};
+    DWORD wait_result = WAIT_FAILED;
+    DWORD error = ERROR_SUCCESS;
+    int success = 0;
     int version_only = argc > 1 && wcscmp(argv[1], L"--version") == 0;
 
     if (!buffer_append_argument(&command_line, backend)) {
-        free(command_line.data);
-        return 0;
+        error = ERROR_NOT_ENOUGH_MEMORY;
+        goto cleanup;
     }
     if (version_only) {
         if (!buffer_append_argument(&command_line, L"--version")) {
-            free(command_line.data);
-            return 0;
+            error = ERROR_NOT_ENOUGH_MEMORY;
+            goto cleanup;
         }
     } else {
         if (!buffer_append_argument(&command_line, define_argument) ||
             !buffer_append_argument(&command_line, L"--define-prefix") ||
             !buffer_append_argument(&command_line, L"--static")) {
-            free(command_line.data);
-            return 0;
+            error = ERROR_NOT_ENOUGH_MEMORY;
+            goto cleanup;
         }
         for (int index = 1; index < argc; index++) {
             if (!buffer_append_argument(&command_line, argv[index])) {
-                free(command_line.data);
-                return 0;
+                error = ERROR_NOT_ENOUGH_MEMORY;
+                goto cleanup;
             }
         }
     }
 
-    STARTUPINFOW startup = {0};
-    PROCESS_INFORMATION process = {0};
     startup.cb = sizeof(startup);
     if (!CreateProcessW(backend, command_line.data, NULL, NULL, TRUE, 0, NULL, NULL,
                         &startup, &process)) {
-        free(command_line.data);
-        return 0;
+        error = GetLastError();
+        goto cleanup;
+    }
+
+    wait_result = WaitForSingleObject(process.hProcess, INFINITE);
+    if (wait_result != WAIT_OBJECT_0) {
+        error = wait_result == WAIT_FAILED ? GetLastError() : ERROR_GEN_FAILURE;
+        goto cleanup;
+    }
+    if (!GetExitCodeProcess(process.hProcess, exit_code)) {
+        error = GetLastError();
+        goto cleanup;
+    }
+    success = 1;
+
+cleanup:
+    if (process.hThread) {
+        CloseHandle(process.hThread);
+    }
+    if (process.hProcess) {
+        CloseHandle(process.hProcess);
     }
     free(command_line.data);
-
-    DWORD wait_result = WaitForSingleObject(process.hProcess, INFINITE);
-    int success = wait_result == WAIT_OBJECT_0 && GetExitCodeProcess(process.hProcess, exit_code);
-    CloseHandle(process.hThread);
-    CloseHandle(process.hProcess);
+    if (!success) {
+        SetLastError(error ? error : ERROR_GEN_FAILURE);
+    }
     return success;
 }
 
@@ -292,38 +361,22 @@ int wmain(int argc, wchar_t **argv) {
     wchar_t *bundled_backend = bin_directory ? join_path(bin_directory, L"pkgconf.exe") : NULL;
     wchar_t *libdir = normalized_root ? make_libdir(normalized_root) : NULL;
     wchar_t *define_argument = normalized_root ? make_define_argument(normalized_root) : NULL;
+    wchar_t *backend = NULL;
+    DWORD exit_code = 127;
 
     if (!executable || !bin_directory || !root || !normalized_root || !bundled_backend || !libdir ||
         !define_argument) {
         fwprintf(stderr, L"arm-vita-eabi-pkg-config: unable to determine the VitaSDK installation root\n");
-        free(define_argument);
-        free(libdir);
-        free(bundled_backend);
-        free(normalized_root);
-        free(root);
-        free(bin_directory);
-        free(executable);
-        return 127;
+        goto cleanup;
     }
 
-    if (!SetEnvironmentVariableW(L"VITASDK", normalized_root) ||
-        !SetEnvironmentVariableW(L"PKG_CONFIG_DIR", NULL) ||
-        !SetEnvironmentVariableW(L"PKG_CONFIG_PATH", NULL) ||
-        !SetEnvironmentVariableW(L"PKG_CONFIG_SYSROOT_DIR", NULL) ||
-        !SetEnvironmentVariableW(L"PKG_CONFIG_LIBDIR", libdir)) {
+    if (!configure_environment(normalized_root, libdir)) {
+        DWORD error = GetLastError();
         fwprintf(stderr, L"arm-vita-eabi-pkg-config: unable to configure the pkgconf environment (%lu)\n",
-                 GetLastError());
-        free(define_argument);
-        free(libdir);
-        free(bundled_backend);
-        free(normalized_root);
-        free(root);
-        free(bin_directory);
-        free(executable);
-        return 127;
+                 error);
+        goto cleanup;
     }
 
-    wchar_t *backend = NULL;
     if (regular_file_exists(bundled_backend)) {
         backend = _wcsdup(bundled_backend);
     } else {
@@ -333,15 +386,16 @@ int wmain(int argc, wchar_t **argv) {
         }
     }
 
-    DWORD exit_code = 127;
     if (!backend) {
         fwprintf(stderr, L"arm-vita-eabi-pkg-config: pkgconf.exe is not installed\n");
     } else if (!run_backend(backend, argc, argv, define_argument, &exit_code)) {
+        DWORD error = GetLastError();
         fwprintf(stderr, L"arm-vita-eabi-pkg-config: unable to execute pkgconf backend '%ls' (%lu)\n",
-                 backend, GetLastError());
+                 backend, error);
         exit_code = 127;
     }
 
+cleanup:
     free(backend);
     free(define_argument);
     free(libdir);
