@@ -33,3 +33,17 @@ jobs:
       with:
         name: vita-toolchain-${{ steps.core.outputs.sha8 }}
         path: ./vita-toolchain/usr/local/
+
+  pkgconfig-windows:
+    runs-on: windows-2025
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
+    - name: Build and test the native pkg-config frontend
+      shell: pwsh
+      run: |
+        cmake -S test/pkgconfig-windows -B build-pkgconfig `
+          -DVITA_TOOLCHAIN_SOURCE="$PWD"
+        cmake --build build-pkgconfig --config Release
+        ctest --test-dir build-pkgconfig -C Release --output-on-failure

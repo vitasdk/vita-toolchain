@@ -31,3 +31,7 @@ add_test(NAME test_cmake_sourcepath
 add_test(NAME test_cmake_secretsafe
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_cmake_secretsafe.py ${CMAKE_SOURCE_DIR}/cmake_toolchain/vita.cmake
 )
+
+add_test(NAME test_pkg_config_unix
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_pkg_config_unix.py ${CMAKE_SOURCE_DIR}/pkgconfig/arm-vita-eabi-pkg-config
+)
