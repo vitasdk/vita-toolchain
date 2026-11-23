@@ -65,6 +65,8 @@ include(CMakeParseArguments)
 macro(vita_create_self target source)
   set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS}" CACHE STRING "vita-elf-create flags")
   set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS}" CACHE STRING "vita-make-fself flags")
+  set(_vita_create_self_elf_create_flags "${VITA_ELF_CREATE_FLAGS}")
+  set(_vita_create_self_make_fself_flags "${VITA_MAKE_FSELF_FLAGS}")
 
   set(options UNCOMPRESSED UNSAFE SECRETSAFE STRIPPED NOASLR REL_OPTIMIZE)
   set(oneValueArgs CONFIG GEN_EXPORTS ATTRIBUTE MEMSIZE MODULE_ENTRY)
@@ -80,35 +82,35 @@ macro(vita_create_self target source)
 
   if(vita_create_self_CONFIG)
     get_filename_component(fconfig ${vita_create_self_CONFIG} ABSOLUTE)
-    set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -e ${fconfig}")
+    set(_vita_create_self_elf_create_flags "${_vita_create_self_elf_create_flags} -e ${fconfig}")
   endif()
   if(vita_create_self_GEN_EXPORTS)
     get_filename_component(fconfig ${vita_create_self_GEN_EXPORTS} ABSOLUTE)
-    set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -g ${fconfig}")
+    set(_vita_create_self_elf_create_flags "${_vita_create_self_elf_create_flags} -g ${fconfig}")
   endif()
   if(vita_create_self_MODULE_ENTRY)
-    set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -m ${vita_create_self_MODULE_ENTRY}")
+    set(_vita_create_self_elf_create_flags "${_vita_create_self_elf_create_flags} -m ${vita_create_self_MODULE_ENTRY}")
   endif()
   if(vita_create_self_STRIPPED)
-    set(VITA_ELF_CREATE_FLAGS "${VITA_ELF_CREATE_FLAGS} -s")
+    set(_vita_create_self_elf_create_flags "${_vita_create_self_elf_create_flags} -s")
   endif()
   if(NOT vita_create_self_UNCOMPRESSED)
-    set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -c")
+    set(_vita_create_self_make_fself_flags "${_vita_create_self_make_fself_flags} -c")
   endif()
   if(vita_create_self_ATTRIBUTE)
-    set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -at ${vita_create_self_ATTRIBUTE}")
+    set(_vita_create_self_make_fself_flags "${_vita_create_self_make_fself_flags} -at ${vita_create_self_ATTRIBUTE}")
   endif()
   if(vita_create_self_MEMSIZE)
-    set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -m ${vita_create_self_MEMSIZE}")
+    set(_vita_create_self_make_fself_flags "${_vita_create_self_make_fself_flags} -m ${vita_create_self_MEMSIZE}")
   endif()
   if(vita_create_self_SECRETSAFE)
-    set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -ss")
+    set(_vita_create_self_make_fself_flags "${_vita_create_self_make_fself_flags} -ss")
   elseif(NOT vita_create_self_UNSAFE)
-    set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -s")
+    set(_vita_create_self_make_fself_flags "${_vita_create_self_make_fself_flags} -s")
   endif()
 
   if(vita_create_self_NOASLR)
-    set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -na")
+    set(_vita_create_self_make_fself_flags "${_vita_create_self_make_fself_flags} -na")
   endif()
 
   ## check source for being a target, otherwise it is a file path
@@ -123,7 +125,7 @@ macro(vita_create_self target source)
   endif()
 
   ## VELF command
-  separate_arguments(_elf_create_flags NATIVE_COMMAND "${VITA_ELF_CREATE_FLAGS}")
+  separate_arguments(_elf_create_flags NATIVE_COMMAND "${_vita_create_self_elf_create_flags}")
 
   if(vita_create_self_REL_OPTIMIZE)
     if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
@@ -203,7 +205,7 @@ macro(vita_create_self target source)
   set(self_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
 
   ## SELF command
-  separate_arguments(_make_fself_flags NATIVE_COMMAND "${VITA_MAKE_FSELF_FLAGS}")
+  separate_arguments(_make_fself_flags NATIVE_COMMAND "${_vita_create_self_make_fself_flags}")
 
   if(vita_create_self_REL_OPTIMIZE)
     add_custom_command(OUTPUT ${self_outfile}
@@ -243,6 +245,11 @@ macro(vita_create_self target source)
       add_dependencies(${target}-self ${source})
     endif()
   endif()
+
+  unset(_vita_create_self_elf_create_flags)
+  unset(_vita_create_self_make_fself_flags)
+  unset(_elf_create_flags)
+  unset(_make_fself_flags)
 endmacro(vita_create_self)
 ##################################################
 
@@ -375,6 +382,9 @@ endmacro(vita_create_stubs)
 macro(vita_create_vpk target titleid eboot)
   set(VITA_MKSFOEX_FLAGS "${VITA_MKSFOEX_FLAGS}" CACHE STRING "vita-mksfoex flags")
   set(VITA_PACK_VPK_FLAGS "${VITA_PACK_VPK_FLAGS}" CACHE STRING "vita-pack-vpk flags")
+  set(_vita_create_vpk_mksfoex_flags "${VITA_MKSFOEX_FLAGS}")
+  set(_vita_create_vpk_pack_vpk_flags "${VITA_PACK_VPK_FLAGS}")
+  set(_vita_create_vpk_resources)
 
   set(oneValueArgs VERSION NAME)
   set(multiValueArgs FILE)
@@ -388,9 +398,9 @@ macro(vita_create_vpk target titleid eboot)
     list(GET vita_create_vpk_FILE 0 fname)
     list(GET vita_create_vpk_FILE 1 fdest)
     get_filename_component(fpath ${fname} ABSOLUTE)
-    list(APPEND resources "${fpath}")
+    list(APPEND _vita_create_vpk_resources "${fpath}")
     list(REMOVE_AT vita_create_vpk_FILE 0 1)
-    set(VITA_PACK_VPK_FLAGS "${VITA_PACK_VPK_FLAGS} -a ${fpath}=${fdest}")
+    set(_vita_create_vpk_pack_vpk_flags "${_vita_create_vpk_pack_vpk_flags} -a ${fpath}=${fdest}")
     list(LENGTH vita_create_vpk_FILE left)
   endwhile()
 
@@ -399,9 +409,9 @@ macro(vita_create_vpk target titleid eboot)
     if(NOT IS_VALID_VERSION)
         message(FATAL_ERROR "Invalid version '${vita_create_vpk_VERSION}' change to format ##.##")
     endif()
-    set(VITA_MKSFOEX_FLAGS "${VITA_MKSFOEX_FLAGS} -s APP_VER=${vita_create_vpk_VERSION}")
+    set(_vita_create_vpk_mksfoex_flags "${_vita_create_vpk_mksfoex_flags} -s APP_VER=${vita_create_vpk_VERSION}")
   endif()
-  set(VITA_MKSFOEX_FLAGS "${VITA_MKSFOEX_FLAGS} -s TITLE_ID=${titleid}")
+  set(_vita_create_vpk_mksfoex_flags "${_vita_create_vpk_mksfoex_flags} -s TITLE_ID=${titleid}")
   if(NOT vita_create_vpk_NAME)
     set(vita_create_vpk_NAME "${PROJECT_NAME}")
   endif()
@@ -417,7 +427,7 @@ macro(vita_create_vpk target titleid eboot)
   get_filename_component(sourcefile ${sourcepath} NAME)
 
   ## PARAM.SFO command
-  separate_arguments(_mkfoex_flags NATIVE_COMMAND "${VITA_MKSFOEX_FLAGS}")
+  separate_arguments(_mkfoex_flags NATIVE_COMMAND "${_vita_create_vpk_mksfoex_flags}")
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     COMMAND ${VITA_MKSFOEX} ${_mkfoex_flags} ${vita_create_vpk_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
@@ -428,12 +438,12 @@ macro(vita_create_vpk target titleid eboot)
   set(vpk_outfile ${CMAKE_CURRENT_BINARY_DIR}/${target}.out)
 
   ## VPK command
-  separate_arguments(_pack_vpk_flags NATIVE_COMMAND "${VITA_PACK_VPK_FLAGS}")
+  separate_arguments(_pack_vpk_flags NATIVE_COMMAND "${_vita_create_vpk_pack_vpk_flags}")
   add_custom_command(OUTPUT ${vpk_outfile}
     COMMAND ${VITA_PACK_VPK} ${_pack_vpk_flags} -s ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo -b ${sourcepath} ${vpk_outfile}
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target}_param.sfo
     DEPENDS ${sourcepath}
-    DEPENDS ${resources}
+    DEPENDS ${_vita_create_vpk_resources}
     COMMENT "Building vpk ${target}"
   )
 
@@ -460,5 +470,11 @@ macro(vita_create_vpk target titleid eboot)
       add_dependencies(${target}-vpk ${eboot})
     endif()
   endif()
+
+  unset(_vita_create_vpk_mksfoex_flags)
+  unset(_vita_create_vpk_pack_vpk_flags)
+  unset(_mkfoex_flags)
+  unset(_pack_vpk_flags)
+  unset(_vita_create_vpk_resources)
 endmacro(vita_create_vpk)
 ##################################################
