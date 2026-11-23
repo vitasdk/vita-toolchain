@@ -12,10 +12,8 @@ set(VITA_PACK_VPK "echo")
 
 include(${VITA_CMAKE})
 
-# SELF_FLAG picks which vita_create_self option to exercise: this fixture is
-# configured fresh (one macro call per configure) once per flag combination,
-# since calling the macro more than once in the same project leaks flags
-# between calls (vitasdk/vita-toolchain#289) — unrelated to what's tested here.
+# SELF_FLAG picks which vita_create_self option to exercise. This fixture uses a
+# fresh configure for each combination so each assertion has one command to read.
 set(SELF_FLAG "" CACHE STRING "vita_create_self option under test")
 
 add_executable(mytarget dummy.c)
