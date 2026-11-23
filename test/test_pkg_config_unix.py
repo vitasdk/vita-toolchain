@@ -40,6 +40,76 @@ def invoke(wrapper: Path, env: dict[str, str], *arguments: str) -> tuple[subproc
     return result, payload
 
 
+def test_real_pkgconf(source_wrapper: Path) -> None:
+    pkgconf = shutil.which("pkgconf")
+    assert pkgconf is not None, "pkgconf is required for the Unix frontend integration test"
+
+    with tempfile.TemporaryDirectory(prefix="vita sdk real pkgconf ") as temporary:
+        root = Path(temporary)
+        bin_dir = root / "bin"
+        lib_pc = root / "arm-vita-eabi" / "lib" / "pkgconfig"
+        share_pc = root / "arm-vita-eabi" / "share" / "pkgconfig"
+        for directory in (bin_dir, lib_pc, share_pc):
+            directory.mkdir(parents=True, exist_ok=True)
+
+        wrapper = bin_dir / "arm-vita-eabi-pkg-config"
+        shutil.copy2(source_wrapper, wrapper)
+        wrapper.chmod(wrapper.stat().st_mode | stat.S_IXUSR)
+        (bin_dir / "pkgconf").symlink_to(pkgconf)
+
+        (lib_pc / "vitasdk-wrapper-probe.pc").write_text(
+            "prefix=${VITASDK}/arm-vita-eabi\n"
+            "exec_prefix=${prefix}\n"
+            "libdir=${exec_prefix}/lib\n"
+            "includedir=${prefix}/include\n"
+            "Name: vitasdk-wrapper-probe\n"
+            "Description: VitaSDK pkg-config frontend integration test\n"
+            "Version: 1.0\n"
+            "Libs: -L${libdir} -lprobe\n"
+            "Cflags: -I${includedir}/probe\n",
+            encoding="utf-8",
+        )
+
+        env = os.environ.copy()
+        env.update(
+            {
+                "VITASDK": str(root),
+                "PKG_CONFIG_DIR": "polluted-dir",
+                "PKG_CONFIG_PATH": "polluted-path",
+                "PKG_CONFIG_SYSROOT_DIR": "polluted-sysroot",
+                "PKG_CONFIG_PRELOADED_FILES": "polluted-preloaded",
+                "PKG_CONFIG_MSVC_SYNTAX": "1",
+                "PKG_CONFIG_SYSTEM_INCLUDE_PATH": "polluted-system-include",
+                "PKG_CONFIG_SYSTEM_LIBRARY_PATH": "polluted-system-library",
+                "PKG_CONFIG_LIBDIR": "polluted-libdir",
+            }
+        )
+
+        cflags = subprocess.run(
+            [str(wrapper), "--cflags", "vitasdk-wrapper-probe"],
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert cflags.returncode == 0, cflags.stderr
+        assert cflags.stdout.strip().startswith("-I"), cflags.stdout
+        assert "/arm-vita-eabi/include/probe" in cflags.stdout, cflags.stdout
+
+        libs = subprocess.run(
+            [str(wrapper), "--libs", "vitasdk-wrapper-probe"],
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert libs.returncode == 0, libs.stderr
+        assert libs.stdout.strip().startswith("-L"), libs.stdout
+        assert "-lprobe" in libs.stdout, libs.stdout
+        assert "/libpath:" not in libs.stdout, libs.stdout
+        assert "probe.lib" not in libs.stdout, libs.stdout
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_pkg_config_unix.py <wrapper>")
@@ -89,13 +159,13 @@ def main() -> None:
             "--define-variable=note=a b",
         ]
         assert payload["env"] == {
-            "PKG_CONFIG_DIR": "",
-            "PKG_CONFIG_PATH": "",
-            "PKG_CONFIG_SYSROOT_DIR": "",
-            "PKG_CONFIG_PRELOADED_FILES": "",
-            "PKG_CONFIG_MSVC_SYNTAX": "",
-            "PKG_CONFIG_SYSTEM_INCLUDE_PATH": "",
-            "PKG_CONFIG_SYSTEM_LIBRARY_PATH": "",
+            "PKG_CONFIG_DIR": None,
+            "PKG_CONFIG_PATH": None,
+            "PKG_CONFIG_SYSROOT_DIR": None,
+            "PKG_CONFIG_PRELOADED_FILES": None,
+            "PKG_CONFIG_MSVC_SYNTAX": None,
+            "PKG_CONFIG_SYSTEM_INCLUDE_PATH": None,
+            "PKG_CONFIG_SYSTEM_LIBRARY_PATH": None,
             "PKG_CONFIG_LIBDIR": f"{lib_pc}:{share_pc}",
         }
 
@@ -126,6 +196,7 @@ def main() -> None:
         assert result.returncode == 127
         assert result.stderr.strip() == "arm-vita-eabi-pkg-config: pkg-config is not installed. Aborting."
 
+    test_real_pkgconf(source_wrapper)
     print("test_pkg_config_unix: ALL TESTS PASSED")
 
 
