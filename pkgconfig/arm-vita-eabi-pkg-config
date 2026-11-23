@@ -14,15 +14,12 @@ if [[ ! -x "${backend}" ]]; then
   fi
 fi
 
-# reset pkg-config variables to ensure we're not polluted by host libraries
+# Remove host pkg-config settings instead of exporting empty values: pkgconf
+# treats the presence of PKG_CONFIG_MSVC_SYNTAX as enabling MSVC output.
 
-export PKG_CONFIG_DIR=
-export PKG_CONFIG_PATH=
-export PKG_CONFIG_SYSROOT_DIR=
-export PKG_CONFIG_PRELOADED_FILES=
-export PKG_CONFIG_MSVC_SYNTAX=
-export PKG_CONFIG_SYSTEM_INCLUDE_PATH=
-export PKG_CONFIG_SYSTEM_LIBRARY_PATH=
+unset PKG_CONFIG_DIR PKG_CONFIG_PATH PKG_CONFIG_SYSROOT_DIR \
+  PKG_CONFIG_PRELOADED_FILES PKG_CONFIG_MSVC_SYNTAX \
+  PKG_CONFIG_SYSTEM_INCLUDE_PATH PKG_CONFIG_SYSTEM_LIBRARY_PATH
 
 export PKG_CONFIG_LIBDIR="${VITASDK}/arm-vita-eabi/lib/pkgconfig:${VITASDK}/arm-vita-eabi/share/pkgconfig"
 

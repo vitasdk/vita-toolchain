@@ -89,13 +89,13 @@ def main() -> None:
             "--define-variable=note=a b",
         ]
         assert payload["env"] == {
-            "PKG_CONFIG_DIR": "",
-            "PKG_CONFIG_PATH": "",
-            "PKG_CONFIG_SYSROOT_DIR": "",
-            "PKG_CONFIG_PRELOADED_FILES": "",
-            "PKG_CONFIG_MSVC_SYNTAX": "",
-            "PKG_CONFIG_SYSTEM_INCLUDE_PATH": "",
-            "PKG_CONFIG_SYSTEM_LIBRARY_PATH": "",
+            "PKG_CONFIG_DIR": None,
+            "PKG_CONFIG_PATH": None,
+            "PKG_CONFIG_SYSROOT_DIR": None,
+            "PKG_CONFIG_PRELOADED_FILES": None,
+            "PKG_CONFIG_MSVC_SYNTAX": None,
+            "PKG_CONFIG_SYSTEM_INCLUDE_PATH": None,
+            "PKG_CONFIG_SYSTEM_LIBRARY_PATH": None,
             "PKG_CONFIG_LIBDIR": f"{lib_pc}:{share_pc}",
         }
 
