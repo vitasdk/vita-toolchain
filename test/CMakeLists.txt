@@ -35,3 +35,17 @@ add_test(NAME test_cmake_secretsafe
 add_test(NAME test_pkg_config_unix
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_pkg_config_unix.py ${CMAKE_SOURCE_DIR}/pkgconfig/arm-vita-eabi-pkg-config
 )
+
+add_test(NAME test_cmake_host_tools
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cmake_host_tools.py
+    ${CMAKE_SOURCE_DIR}/cmake_toolchain/vita.cmake
+    ${CMAKE_SOURCE_DIR}/cmake_toolchain/vita.toolchain.cmake
+)
+
+add_test(NAME test_cmake_stubs
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_cmake_stubs.py
+    ${CMAKE_SOURCE_DIR}/cmake_toolchain/vita.cmake
+    $<TARGET_FILE:vita-libs-gen>
+)

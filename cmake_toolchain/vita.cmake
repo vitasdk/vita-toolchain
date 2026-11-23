@@ -129,7 +129,7 @@ macro(vita_create_self target source)
     if(${CMAKE_VERSION} VERSION_LESS "3.20.0")
       add_custom_target(${targetname} ALL
         COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-        COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+        COMMAND ${VITA_PSP2RELA} -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
         DEPENDS ${sourcepath}
         COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
       )
@@ -148,7 +148,7 @@ macro(vita_create_self target source)
       if(vita_create_self_GEN_EXPORTS)
         add_custom_target(${targetname} ALL
           COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-          COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMAND ${VITA_PSP2RELA} -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
           BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${fconfig}
           COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
@@ -156,7 +156,7 @@ macro(vita_create_self target source)
       else()
         add_custom_target(${targetname} ALL
           COMMAND ${VITA_ELF_CREATE} ${_elf_create_flags} ${sourcepath} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
-          COMMAND psp2rela -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
+          COMMAND ${VITA_PSP2RELA} -src=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf -dst=${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           DEPENDS ${sourcepath}
           BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
           COMMENT "Converting to Sony ELF ${sourcefile}.velf" VERBATIM
@@ -208,15 +208,17 @@ macro(vita_create_self target source)
   if(vita_create_self_REL_OPTIMIZE)
     add_custom_command(OUTPUT ${self_outfile}
       COMMAND ${VITA_MAKE_FSELF} ${_make_fself_flags} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
-      COMMAND psp2rela -src=${self_outfile} -dst=${self_outfile}
+      COMMAND ${VITA_PSP2RELA} -src=${self_outfile} -dst=${self_outfile}
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
       COMMENT "Creating SELF ${target}"
+      VERBATIM
     )
   else()
     add_custom_command(OUTPUT ${self_outfile}
       COMMAND ${VITA_MAKE_FSELF} ${_make_fself_flags} ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf ${self_outfile}
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${sourcefile}.velf
       COMMENT "Creating SELF ${target}"
+      VERBATIM
     )
   endif()
 
@@ -309,6 +311,7 @@ macro(vita_create_stubs target-dir source config)
     DEPENDS ${sourcepath}
     DEPENDS ${fconfig}
     COMMENT "Generating imports YAML for ${sourcefile}"
+    VERBATIM
   )
 
   ## ELF EXPORT target
@@ -316,19 +319,69 @@ macro(vita_create_stubs target-dir source config)
 
   set(stub_lib lib${target-lib}_stub.a)
   set(stub_weak_lib lib${target-lib}_stub_weak.a)
+  set(_vita_stubs_source_dir "${CMAKE_CURRENT_BINARY_DIR}/${target-dir}")
+  set(_vita_stubs_build_dir "${CMAKE_CURRENT_BINARY_DIR}/${target-dir}-build")
+  set(_vita_stubs_output "${CMAKE_CURRENT_BINARY_DIR}/${stub_lib}")
+  set(_vita_stubs_weak_output "${CMAKE_CURRENT_BINARY_DIR}/${stub_weak_lib}")
+  set(_vita_stubs_stamp "${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.stamp")
+
+  set(_vita_stubs_configure_args
+    -S "${_vita_stubs_source_dir}"
+    -B "${_vita_stubs_build_dir}"
+    -G "${CMAKE_GENERATOR}"
+  )
+  if(CMAKE_GENERATOR_PLATFORM)
+    list(APPEND _vita_stubs_configure_args -A "${CMAKE_GENERATOR_PLATFORM}")
+  endif()
+  if(CMAKE_GENERATOR_TOOLSET)
+    list(APPEND _vita_stubs_configure_args -T "${CMAKE_GENERATOR_TOOLSET}")
+  endif()
+  if(CMAKE_MAKE_PROGRAM)
+    list(APPEND _vita_stubs_configure_args "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}")
+  endif()
+  if(CMAKE_TOOLCHAIN_FILE)
+    list(APPEND _vita_stubs_configure_args "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}")
+  endif()
+  if(CMAKE_BUILD_TYPE)
+    list(APPEND _vita_stubs_configure_args "-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}")
+  endif()
+  list(APPEND _vita_stubs_configure_args
+    "-DVITA_STUBS_OUTPUT_DIRECTORY:PATH=${_vita_stubs_source_dir}"
+  )
+
+  set(_vita_stubs_build_args --build "${_vita_stubs_build_dir}")
+  if(CMAKE_CONFIGURATION_TYPES)
+    list(APPEND _vita_stubs_build_args --config "$<CONFIG>")
+  endif()
+
+  add_custom_command(
+    OUTPUT "${_vita_stubs_stamp}"
+    COMMAND ${VITA_LIBS_GEN} -c ${_libs_gen_flags} "${target_yml}" "${_vita_stubs_source_dir}"
+    COMMAND ${CMAKE_COMMAND} ${_vita_stubs_configure_args}
+    COMMAND ${CMAKE_COMMAND} ${_vita_stubs_build_args}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${_vita_stubs_source_dir}/${stub_lib}"
+      "${_vita_stubs_output}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${_vita_stubs_source_dir}/${stub_weak_lib}"
+      "${_vita_stubs_weak_output}"
+    COMMAND ${CMAKE_COMMAND} -E touch "${_vita_stubs_stamp}"
+    DEPENDS "${target_yml}"
+    COMMENT "Building stubs ${target-dir}"
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+  )
 
   add_custom_target(${target-dir}
     ALL
-    COMMAND ${VITA_LIBS_GEN} ${_libs_gen_flags} ${target_yml} ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
-    COMMAND make -C ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}
-    COMMAND ${CMAKE_COMMAND} -E copy
-      "${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_lib}"
-      "${CMAKE_CURRENT_BINARY_DIR}/${stub_lib}"
-    COMMAND ${CMAKE_COMMAND} -E copy
-      "${CMAKE_CURRENT_BINARY_DIR}/${target-dir}/${stub_weak_lib}"
-      "${CMAKE_CURRENT_BINARY_DIR}/${stub_weak_lib}"
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${target-dir}.yml
-    COMMENT "Building stubs ${target-dir}"
+    DEPENDS "${_vita_stubs_stamp}"
+  )
+
+  set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES
+    "${_vita_stubs_source_dir}"
+    "${_vita_stubs_build_dir}"
+    "${_vita_stubs_output}"
+    "${_vita_stubs_weak_output}"
   )
 
   add_custom_target(${stub_lib}
